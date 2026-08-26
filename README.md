@@ -1,9 +1,11 @@
 # 多模态图文数据清洗与向量检索 Pipeline
 
+[![CI](https://github.com/quannie/mm-curation-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/quannie/mm-curation-pipeline/actions/workflows/ci.yml)
+
 面向中文多模态大模型训练数据场景的端到端数据管道：**脏数据进 → 漏斗式多算子清洗 →
 质量可量化 → 向量索引 → 检索服务 → 清洗收益可证明**。
 
-> 状态：🚧 WIP（Week 3 / 4）。路线图见 [docs/ROADMAP.md](docs/ROADMAP.md)。
+> 状态：✅ 主线完成（Week 1-4）。路线图见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
 ## 架构总览
 
