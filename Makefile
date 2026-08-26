@@ -34,6 +34,9 @@ threshold-scan: ## 阈值敏感性扫描（含 matplotlib 图表）
 eval-sampling: ## 采样策略对比（随机 vs 分层，固定预算下游检索指标）
 	python scripts/eval_sampling.py
 
+eval-ablation: ## 消融实验（逐个 + 分组移除算子，测检索指标变化）
+	python scripts/eval_ablation.py
+
 INDEXES := data/indexes
 
 index-clean: ## 构建净索引（漏斗产出，~1.6k 条，GPU 编码）
