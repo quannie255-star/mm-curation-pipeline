@@ -45,6 +45,9 @@ index-dirty: ## 构建脏索引（污染全集，~2.1k 条，对比实验用）
 serve: ## 启动检索服务 (http://localhost:8000/docs)
 	uvicorn mm_curation.serving.api:app --app-dir src --host 0.0.0.0 --port 8000
 
+demo: ## 启动 Streamlit Demo (http://localhost:8501)
+	streamlit run scripts/streamlit_app.py
+
 test: ## 运行单元测试
 	pytest
 
