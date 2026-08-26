@@ -1,11 +1,31 @@
 # 多模态图文数据清洗与向量检索 Pipeline
 
 [![CI](https://github.com/quannie255-star/mm-curation-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/quannie255-star/mm-curation-pipeline/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 
 面向中文多模态大模型训练数据场景的端到端数据管道：**脏数据进 → 漏斗式多算子清洗 →
 质量可量化 → 向量索引 → 检索服务 → 清洗收益可证明**。
 
 > 状态：✅ 主线完成（Week 1-4）。路线图见 [docs/ROADMAP.md](docs/ROADMAP.md)。
+> 面试叙事见 [docs/INTERVIEW.md](docs/INTERVIEW.md)。
+
+## 核心结果（所有数字来自真实实验，可一键复现）
+
+| 实验 | 指标 | 数值 |
+|---|---|---|
+| **清洗收益**（脏 vs 净索引对比） | Recall@1 | **0.459 → 0.556（+21%）** |
+| | MRR | 0.599 → 0.670 |
+| | Recall@10 | 0.874 → 0.901 |
+| **配比收益**（分层 vs 随机采样，budget=1000） | Recall@1 | **0.353 → 0.437（+24%）** |
+| **漏斗**（11 级算子，2106 → 1585） | 脏数据召回 / 误杀 | **100% / 2.16%** |
+| **消融归因**（分组消融） | 去重组贡献 | **R@1 -0.017**（唯一显著组） |
+| **算子级评测**（独立评测口径） | phash_near 主靶 recall / 误杀 | 84% / 0.24% |
+| | clip_alignment 主靶 recall / 误杀 | 96% / 0.19% |
+| **工程** | 单元测试 | 86 passing |
+
+> 灵魂叙事：**脏数据 → 11 级漏斗 → 干净集（R@1 +21%）→ 分层采样（再 +18~24%）**——
+> 两步叠加的复合收益可证、可复现、可归因。
 
 ## 架构总览
 
@@ -70,5 +90,11 @@ data/             # raw / interim / processed / reports（git 忽略，DVC 管�
 
 ## 设计文档
 
-- [项目路线图](docs/ROADMAP.md)
+- [项目路线图](docs/ROADMAP.md) — 周计划 + 进度记录 + 阈值校准
 - [岗位 JD 调研与能力映射](docs/JD_RESEARCH.md)
+- [面试叙事（STAR + 预想追问）](docs/INTERVIEW.md)
+- [工程笔记（环境踩坑）](docs/ENGINEERING_NOTES.md)
+
+## License
+
+[MIT](LICENSE)
