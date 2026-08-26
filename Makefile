@@ -1,4 +1,4 @@
-.PHONY: help venv install install-gpu test lint fmt data data-download data-contaminate funnel eval-op threshold-scan airflow-build airflow-up airflow-down airflow-logs
+.PHONY: help venv install install-gpu test lint fmt data data-download data-contaminate funnel eval-op threshold-scan eval-sampling airflow-build airflow-up airflow-down airflow-logs
 
 help: ## 显示本帮助
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -30,6 +30,9 @@ eval-op: ## 算子级 P/R 独立评测（全量脏集，独立运行每个算子
 
 threshold-scan: ## 阈值敏感性扫描（含 matplotlib 图表）
 	python scripts/threshold_scan.py
+
+eval-sampling: ## 采样策略对比（随机 vs 分层，固定预算下游检索指标）
+	python scripts/eval_sampling.py
 
 INDEXES := data/indexes
 

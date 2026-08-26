@@ -1,9 +1,13 @@
-"""端到端 DAG：下载/准备 → 污染 → 清洗漏斗 → 建索引 → 评测 → 质量报告。
+"""端到端 DAG：下载 → 污染 → 清洗 → 建索引 → 评测 → 采样对比 → 报告。
 
-各阶段随 ROADMAP 周计划逐步落地为真实命令；当前为骨架，
-未实现的阶段以 SCAFFOLD 标记的占位任务呈现（成功退出、输出说明文字），
-保证 Day1 起 DAG 结构可见、依赖关系可讲。
+D5 收官：全部阶段从 SCAFFOLD 占位换成真实 make 命令，一键复现整条管道。
+LocalExecutor 单机跑通，重计算（CLIP 批量推理）在宿主机 GPU venv 完成；
+容器负责 DAG 编排与 CPU 可承受的规则算子（算力分级，见 docs/ROADMAP.md）。
+
+各阶段产物落 data/ 对应子目录（git 忽略，DVC 管理）：
+  raw/ → interim/ → processed/ → indexes/ + reports/
 """
+
 from __future__ import annotations
 
 import datetime
@@ -25,51 +29,86 @@ with DAG(
         "import mm_curation; print('mm_curation', mm_curation.__version__)\"",
     )
 
-    data_prepare = BashOperator(
-        task_id="data_prepare",
-        bash_command=(
-            'if [ -f /opt/airflow/scripts/download_dataset.py ]; then '
-            "python /opt/airflow/scripts/download_dataset.py "
-            "--out /opt/airflow/data/raw/samples.jsonl; "
-            'else echo "[SCAFFOLD] 数据下载脚本将在 Week1 D3 实现"; fi'
-        ),
+    # 1. 下载种子集：COCO-CN 标注 + 镜像原始 JPEG（幂等+并发+UA 镜像）
+    data_download = BashOperator(
+        task_id="data_download",
+        bash_command="python /opt/airflow/scripts/download_dataset.py",
     )
 
+    # 2. 注入 10 类可控脏数据 + ground truth 标注
     contaminate = BashOperator(
         task_id="contaminate",
         bash_command=(
-            'if [ -f /opt/airflow/scripts/contaminate.py ]; then '
             "python /opt/airflow/scripts/contaminate.py "
-            "--in /opt/airflow/data/raw/samples.jsonl "
-            "--out /opt/airflow/data/interim/contaminated.jsonl; "
-            'else echo "[SCAFFOLD] 污染器将在 Week1 D4 实现"; fi'
+            "--config /opt/airflow/configs/contamination.default.yaml"
         ),
     )
 
-    clean = BashOperator(
+    # 3. 清洗漏斗：11 级算子（L1 规则 + 去重四件套 + L2 CLIP）
+    clean_funnel = BashOperator(
         task_id="clean_funnel",
         bash_command=(
-            'if [ -f /opt/airflow/src/mm_curation/pipeline/runner.py ]; then '
-            "python -m mm_curation.pipeline.runner "
-            "--config /opt/airflow/configs/pipeline.example.yaml; "
-            'else echo "[SCAFFOLD] 漏斗执行器将在 Week2 D5 实现"; fi'
+            "python /opt/airflow/scripts/run_pipeline.py "
+            "--config /opt/airflow/configs/pipeline.example.yaml"
         ),
     )
 
-    build_index = BashOperator(
-        task_id="build_index",
-        bash_command='echo "[SCAFFOLD] FAISS 索引构建将在 Week3 D1 实现"',
+    # 4. 构建净索引（漏斗产出）+ 脏索引（污染全集，对比用）
+    build_clean_index = BashOperator(
+        task_id="build_clean_index",
+        bash_command=(
+            "python /opt/airflow/scripts/build_index.py --name clean_v2 "
+            "--input /opt/airflow/data/processed/cn_flickr_curation_v2/cleaned.jsonl "
+            "--out /opt/airflow/data/indexes"
+        ),
+    )
+    build_dirty_index = BashOperator(
+        task_id="build_dirty_index",
+        bash_command=(
+            "python /opt/airflow/scripts/build_index.py --name dirty_raw "
+            "--input /opt/airflow/data/interim/contaminated/samples.jsonl "
+            "--out /opt/airflow/data/indexes"
+        ),
     )
 
-    evaluate = BashOperator(
-        task_id="evaluate",
-        bash_command='echo "[SCAFFOLD] 检索评测与清洗收益对比将在 Week3 D3-4 实现"',
+    # 5. 检索对比评测：脏索引 vs 净索引（清洗收益的核心证据）
+    eval_retrieval = BashOperator(
+        task_id="eval_retrieval",
+        bash_command=(
+            "python /opt/airflow/scripts/eval_retrieval.py "
+            "--indexes clean_v2 dirty_raw --out /opt/airflow/data/reports/retrieval_eval.json"
+        ),
     )
 
-    quality_report = BashOperator(
-        task_id="quality_report",
-        bash_command='echo "[SCAFFOLD] 质量报告生成将在 Week2 D5 实现"',
+    # 6. 算子级 P/R 独立评测 + 阈值敏感性曲线
+    eval_operators = BashOperator(
+        task_id="eval_operators",
+        bash_command=(
+            "python /opt/airflow/scripts/eval_operators.py "
+            "--config /opt/airflow/configs/pipeline.example.yaml "
+            "--out /opt/airflow/data/reports/operator_pr.json"
+        ),
+    )
+    threshold_scan = BashOperator(
+        task_id="threshold_scan",
+        bash_command=(
+            "python /opt/airflow/scripts/threshold_scan.py "
+            "--out /opt/airflow/data/reports/threshold_scan.json"
+        ),
     )
 
-    bootstrap >> data_prepare >> contaminate >> clean >> build_index >> evaluate
-    clean >> quality_report
+    # 7. 采样策略对比：随机 vs 分层（配比采样的下游收益）
+    eval_sampling = BashOperator(
+        task_id="eval_sampling",
+        bash_command=(
+            "python /opt/airflow/scripts/eval_sampling.py "
+            "--budgets 1200 1000 800 "
+            "--out /opt/airflow/data/reports/sampling_eval.json"
+        ),
+    )
+
+    bootstrap >> data_download >> contaminate >> clean_funnel
+    clean_funnel >> build_clean_index >> eval_retrieval
+    contaminate >> build_dirty_index >> eval_retrieval
+    clean_funnel >> eval_operators >> threshold_scan
+    clean_funnel >> eval_sampling
