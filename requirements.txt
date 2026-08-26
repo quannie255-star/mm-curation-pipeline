@@ -1,0 +1,36 @@
+# 宿主机 venv 依赖（Python 3.11）。
+# 注意：torch 走 CUDA 轮子，必须用单独命令安装（见 Makefile install-gpu / README），
+# 不能写进本文件，否则会装成 CPU 版：
+#   pip install torch --index-url https://download.pytorch.org/whl/cu121
+
+# --- 数据与配置 ---
+pyyaml>=6.0
+numpy>=1.26,<2         # torch 2.2 按 numpy 1.x 编译，锁 <2
+pandas>=2.0
+tqdm>=4.66
+jsonlines>=4.0
+pillow>=10.0
+opencv-python>=4.9,<5  # opencv 5.x 强制 numpy>=2，与 torch 冲突
+imagehash>=4.3          # pHash 感知去重
+datasketch>=1.6         # MinHash-LSH 文本去重（JD 生态标配，见 docs/JD_RESEARCH.md）
+
+# --- 模型与编码（Week2/3 启用）---
+transformers>=4.40      # Chinese-CLIP (OFA-Sys/chinese-clip-vit-base-patch16)
+huggingface_hub>=0.23
+datasets>=2.19
+sentencepiece>=0.2
+
+# --- 检索与服务（Week3 启用）---
+faiss-cpu>=1.8
+fastapi>=0.110
+uvicorn[standard]>=0.29
+streamlit>=1.35         # Week4 Demo
+
+# --- 质量与可视化 ---
+matplotlib>=3.8
+jinja2>=3.1             # 质量报告模板
+
+# --- 工程化 ---
+pytest>=8.0
+ruff>=0.4
+dvc>=3.50               # Week1 D5 数据版本化

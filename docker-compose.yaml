@@ -1,0 +1,75 @@
+# Airflow 编排层（LocalExecutor，单机轻量部署）。
+# 重计算（CLIP 批量推理等）在宿主机 GPU venv 中进行，容器负责 DAG 编排与
+# CPU 可承受的规则算子——算力分级是本项目的设计考量之一，见 docs/ROADMAP.md。
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 10
+
+  airflow-common: &airflow-common
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.airflow
+    image: mm-curation-airflow:latest
+    environment: &airflow-env
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+      AIRFLOW__CORE__DEFAULT_TIMEZONE: Asia/Shanghai
+      # 容器内使用 src 布局的 mm_curation 包
+      PYTHONPATH: /opt/airflow/src
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./src:/opt/airflow/src
+      - ./configs:/opt/airflow/configs
+      - ./data:/opt/airflow/data
+      - ./scripts:/opt/airflow/scripts
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  airflow-migrate:
+    <<: *airflow-common
+    command: version
+    environment:
+      <<: *airflow-env
+      _AIRFLOW_DB_MIGRATE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: airflow
+      _AIRFLOW_WWW_USER_PASSWORD: airflow
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      retries: 5
+    restart: always
+    depends_on:
+      airflow-migrate:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    restart: always
+    depends_on:
+      airflow-migrate:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-db:

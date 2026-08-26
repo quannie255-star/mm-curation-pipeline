@@ -1,0 +1,7 @@
+# Airflow 容器内依赖（CPU 轻量集）
+pyyaml>=6.0
+pillow>=10.0
+numpy>=1.26
+pandas>=2.0
+tqdm>=4.66
+jsonlines>=4.0

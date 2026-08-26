@@ -1,0 +1,10 @@
+{
+  "name": "clean_v2",
+  "source_jsonl": "data\\processed\\cn_flickr_curation_v2\\cleaned.jsonl",
+  "n_items": 1585,
+  "dim": 512,
+  "faiss_index": "faiss.index",
+  "image_store": "store.jsonl",
+  "metric": "cosine",
+  "built_at": "2026-08-26T09:02:26.537756+00:00"
+}

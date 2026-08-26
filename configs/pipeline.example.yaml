@@ -1,0 +1,42 @@
+# 清洗漏斗配置 v2（阈值均经真实数据校准，见 docs/ROADMAP.md 校准记录）。
+# 约定：score 语义统一为「越高越好」；min/max 为保留阈值。
+# 排序原则 = 成本递增：L1 文本规则（毫秒）-> L1 图像规则（读图）->
+# 去重（批量哈希）-> [Week2 D3 后插入] L2 Chinese-CLIP 对齐分（GPU 批量推理）。
+# 便宜算子放前面，尽早缩小昂贵算子的输入规模。
+name: cn_flickr_curation_v2
+description: >
+  三层漏斗的 L1 + 去重组：文本基础质量 -> 图像基础质量 -> 去重四件套
+  （embedding 语义去重属 L2，待 Chinese-CLIP 算子就位后加入）。
+
+dataset:
+  raw_jsonl: data/interim/contaminated/samples.jsonl
+
+operators:
+  # --- L1 文本 ---
+  - op: text_length
+    params: {min: 5, max: 100}
+  - op: chinese_ratio
+    params: {min: 0.3}
+  - op: char_repetition
+    params: {min: 0.8}
+  # --- L1 图像 ---
+  - op: resolution      # 干净集最小 109px，100 不误杀
+    params: {min: 100}
+  - op: aspect_ratio    # 0.25 砍掉极端横幅/长条图（干净集 p10=0.7）
+    params: {min: 0.25}
+  - op: blur            # 注入 max=5.4 vs 干净 min=25.2，12 为安全分界
+    params: {min: 12}
+  # --- 去重组（批量算子，对当前存活集执行）---
+  - op: md5_exact
+  - op: phash_near      # 阈值 12：召回 84% / 误杀 0.3%（真实数据扫描）
+    params: {threshold: 12}
+  - op: minhash_lsh     # 阈值 0.65：召回 94% / 误杀 0.7%
+    params: {threshold: 0.65, min_len: 8}
+  # --- L2 模型算子（最贵，放最后；阈值经真实数据校准，见 ROADMAP 校准记录）---
+  - op: clip_alignment  # 图文对齐 t=0.38：错配召回 96%/误杀 0.2%；顺带压住 nsfw 占位与刷字文本
+    params: {min: 0.38}
+  - op: semantic_dedup  # 图像向量 kNN t=0.93：语义重复召回 100%/干净重叠 1.6%(含自然近重复)
+    params: {threshold: 0.93}
+
+output:
+  dir: data/processed/cn_flickr_curation_v2

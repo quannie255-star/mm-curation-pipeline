@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# 数据与产物（由 DVC 管理，不入 git）
+data/raw/images/
+data/raw/*.jsonl
+data/raw/manifest.json
+data/raw/.cache/
+data/interim/
+data/processed/
+data/indexes/          # FAISS 索引 + store（可重建产物）
+data/reports/
+.cache/
+models/                  # 本地转换的 CLIP safetensors 权重（~750MB）
+*.faiss
+*.bin
+*.pt
+*.onnx
+*.safetensors
+
+# Airflow
+airflow.db
+logs/
+airflow-logs/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# 环境
+.env
+
+# 助手记忆目录（不参与项目版本控制）
+.workbuddy/

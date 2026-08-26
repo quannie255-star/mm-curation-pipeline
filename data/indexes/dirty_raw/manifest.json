@@ -1,0 +1,10 @@
+{
+  "name": "dirty_raw",
+  "source_jsonl": "data\\interim\\contaminated\\samples.jsonl",
+  "n_items": 2106,
+  "dim": 512,
+  "faiss_index": "faiss.index",
+  "image_store": "store.jsonl",
+  "metric": "cosine",
+  "built_at": "2026-08-26T09:03:50.298877+00:00"
+}

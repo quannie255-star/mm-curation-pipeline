@@ -1,0 +1,16 @@
+# 污染计划配置：与清洗漏斗共用「YAML 驱动」的项目风格。
+# inject_rate: 注入样本数 / 干净样本数；kinds: 注入构成（自动归一化）。
+# 每一类都对应至少一个清洗算子的靶子（docs/ROADMAP.md 污染策略表）。
+inject_rate: 0.30
+seed: 42
+kinds:
+  exact_duplicate: 0.10      # md5 去重
+  near_duplicate_image: 0.08 # pHash 感知去重
+  near_duplicate_text: 0.08  # MinHash-LSH 文本去重
+  semantic_duplicate: 0.08   # embedding 语义去重
+  low_resolution: 0.14       # 分辨率算子
+  blur: 0.14                 # 模糊度算子（Laplacian）
+  mismatched_pair: 0.12      # Chinese-CLIP 对齐分
+  low_quality_text: 0.12     # 文本质量算子
+  watermark: 0.09            # 水印检测
+  nsfw_placeholder: 0.05     # NSFW 检测（合规占位实现）

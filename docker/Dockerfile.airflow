@@ -1,0 +1,6 @@
+FROM apache/airflow:2.9.3-python3.11
+
+# 只装编排所需的轻量依赖；GPU 相关（torch/chinese-clip）在宿主机 venv，
+# 保持镜像体积可控（成本意识）。
+COPY requirements-airflow.txt /requirements-airflow.txt
+RUN pip install --no-cache-dir -r /requirements-airflow.txt
