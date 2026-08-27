@@ -23,6 +23,7 @@ sentencepiece>=0.2
 # --- 检索与服务（Week3 启用）---
 faiss-cpu>=1.8
 fastapi>=0.110
+httpx>=0.27             # FastAPI TestClient（/api/ingest 集成测试）
 uvicorn[standard]>=0.29
 streamlit>=1.35         # Week4 Demo
 
