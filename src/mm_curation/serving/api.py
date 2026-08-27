@@ -121,7 +121,65 @@ def create_app(indexes_root: str | Path = DEFAULT_INDEXES_ROOT) -> FastAPI:
             raise HTTPException(status_code=404, detail="文件不在已登记的白名单内")
         return FileResponse(abs_path)
 
+    _attach_ingest(app)
     return app
+
+
+class IngestRequest(BaseModel):
+    """实时质量门入参（P2+P3）：一条图文对到达即评分 + 判重。"""
+
+    image: str = Field(description="base64 编码的图像")
+    caption: Optional[str] = Field(default=None, max_length=256)
+    id: Optional[str] = Field(default=None, description="调用方样本 id（判重溯源用）")
+
+
+def _attach_ingest(app: FastAPI) -> None:
+    """实时质量门端点。gate/deduper 首次调用时惰性构建（检测器权重缺失自动降级）。"""
+    state: dict = {}
+
+    def _deps():
+        if "gate" not in state:
+            from pathlib import Path as P
+
+            from ..dedup_incremental import IncrementalDeduper
+            from .quality_gate import QualityGate
+
+            cfg_path = P("configs/pipeline.example.yaml")
+            if cfg_path.exists():
+                from ..pipeline import PipelineConfig
+
+                gate = QualityGate.from_config(PipelineConfig.from_yaml(cfg_path))
+            else:  # 配置缺失 → 空算子集降级（可诊断，不崩溃）
+                gate = QualityGate(ops=[])
+            state["gate"] = gate
+            state["deduper"] = IncrementalDeduper()
+        return state["gate"], state["deduper"]
+
+    @app.post("/api/ingest")
+    def ingest(req: IngestRequest):
+        import os
+        import tempfile
+        import uuid
+
+        try:
+            raw = base64.b64decode(req.image, validate=True)
+        except binascii.Error as e:
+            raise HTTPException(status_code=422, detail=f"image 不是合法 base64: {e}") from e
+        # 单样本算子以文件路径为输入约定，落临时文件后清理（v1 取舍，见 quality_gate 文档）
+        tmp = Path(tempfile.gettempdir()) / f"mm_ingest_{uuid.uuid4().hex}.jpg"
+        try:
+            tmp.write_bytes(raw)
+            gate, deduper = _deps()
+            quality = gate.assess(str(tmp), req.caption or "")
+            verdict = deduper.check_and_add(req.id or tmp.name, str(tmp), req.caption or "")
+        finally:
+            if tmp.exists():
+                os.remove(tmp)
+        return {
+            "quality": quality,
+            "dedup": verdict.to_dict(),
+            "accept": quality["passed"] and not verdict.is_duplicate,
+        }
 
 
 def _search_by_b64(searcher: IndexSearcher, image_b64: str, top_k: int):
