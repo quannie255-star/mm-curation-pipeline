@@ -7,7 +7,7 @@
 面向中文多模态大模型训练数据场景的端到端数据管道：**脏数据进 → 漏斗式多算子清洗 →
 质量可量化 → 向量索引 → 检索服务 → 清洗收益可证明**。
 
-> 状态：✅ 主线完成（Week 1-4）。路线图见 [docs/ROADMAP.md](docs/ROADMAP.md)。
+> 状态：✅ 主线（Week 1-4）+ Phase 2（P1-P4）完成。路线图见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 > 面试叙事见 [docs/INTERVIEW.md](docs/INTERVIEW.md)。
 
 ## 核心结果（所有数字来自真实实验，可一键复现）
@@ -22,10 +22,13 @@
 | **消融归因**（分组消融） | 去重组贡献 | **R@1 -0.017**（唯一显著组） |
 | **算子级评测**（独立评测口径） | phash_near 主靶 recall / 误杀 | 84% / 0.24% |
 | | clip_alignment 主靶 recall / 误杀 | 96% / 0.19% |
-| **工程** | 单元测试 | 86 passing |
+| **Phase2 · 自训检测器**（防循环论证） | testB 泛化 / 主靶召回 / 误杀 | **87.3% / 100% / 0.8%** |
+| **Phase2 · CLIP 微调对比**（训练级证据） | clean_ft vs dirty_ft R@1 | **0.688 vs 0.636（差 5.2pp）** |
+| **工程** | 单元测试 | 94 passing |
 
-> 灵魂叙事：**脏数据 → 11 级漏斗 → 干净集（R@1 +21%）→ 分层采样（再 +18~24%）**——
-> 两步叠加的复合收益可证、可复现、可归因。
+> 灵魂叙事：**脏数据 → 11 级漏斗 → 干净集（R@1 +21%）→ 分层采样（再 +18~24%）**
+> → Phase 2 把"代理指标"升级为"训练证据"（脏集微调 CLIP 比 clean 低 5.2pp R@1）。
+> 全链路收益可证、可复现、可归因。
 
 ## 架构总览
 
@@ -66,6 +69,10 @@ pytest
 # 5. 算子级评测（可选，全量脏集上跑 ~30 秒，包含 GPU CLIP 编码）
 make eval-op                          # data/reports/operator_pr.{json,md}
 make threshold-scan                   # data/reports/threshold_scan.{json,md,png}
+
+# 6. Phase 2（可选，需 GPU）
+make train-detector                   # 自训水印/NSFW 检测器 → models/detector/
+make finetune-clip                    # 干净/脏集 CLIP 微调对比 → data/reports/finetune_eval.{json,md}
 ```
 
 ## 目录结构

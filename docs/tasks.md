@@ -1,15 +1,16 @@
-# 任务清单 — Week3 D4：算子级 P/R 评测 + 阈值敏感性
+# 任务清单 — Phase2 P1-P4（压缩执行：用户批准跳过层间门）
 
-> 层序：**L1 指标层（P/R 纯函数+映射表）→ L2 执行层（独立评测+扫描）→ L3 报告层（CLI+真数据+归档）**
+| # | 任务 | 状态 | 证据 |
+|---|---|---|---|
+| P1-T1 | 参数化生成器+风格组+contamination 重构 | ✅ | 91→96 测试绿；四维错开断言 |
+| P1-T2 | 检测器训练+双风格评测 | ✅（四轮迭代） | testA 98.2% / **testB 87.3%**（水印 88%/广告 76%/干净 97.5%）；迭代全程见 ENGINEERING_NOTES #35 |
+| P1-T3 | 算子注册+全量脏集 P/R | ✅ | min=0.30：主靶双 100% 召回 / precision 79.5% / 干净误杀 0.8% |
+| P2 | POST /api/ingest 实时质量门 | ✅ | 质量分+flags+accept；算子/阈值与漏斗 YAML 同源 |
+| P3 | 增量去重（三层查-判-插） | ✅ | md5/pHash/MinHash-LSH；端到端 /api/ingest 集成测试 |
+| P4 | CLIP 干净/脏集微调对比 | 🔄 运行中 | 100 步等步数对比，报告 data/reports/finetune_eval.{json,md} |
 
-| # | 任务 | 层 | 产物 | 预估行数 | 依赖 | 状态 |
-|---|---|---|---|---|---|---|
-| T1 | P/R 纯函数 + 靶子映射表 + 测试 | L1 | `src/mm_curation/eval/operator_eval.py`, `tests/test_operator_eval.py` | ~90 | design 1.1/1.2 | ⬜ |
-| T2 | 独立评测执行 + 阈值扫描（分数复用）+ 测试 | L2 | 同文件增补, `tests/test_operator_eval.py` 增补 | ~120 | T1 | ⬜ |
-| T3 | CLI + 真数据跑分 + Markdown/PNG 报告 + 归档 | L3 | `scripts/eval_operators.py`, `data/reports/`, `docs/test_cases.md` | ~90 | T2 | ⬜ |
-
-## 验收标准
-1. 一张表：11 个算子的 precision / recall_all / recall_target / 误杀 / 耗时
-2. 捕获矩阵：哪类脏数据被谁抓住（一石三鸟的算子直接可见）
-3. 至少 3 个算子的阈值曲线 + 拐点 vs 当前配置的对比结论
-4. 全部测试绿（预计 67 → 75+）
+## 运行中发现的工程问题（已修复/记录）
+- 检测器四轮迭代（详见 #35）：可见性校准→探针公平性量化→协议修正
+- 阈值 softmax 陷阱（#36）：0.90→0.30，误杀 16.9%→0.8%
+- 真实底图尺寸多样性：矮图让 randint 空区间崩溃 → 全范围钳制
+- 测试夹具纯色图陷阱 ×2（#38）：pHash 全碰撞 / blur 全拦截

@@ -48,6 +48,12 @@ index-dirty: ## 构建脏索引（污染全集，~2.1k 条，对比实验用）
 serve: ## 启动检索服务 (http://localhost:8000/docs)
 	uvicorn mm_curation.serving.api:app --app-dir src --host 0.0.0.0 --port 8000
 
+train-detector: ## 训练水印/NSFW 检测器（合成数据，GPU，~3 分钟）
+	python scripts/train_detector.py
+
+finetune-clip: ## CLIP 干净/脏集微调对比实验（GPU，~20 分钟）
+	python scripts/finetune_clip.py
+
 demo: ## 启动 Streamlit Demo (http://localhost:8501)
 	streamlit run scripts/streamlit_app.py
 
