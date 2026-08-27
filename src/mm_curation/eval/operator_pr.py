@@ -37,6 +37,8 @@ OPERATOR_TARGETS: dict[str, list[str]] = {
     "char_repetition": ["low_quality_text"],
     # aspect_ratio 无直接主靶（抓极端横幅/拼接图），留空表示「无主靶」。
     "aspect_ratio": [],
+    # Phase2 P1：合成数据自训的检测器，主靶水印 + NSFW 广告占位
+    "wm_nsfw_cnn": ["watermark", "nsfw_placeholder"],
 }
 
 

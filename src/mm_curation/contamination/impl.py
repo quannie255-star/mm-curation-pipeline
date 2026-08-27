@@ -180,25 +180,25 @@ class LowQualityText(Contaminator):
 
 @register_contaminator("watermark")
 class Watermark(Contaminator):
-    """程序化半透明斜向水印（真实业务中最常见的版权/广告污染）。"""
+    """程序化半透明斜向水印（真实业务中最常见的版权/广告污染）。
 
-    TEXT = "素材站 www.example-sample.com"
+    渲染委托 detector/synth.py（与检测器训练数据共用一份实现，防双实现漂移）；
+    此处固定为旧版参数：斜向平铺 + 素材站文案 + 0.45 叠加强度。
+    """
 
     def apply(self, source: Sample, index: int, ctx: ContaminationContext) -> Sample:
-        from PIL import ImageDraw
+        from ..detector.synth import LEGACY_WATERMARK_TEXT, render_watermark
 
         img = _load(source)
-        overlay = img.copy()
-        draw = ImageDraw.Draw(overlay)
-        font = ctx.load_font(max(18, img.width // 24))
-        step = max(60, img.width // 5)
-        for y in range(-img.height // 2, img.height, step):
-            for x in range(0, img.width, step * 2):
-                draw.text((x, y), self.TEXT, fill=(255, 255, 255, 90), font=font)
-        from PIL import Image
-
-        img = Image.blend(img, overlay, 0.45)
-        _save_jpeg(img, source, ctx)
+        params = {
+            "layout": "tiled",
+            "font": "msyh.ttc",
+            "font_family": ("msyh.ttc", "simhei.ttf"),
+            "alpha": 0.45,
+            "text": LEGACY_WATERMARK_TEXT,
+            "size": max(18, img.width // 24),
+        }
+        _save_jpeg(render_watermark(img, params), source, ctx)
         return source
 
 
@@ -208,20 +208,13 @@ class NsfwPlaceholder(Contaminator):
 
     合规考量：不引入真实 NSFW 内容；检测框架与评测逻辑不变，
     真实部署时替换为线上检测器即可（ROADMAP 风险表 #3）。
+    渲染委托 detector/synth.py 的 blocks 版式（与旧实现一致）。
     """
 
     def apply(self, source: Sample, index: int, ctx: ContaminationContext) -> Sample:
-        from PIL import Image, ImageDraw
+        from ..detector.synth import render_ad
 
-        img = Image.new("RGB", (512, 512), (200, 200, 205))
-        draw = ImageDraw.Draw(img)
-        for _ in range(8):  # 伪广告横幅元素
-            x0, y0 = ctx.rng.randint(0, 400), ctx.rng.randint(0, 400)
-            color = tuple(ctx.rng.randint(150, 255) for _ in range(3))
-            draw.rectangle(
-                (x0, y0, x0 + ctx.rng.randint(40, 110), y0 + ctx.rng.randint(20, 60)), fill=color
-            )
-        draw.text((96, 240), "广告示例图", fill=(60, 60, 60), font=ctx.load_font(64))
+        img = render_ad((512, 512), style="blocks", rng=ctx.rng, text="广告示例图", text_size=64)
         _save_jpeg(img, source, ctx)
         source.caption = "点击领取优惠券，限时特价，马上抢购！"
         return source
