@@ -24,7 +24,8 @@
 | | clip_alignment 主靶 recall / 误杀 | 96% / 0.19% |
 | **Phase2 · 自训检测器**（防循环论证） | testB 泛化 / 主靶召回 / 误杀 | **87.3% / 100% / 0.8%** |
 | **Phase2 · CLIP 微调对比**（训练级证据） | clean_ft vs dirty_ft R@1 | **0.688 vs 0.636（差 5.2pp）** |
-| **工程** | 单元测试 | 94 passing |
+| **Phase2 · 实时质量门** | POST /api/ingest | 质量评分 + 三层增量判重 + accept 一次返回 |
+| **工程** | 单元测试 | 94 + 6（主仓库 + curation-eval 包） |
 
 > 灵魂叙事：**脏数据 → 11 级漏斗 → 干净集（R@1 +21%）→ 分层采样（再 +18~24%）**
 > → Phase 2 把"代理指标"升级为"训练证据"（脏集微调 CLIP 比 clean 低 5.2pp R@1）。
@@ -95,12 +96,23 @@ tests/            # pytest
 data/             # raw / interim / processed / reports（git 忽略，DVC 管理）
 ```
 
+## 独立评测包：curation-eval
+
+[`packages/curation-eval/`](packages/curation-eval/) — 从本项目抽炼的
+**数据清洗 ground-truth 评测框架**（pip 可装）：程序化污染器 + 丢弃语义 P/R +
+检索指标。定位：Data-Juicer 等清洗系统提供算子，本包回答"算子好不好"。
+
+```bash
+pip install -e packages/curation-eval
+python -m pytest packages/curation-eval/tests   # 6 项协议测试
+```
+
 ## 设计文档
 
-- [项目路线图](docs/ROADMAP.md) — 周计划 + 进度记录 + 阈值校准
+- [项目路线图](docs/ROADMAP.md) — 周计划 + Phase2 计划 + 进度记录 + 阈值校准
 - [岗位 JD 调研与能力映射](docs/JD_RESEARCH.md)
 - [面试叙事（STAR + 预想追问）](docs/INTERVIEW.md)
-- [工程笔记（环境踩坑）](docs/ENGINEERING_NOTES.md)
+- [工程发现日志 39 条（面试弹药库）](docs/ENGINEERING_NOTES.md)
 
 ## License
 
