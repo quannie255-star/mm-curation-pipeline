@@ -109,10 +109,13 @@ python -m pytest packages/curation-eval/tests   # 6 项协议测试
 
 ## 设计文档
 
+- [系统架构（数据流 Mermaid + FMEA + 替换成本）](docs/ARCHITECTURE.md)
+- [服务实测性能与降级矩阵（SLA_README）](docs/SLA_README.md)
+- [FAQ：真实踩坑与评测口径](docs/FAQ.md)
 - [项目路线图](docs/ROADMAP.md) — 周计划 + Phase2 计划 + 进度记录 + 阈值校准
 - [岗位 JD 调研与能力映射](docs/JD_RESEARCH.md)
 - [面试叙事（STAR + 预想追问）](docs/INTERVIEW.md)
-- [工程发现日志 39 条（面试弹药库）](docs/ENGINEERING_NOTES.md)
+- [工程发现日志 42 条（面试弹药库）](docs/ENGINEERING_NOTES.md)
 
 ## License
 
