@@ -62,6 +62,25 @@ def create_app(indexes_root: str | Path = DEFAULT_INDEXES_ROOT) -> FastAPI:
     app = FastAPI(title="mm-curation 检索服务", version="0.1.0")
     _searchers: dict[str, IndexSearcher] = {}
     _static_paths: dict[str, Path] = {}
+    from .metrics import Metrics
+
+    _metrics = Metrics()
+
+    @app.middleware("http")
+    async def _observe(request, call_next):
+        t0 = time.perf_counter()
+        response = await call_next(request)
+        if request.url.path != "/metrics":  # 监控自身不产生监控数据
+            _metrics.observe_request(
+                request.url.path, response.status_code, time.perf_counter() - t0
+            )
+        return response
+
+    @app.get("/metrics")
+    def metrics():
+        from fastapi.responses import PlainTextResponse
+
+        return PlainTextResponse(_metrics.render(), media_type="text/plain; version=0.0.4")
 
     def _get_searcher(name: str) -> IndexSearcher:
         if name not in _searchers:
@@ -121,7 +140,7 @@ def create_app(indexes_root: str | Path = DEFAULT_INDEXES_ROOT) -> FastAPI:
             raise HTTPException(status_code=404, detail="文件不在已登记的白名单内")
         return FileResponse(abs_path)
 
-    _attach_ingest(app)
+    _attach_ingest(app, _metrics)
     return app
 
 
@@ -133,7 +152,7 @@ class IngestRequest(BaseModel):
     id: Optional[str] = Field(default=None, description="调用方样本 id（判重溯源用）")
 
 
-def _attach_ingest(app: FastAPI) -> None:
+def _attach_ingest(app: FastAPI, _metrics) -> None:
     """实时质量门端点。gate/deduper 首次调用时惰性构建（检测器权重缺失自动降级）。"""
     state: dict = {}
 
@@ -175,10 +194,16 @@ def _attach_ingest(app: FastAPI) -> None:
         finally:
             if tmp.exists():
                 os.remove(tmp)
+        accept = quality["passed"] and not verdict.is_duplicate
+        _metrics.inc("ingest_accepted" if accept else "ingest_rejected")
+        if quality["flags"]:
+            _metrics.inc("ingest_quality_flagged")
+        if verdict.is_duplicate:
+            _metrics.inc("ingest_duplicate")
         return {
             "quality": quality,
             "dedup": verdict.to_dict(),
-            "accept": quality["passed"] and not verdict.is_duplicate,
+            "accept": accept,
         }
 
 
