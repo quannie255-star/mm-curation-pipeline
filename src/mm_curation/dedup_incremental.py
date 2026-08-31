@@ -16,7 +16,10 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import logging
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
 
 
@@ -35,23 +38,52 @@ class DedupVerdict:
 
 
 class IncrementalDeduper:
+    """三层增量判重。
+
+    journal（可选）：追加式 JSONL，记录每个已登记样本的哈希快照
+    {id, md5, phash, caption}。重启时重放重建三层索引——重放只依赖
+    快照哈希（md5/pHash 整数）与 caption（MinHash 由文本现算），
+    不需要读回图像。多进程并发追加需文件锁或外置存储（诚实边界：
+    单进程假设已写入 SLA_README）。
+    """
+
     def __init__(
         self,
         phash_threshold: int = 12,
         minhash_threshold: float = 0.65,
         min_caption_len: int = 8,
         num_perm: int = 128,
+        journal: str | Path | None = None,
     ):
         self.phash_threshold = phash_threshold
         self.minhash_threshold = minhash_threshold
         self.min_caption_len = min_caption_len
         self.num_perm = num_perm
+        self.journal = Path(journal) if journal else None
         self._md5: dict[str, str] = {}  # digest -> sample_id（反查 duplicate_of）
         self._phash: list[tuple[str, int]] = []  # (id, 64bit 整数哈希)
         from datasketch import MinHashLSH
 
         self._lsh = MinHashLSH(threshold=minhash_threshold, num_perm=num_perm)
         self._sigs: dict[str, object] = {}
+        self._replay_journal()
+
+    def _replay_journal(self) -> None:
+        if not self.journal or not self.journal.exists():
+            return
+        n = 0
+        for line in self.journal.read_text(encoding="utf-8").splitlines():
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:  # 崩溃时的半行：容忍并跳过
+                continue
+            self._md5[rec["md5"]] = rec["id"]
+            self._phash.append((rec["id"], int(rec["phash"])))
+            if len(rec["caption"]) >= self.min_caption_len:
+                m = self._minhash(rec["caption"])
+                self._lsh.insert(rec["id"], m)
+            n += 1
+        logging.getLogger(__name__).info("去重 journal 重放: %s 条", n)
 
     def check_and_add(self, sample_id: str, image_path: str, caption: str) -> DedupVerdict:
         """查-判-插一体：返回判定；未命中时把该样本登记进三层索引。"""
@@ -91,6 +123,16 @@ class IncrementalDeduper:
 
         h = int.from_bytes(imagehash.phash(Image.open(image_path)).hash.tobytes(), "big")
         self._phash.append((sample_id, h))
+        if self.journal is not None:
+            self.journal.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.journal, "a", encoding="utf-8") as f:
+                f.write(
+                    json.dumps(
+                        {"id": sample_id, "md5": digest, "phash": h, "caption": caption},
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
         if len(caption) >= self.min_caption_len:
             m = self._minhash(caption)
             self._lsh.insert(sample_id, m)

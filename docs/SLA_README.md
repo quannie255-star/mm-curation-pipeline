@@ -33,7 +33,7 @@
 
 ## 已知限制（诚实清单）
 
-1. ingest 去重状态为进程内存态：重启后重复检测窗口重开（修复路径：
-   journal 追加 + 启动重放，见 ARCHITECTURE.md FMEA）
-2. 单进程单worker：uvicorn 多副本时去重状态不共享（同上修复路径）
+1. ~~ingest 去重状态为进程内存态~~ → **已修复**：journal 追加持久化
+   （`data/state/dedup_journal.jsonl`，启动重放，崩溃半行容忍），重启后判重状态完整恢复
+2. 单进程单 worker：多副本并发追加 journal 需文件锁或外置存储（Redis 等）——研究部署未做
 3. 未做鉴权/限流：内网研究部署假设

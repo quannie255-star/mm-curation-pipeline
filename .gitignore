@@ -9,6 +9,7 @@ dist/
 venv/
 
 # 数据与产物（由 DVC 管理，不入 git）
+data/state/               # ingest 去重 journal 等运行时状态
 data/raw/images/
 data/raw/*.jsonl
 data/raw/manifest.json

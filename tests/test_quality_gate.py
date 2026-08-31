@@ -74,7 +74,9 @@ def test_quality_gate_and_ingest_endpoint(tmp_path, monkeypatch):
 
     from mm_curation.serving.api import create_app
 
-    # 用真实配置构建 gate（单样本算子），检测器权重可能尚未训练 -> 降级可接受
+    # 判重状态已 journal 持久化：测试必须把 journal 指到临时目录隔离，
+    # 否则上一轮运行写入的样本会让本轮首条 ingest 直接判重（真实踩坑）
+    monkeypatch.setenv("MM_DEDUP_JOURNAL", str(tmp_path / "journal.jsonl"))
     app = create_app("fake_root")
     client = TestClient(app)
 
@@ -120,3 +122,36 @@ def test_quality_gate_and_ingest_endpoint(tmp_path, monkeypatch):
 
     # 非法 base64
     assert client.post("/api/ingest", json={"image": "!!!", "caption": "x"}).status_code == 422
+
+
+def test_journal_replay_restores_dedup_state(tmp_path):
+    """SPOF 修复验证：journal 持久化后，重启（新实例）三层判重状态不丢。"""
+    journal = tmp_path / "journal.jsonl"
+    d1 = IncrementalDeduper(journal=journal)
+    a = _img_file(tmp_path, "j_a.png", 1)
+    b = _img_file(tmp_path, "j_b.png", 9)
+    assert not d1.check_and_add("j_a", a, CAPTIONS[0]).is_duplicate
+    assert not d1.check_and_add("j_b", b, CAPTIONS[2]).is_duplicate
+    assert journal.exists() and len(journal.read_text("utf-8").splitlines()) == 2
+
+    d2 = IncrementalDeduper(journal=journal)  # 模拟重启后重放
+    assert len(d2) == 2
+    assert d2.check("j_a2", a, CAPTIONS[1]).is_duplicate  # md5 层存活
+    near = CAPTIONS[0] + "，一只金毛犬在夕阳下的海滩上奔跑"
+    c = _img_file(tmp_path, "j_c.png", 7)
+    v = d2.check("j_c", c, near)
+    assert v.is_duplicate and v.method == "minhash_lsh"  # LSH 层存活
+    fresh = _img_file(tmp_path, "j_d.png", 11)
+    assert not d2.check_and_add("j_d", fresh, CAPTIONS[1]).is_duplicate  # 新样本正常
+    assert len(journal.read_text("utf-8").splitlines()) == 3
+
+
+def test_journal_tolerates_corrupt_tail(tmp_path):
+    journal = tmp_path / "journal.jsonl"
+    journal.write_text(
+        '{"id": "x", "md5": "aa", "phash": 123, "caption": "八个字以上的正常文本"}\n'
+        '{"id": "y", "md5": "bb", "phash": 4',  # 模拟崩溃时的半行
+        encoding="utf-8",
+    )
+    d = IncrementalDeduper(journal=journal)
+    assert len(d) == 1  # 完整行重放，半行跳过

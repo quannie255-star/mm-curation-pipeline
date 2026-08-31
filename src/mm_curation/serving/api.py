@@ -171,7 +171,13 @@ def _attach_ingest(app: FastAPI, _metrics) -> None:
             else:  # 配置缺失 → 空算子集降级（可诊断，不崩溃）
                 gate = QualityGate(ops=[])
             state["gate"] = gate
-            state["deduper"] = IncrementalDeduper()
+            # journal 持久化：重启后重放重建三层判重索引（ARCHITECTURE FMEA）。
+            # 路径可用 MM_DEDUP_JOURNAL 覆盖（测试隔离 / 生产自定义）
+            import os
+
+            state["deduper"] = IncrementalDeduper(
+                journal=os.environ.get("MM_DEDUP_JOURNAL", "data/state/dedup_journal.jsonl")
+            )
         return state["gate"], state["deduper"]
 
     @app.post("/api/ingest")
