@@ -6,9 +6,8 @@ import random
 from pathlib import Path
 
 import pytest
+from curation_eval import ContaminationPlan, available_kinds, mrr, pr_from_drops, recall_at_k
 from PIL import Image
-
-from curation_eval import ContaminationPlan, available_kinds, pr_from_drops, recall_at_k, mrr
 
 
 @pytest.fixture

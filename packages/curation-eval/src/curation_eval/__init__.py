@@ -1,17 +1,44 @@
-"""curation-eval：多模态数据清洗的 ground-truth 评测框架（v0.1）。
+"""curation-eval：多模态数据清洗的 ground-truth 评测框架（V2 α：协议收口）。
 
-程序化污染 + 丢弃语义 P/R + 检索指标。不提供清洗算子——评测算子。
+协议与 SDK 单一来源：Sample schema、算子注册表（元数据）、算子基类、
+执行器协议 + 污染器 + 指标。不提供具体清洗算子——评测算子。
 """
 
-from .contamination import (
-    ContaminationPlan,
-    Contaminator,
-    available_kinds,
-    register,
-)
+from .contamination import ContaminationPlan, Contaminator, available_kinds, register
 from .metrics import mrr, pr_from_drops, recall_at_k
+from .registry import (
+    CostClass,
+    OperatorMeta,
+    available_operator_metas,
+    get_operator_meta,
+    register_operator,
+)
+from .schema import MODALITY_FIELDS, Sample
+from .sdk import (
+    BatchOperator,
+    Executor,
+    FunnelResult,
+    LocalSequentialExecutor,
+    Operator,
+    StageStat,
+)
 
 __all__ = [
+    # 协议核心（V2 α）
+    "MODALITY_FIELDS",
+    "Sample",
+    "CostClass",
+    "OperatorMeta",
+    "register_operator",
+    "get_operator_meta",
+    "available_operator_metas",
+    "Operator",
+    "BatchOperator",
+    "Executor",
+    "LocalSequentialExecutor",
+    "StageStat",
+    "FunnelResult",
+    # 污染器与指标
     "ContaminationPlan",
     "Contaminator",
     "available_kinds",
@@ -20,4 +47,4 @@ __all__ = [
     "recall_at_k",
     "mrr",
 ]
-__version__ = "0.1.0"
+__version__ = "0.2.0.dev0"

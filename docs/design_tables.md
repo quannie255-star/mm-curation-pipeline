@@ -134,8 +134,10 @@ class Executor(ABC):
         raise NotImplementedError("分布式 reduce/shuffle 属二期（分布式去重），显式未实现")
 ```
 
-`LocalSequentialExecutor` 为默认实现（现 runner 逻辑移植）；FunnelResult/StageStat
-**留在主仓库 L4**（应用层观测结构，非协议；γ 随执行层一并评估是否下沉）。
+`LocalSequentialExecutor` 为默认实现（现 runner 逻辑移植 + 模态跳过）；FunnelResult/
+StageStat **一并下沉到包**——决策修订（α 实施时记录）：原计划留在主仓库 γ 再评估，
+但 LocalSequentialExecutor 在包内实现必须构造结果对象，不下沉就得引入 TYPE_CHECKING
+假引用；协议类型随 Executor 一起下沉后主仓库 re-export，方向与决策 ② 一致。
 
 ## 3. 现有图文管道迁移方案
 
