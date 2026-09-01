@@ -60,6 +60,7 @@ pip install -r requirements.txt
 # 2. 一键产出带标注的脏数据集（下载种子集 + 注入 10 类脏数据）
 make data                        # COCO-CN 种子（~1.6k 对，图像来自 HF 镜像）
 # 国内网络自动走 hf-mirror.com 镜像（见 docs/ROADMAP.md 数据源实测结论）
+# Windows/Git Bash 无 make？全部等价 python 命令见 docs/RUNBOOK.md（含完整复现步骤与验收数字）
 
 # 3. 启动 Airflow（编排层）
 docker compose up -d            # http://localhost:8080 (airflow/airflow)
