@@ -1,16 +1,29 @@
-# 任务清单 — Phase2 P1-P4（压缩执行：用户批准跳过层间门）
+# 任务清单 — V2 α 阶段：协议收口（curation-eval 0.2 + 主仓库适配）
 
-| # | 任务 | 状态 | 证据 |
-|---|---|---|---|
-| P1-T1 | 参数化生成器+风格组+contamination 重构 | ✅ | 91→96 测试绿；四维错开断言 |
-| P1-T2 | 检测器训练+双风格评测 | ✅（四轮迭代） | testA 98.2% / **testB 87.3%**（水印 88%/广告 76%/干净 97.5%）；迭代全程见 ENGINEERING_NOTES #35 |
-| P1-T3 | 算子注册+全量脏集 P/R | ✅ | min=0.30：主靶双 100% 召回 / precision 79.5% / 干净误杀 0.8% |
-| P2 | POST /api/ingest 实时质量门 | ✅ | 质量分+flags+accept；算子/阈值与漏斗 YAML 同源 |
-| P3 | 增量去重（三层查-判-插） | ✅ | md5/pHash/MinHash-LSH；端到端 /api/ingest 集成测试 |
-| P4 | CLIP 干净/脏集微调对比 | 🔄 运行中 | 100 步等步数对比，报告 data/reports/finetune_eval.{json,md} |
+> 设计见 docs/design_tables.md；验收标准 A1-A7 为模块级完成定义。
+> 预估总量 ~45h。执行顺序即依赖顺序；T2/T4 可并行。
 
-## 运行中发现的工程问题（已修复/记录）
-- 检测器四轮迭代（详见 #35）：可见性校准→探针公平性量化→协议修正
-- 阈值 softmax 陷阱（#36）：0.90→0.30，误杀 16.9%→0.8%
-- 真实底图尺寸多样性：矮图让 randint 空区间崩溃 → 全范围钳制
-- 测试夹具纯色图陷阱 ×2（#38）：pHash 全碰撞 / blur 全拦截
+## curation-eval 侧（包先行）
+
+- [ ] T1 schema.py：Sample（text/image_path/modality/meta/labels + 构造不变量 + to/from_dict legacy 兼容）与 MODALITY_FIELDS；单测覆盖推断/校验/往返/legacy（~4h，无依赖）
+- [ ] T2 registry.py：CostClass/OperatorMeta/register_operator 装饰器 + 注册校验（字段蕴含/重名/空模态）；单测（~5h，依赖 T1 的 MODALITY_FIELDS）
+- [ ] T3 sdk.py：Operator/BatchOperator（score 语义 + min/max keep）+ Executor ABC（reduce/shuffle 占位 NotImplementedError）+ LocalSequentialExecutor + 单测（~5h，依赖 T1/T2）
+- [ ] T4 contamination 迁移到 Sample（plan.run 输入输出 Sample，dict 入参移除）+ 包内单测更新（~4h，依赖 T1）
+- [ ] T5 包收口：version 0.2.0、README 协议段重写、包测试全绿、变更记录（~2h，依赖 T1-T4）
+
+## 主仓库适配（同一周内完成，决策 ② 的版本承诺）
+
+- [ ] T6 升级安装 curation-eval 0.2.0；operators/base.py 改纯 re-export（Sample/Operator/BatchOperator/注册装饰器），旧定义删除（~2h，依赖 T5）
+- [ ] T7 caption→text 原子重命名：operators/contamination/data/serving/eval/sampling/scripts/tests 全量；from_dict legacy 键验证（~6h，依赖 T6）
+- [ ] T8 全部 12 个算子注册补元数据（modalities/required_fields/cost_class/shardable/superlinear/input_signal）+ 注册校验全过（~4h，依赖 T7）
+- [ ] T9 runner 接 LocalSequentialExecutor + 模态跳过计数 + 配置 fail-fast 校验（引用了模态不匹配算子的配置在启动时报错）（~4h，依赖 T3/T8）
+- [ ] T10 α 验收测试：A1-A5 逐条落测试（10 样本混合漏斗端到端为主场景）（~5h，依赖 T9）
+- [ ] T11 legacy 数据对账：data/interim jsonl（caption 键）加载跑漏斗，召回/误杀与基线差 ≤1pp（A6）（~2h，依赖 T10）
+- [ ] T12 cost_model 读注册表元数据替代硬编码 superlinear 集合（A7）；双仓库 CI 绿；ARCHITECTURE_V2/FAQ/RUNBOOK 同步；tag v0.2（~3h，依赖 T11）
+
+## 完成定义（DoD）
+
+- [ ] 双仓库 CI 全绿（主仓库 105+，包 6+新增）
+- [ ] A1-A7 全部有对应测试或守卫
+- [ ] 主仓库无任何协议类型本地定义（A5 grep 守卫通过）
+- [ ] legacy 数据指标对账 ≤1pp
