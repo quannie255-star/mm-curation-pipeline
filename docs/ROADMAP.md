@@ -145,6 +145,35 @@
 legacy caption 键永久兼容。下一阶段：β 文本语料实例 → γ Ray 执行层 → δ LLM-judge → ε 数据 CI。
 | P6 | 规模扩展 8-15k（叠加 train2014 镜像） | 消融非零 delta；分层层采样规模效应 | 1-2 周 | ⏸ 暂缓（求职优先；消融全零已有"冗余+分组消融"完整解释，见 ENGINEERING_NOTES #31） |
 
+## V2 β：文本语料实例（2026-08-31 完成）
+
+> 目标：证明 α 的「模态可插拔」不是口号——纯文本模态（`text_article`）从零接入：
+> 30.2 万中文维基语料 + 文本污染器/算子 + 向量化 MinHash 去重 + GPT-2 zh 困惑度，
+> 执行器与协议零改动。开发日志见 ENGINEERING_NOTES #44-50。
+
+| 任务 | 内容 | 状态 |
+|---|---|---|
+| T0-T1 | 语料接入 `download_text_corpus.py`（维基 zh 302,002 篇）+ Sample 模态 text_article 兼容 | ✅ |
+| T2-T3 | 4 个文本污染器（按「可被靶子算子观测」重写语义，修对靶断层）+ 6 个文本算子（doc_length/chinese_ratio/char_repetition/line_repetition/boilerplate/pii_detect） | ✅ |
+| T4 | perplexity 算子（GPT-2 zh；`gpt2_weights.ensure_local_gpt2()` 统一权重入口，本地 safetensors 转换绕 CVE-2025-32434） | ✅ |
+| T5 | `dedup_fast`：向量化 MinHash-LSH（byte 4-gram + 80 perm/8 band + 精确签名预聚类 + union-find 先到先保留），注入式四档基准 | ✅ |
+| T6 | GPT-2 zh 干净/脏语料微调对比（文本版 P4：清洗提升下游训练的直接证据） | ✅ |
+| T7 | text_minhash 算子入漏斗 + `configs/text_funnel.yaml` + β 验收测试 B1-B4 + 30.2 万全量漏斗 | ✅ |
+
+**β 验收数字**：
+- 去重基准（10 万档）：exact 召回 1.0 / near 召回 0.9714 / 21.1s / RSS 825MB；
+  30 万档 60.4s 近线性（对照参考实现逐文档签名小时级）
+- 微调对比：base ppl 15.30 → **clean_ft 7.16 vs dirty_ft 7.70（脏语料 +7.5%，
+  超 5% 验收线）**——文本版 P4 的「清洗提升下游训练」直接证据。首跑 10% 轻污染
+  剂量差异仅 0.4% 不可测（剂量/损伤掺假/长度混杂三层归因，见笔记 #50），
+  损伤集重造（UTF-8→GBK 误解码乱码/段落复读/重复字符/截断）+ 剂量 100% 后达标
+- 全量漏斗：**302,002 篇 → 181,980 篇（保留 60.3%）**——L1 六级规则合计
+  拦 19,447（主体是 chinese_ratio 13.5k 非中文页 + line_repetition 12.9k
+  复读页），text_minhash 合并 88,272（模板簇+自然重复，与基准口径一致），
+  perplexity 只拦 303 篇 ppl>200（维基正文本净，低成本档兜底而非主力）
+- 测试：主仓库 129 + 包 29 全绿（含 β 验收 4 条：端到端对靶拦截 / 配置解析 /
+  模态 fail-fast / 单源守卫；dedup_fast 单测 5 条）
+
 明确不做：Next.js 真前端（数据岗零回报）、W&B 云依赖（MLflow 本地备选）、
 长期愿景（算子市场/influence-guided/主动清洗）只进 INTERVIEW.md 话术不进代码。
 
@@ -213,3 +242,4 @@ https://download.pytorch.org/whl/cu121` 后 GPU 可用（RTX 4060）。
 | 2026-08-26 | **Week4 D1 完成（Streamlit Demo 上线）**：`scripts/streamlit_app.py` 四 tab 可交互演示——①检索（文搜图/图搜图，索引切换 dirty/clean，top-k 结果网格带脏数据标注）②清洗漏斗（各级通过率柱图 + 检索对比表 + 采样对比表 + 召回/误杀 metric 卡）③算子评测（P/R 表 + 完整召回矩阵 + 阈值敏感性曲线 PNG 多选）④丢弃样本（按算子过滤 + 随机抽样 15 条图文网格，带 dirty 标签与丢弃原因）。Streamlit 1.55，`make demo` 一键启动，已冒烟验证 HTTP 200。86 测试绿；ruff 干净 | 下一步 D3：GitHub Actions CI；D4：消融实验；D5：INTERVIEW.md 面试叙事 |
 | 2026-08-26 | **Week4 D4-D5 完成（消融实验 + 面试叙事，Week4 收官）**：`scripts/eval_ablation.py`（逐个 + 分组移除算子，零重编码：重跑漏斗后过滤 dirty_raw 索引子集评测）+ `docs/INTERVIEW.md`（STAR 故事 + 8 个预想追问 + 简历 bullet）。**消融核心发现**：单个算子 ΔR@1 均为 0（非 load-bearing），但分组消融显示**去重组移除后 R@1 -0.017**（246 条重复回流，唯一显著组）——证明清洗是系统性工程，去重四件套贡献最大。文本/图像质量算子对 held_out 检索无影响（它们丢的样本本就不会被查询匹配）。86 测试绿；`make eval-ablation` 一键复现 | **Week4 收官**（D1 Demo + D4 消融 + D5 INTERVIEW）。仅剩 D3 CI（可选） |
 | 2026-08-26 | **Week4 D3 完成（GitHub Actions CI）**：`.github/workflows/ci.yml`——push/PR 触发 ruff lint + format check + pytest（CPU torch + FakeEncoder，3 个数据依赖测试 skipif 自动跳过）。README 加 CI 徽章。本地验证全绿 | **Week1-4 主线 100% 完成** |
+| 2026-08-31 | **V2 β 文本语料实例完成（T0-T7）**：30.2 万维基语料接入 + 6 文本算子/4 文本污染器（对靶修复）+ `dedup_fast` 向量化 MinHash-LSH（10 万档 exact 1.0/near 0.97/21s，三个深层 bug：U+2028、模板簇撑破 LSH 桶、union-find 合并方向）+ perplexity（GPT-2 zh，CVE 墙→`ensure_local_gpt2` 权重入口）+ 全量漏斗 302,002→181,980（保留 60.3%）+ 微调对比 **clean 7.16 vs dirty 7.70（+7.5%）**。129+29 测试全绿；工程笔记 #44-50 | **β 收官**。下一阶段：γ Ray 执行层 → δ LLM-judge → ε 数据 CI |

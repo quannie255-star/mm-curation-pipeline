@@ -8,11 +8,8 @@ from pathlib import Path
 import pytest
 
 from mm_curation.operators.base import (
-    BatchOperator,
     Executor,
-    Operator,
     Sample,
-    StageStat,
 )
 from mm_curation.pipeline import OperatorSpec, PipelineConfig, run_funnel
 
@@ -33,21 +30,26 @@ def _mixed_ten(tmp_path: Path) -> list[Sample]:
     """验收样本集：5 图文（真实小图）+ 5 纯文本（design_tables A1/A2）。"""
     out = []
     for i in range(5):
-        out.append(Sample(
-            id=f"ic{i}", text=f"图文样本第{i}号的描述文字",
-            image_path=_img(tmp_path, f"ic{i}.jpg", (i * 40, 100, 150)),
-        ))
+        out.append(
+            Sample(
+                id=f"ic{i}",
+                text=f"图文样本第{i}号的描述文字",
+                image_path=_img(tmp_path, f"ic{i}.jpg", (i * 40, 100, 150)),
+            )
+        )
     for i in range(5):
         out.append(Sample(id=f"ta{i}", text=f"纯文本语料第{i}段的正文内容足够长"))
     return out
 
 
 def test_a1_sample_round_trip_and_legacy(tmp_path):
-    s = Sample(id="a1", text="一只猫", image_path="img/1.jpg",
-               meta={"k": 1}, labels={"dirty": "blur"})
+    s = Sample(
+        id="a1", text="一只猫", image_path="img/1.jpg", meta={"k": 1}, labels={"dirty": "blur"}
+    )
     assert Sample.from_dict(s.to_dict()) == s
-    legacy = Sample.from_dict({"id": "a2", "image_path": "img/2.jpg",
-                               "caption": "老格式", "meta": {}, "labels": {}})
+    legacy = Sample.from_dict(
+        {"id": "a2", "image_path": "img/2.jpg", "caption": "老格式", "meta": {}, "labels": {}}
+    )
     assert legacy.text == "老格式" and legacy.modality == "image_caption"
 
 
@@ -58,9 +60,9 @@ def test_a2_mixed_funnel_with_modality_skips(tmp_path):
         raw_jsonl=Path("unused"),
         output_dir=Path("unused"),
         operators=[
-            OperatorSpec(op="text_length", params={"min": 5}),   # 双模态：10 条全评
-            OperatorSpec(op="resolution", params={"min": 32}),   # 仅图文：评 5 跳 5
-            OperatorSpec(op="md5_exact"),                        # 仅图文批量：评 5 跳 5
+            OperatorSpec(op="text_length", params={"min": 5}),  # 双模态：10 条全评
+            OperatorSpec(op="resolution", params={"min": 32}),  # 仅图文：评 5 跳 5
+            OperatorSpec(op="md5_exact"),  # 仅图文批量：评 5 跳 5
         ],
     )
     result = run_funnel(samples, config)
@@ -84,7 +86,9 @@ def test_a2_config_fail_fast_on_disjoint_modality(tmp_path):
         s.image_path = None
         s.modality = "text_article"
     config = PipelineConfig(
-        name="bad", raw_jsonl=Path("u"), output_dir=Path("u"),
+        name="bad",
+        raw_jsonl=Path("u"),
+        output_dir=Path("u"),
         operators=[OperatorSpec(op="resolution", params={"min": 32})],
     )
     with pytest.raises(ValueError, match="完全不相交"):
@@ -95,19 +99,31 @@ def test_a3_registry_validation():
     from curation_eval import CostClass, OperatorMeta, register_operator
 
     with pytest.raises(ValueError, match="蕴含"):
-        OperatorMeta(name="bad1", modalities=frozenset({"text_article"}),
-                     required_fields=frozenset({"image_path"}),
-                     cost_class=CostClass.RULE)
+        OperatorMeta(
+            name="bad1",
+            modalities=frozenset({"text_article"}),
+            required_fields=frozenset({"image_path"}),
+            cost_class=CostClass.RULE,
+        )
     from curation_eval import unregister
 
-    @register_operator(name="alpha_probe", modalities=frozenset({"text_article"}),
-                       required_fields=frozenset({"text"}), cost_class=CostClass.RULE)
+    @register_operator(
+        name="alpha_probe",
+        modalities=frozenset({"text_article"}),
+        required_fields=frozenset({"text"}),
+        cost_class=CostClass.RULE,
+    )
     class First:
         pass
 
     with pytest.raises(ValueError, match="冲突"):
-        @register_operator(name="alpha_probe", modalities=frozenset({"text_article"}),
-                           required_fields=frozenset({"text"}), cost_class=CostClass.RULE)
+
+        @register_operator(
+            name="alpha_probe",
+            modalities=frozenset({"text_article"}),
+            required_fields=frozenset({"text"}),
+            cost_class=CostClass.RULE,
+        )
         class Second:
             pass
 
@@ -147,7 +163,9 @@ def test_a6_legacy_reconciliation():
     rows = [json.loads(line) for line in LEGACY.read_text(encoding="utf-8").splitlines()]
     samples = [Sample.from_dict(r) for r in rows]  # from_dict 兼容 caption 键
     config = PipelineConfig(
-        name="legacy_recon", raw_jsonl=LEGACY, output_dir=Path("unused"),
+        name="legacy_recon",
+        raw_jsonl=LEGACY,
+        output_dir=Path("unused"),
         operators=[
             OperatorSpec(op="text_length", params={"min": 5, "max": 100}),
             OperatorSpec(op="chinese_ratio", params={"min": 0.3}),

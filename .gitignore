@@ -9,17 +9,22 @@ dist/
 venv/
 
 # 数据与产物（由 DVC 管理，不入 git）
-data/state/               # ingest 去重 journal 等运行时状态
+# 注意：gitignore 的 # 注释只能独占一行，行内注释会让模式失效
+# ingest 去重 journal 等运行时状态
+data/state/
 data/raw/images/
 data/raw/*.jsonl
 data/raw/manifest.json
 data/raw/.cache/
+data/raw/text_cache/
 data/interim/
 data/processed/
-data/indexes/          # FAISS 索引 + store（可重建产物）
+# FAISS 索引 + store（可重建产物）
+data/indexes/
 data/reports/
 .cache/
-models/                  # 本地转换的 CLIP safetensors 权重（~750MB）
+# 本地转换的模型权重（CLIP ~750MB / GPT-2 zh ~500MB）
+models/
 *.faiss
 *.bin
 *.pt

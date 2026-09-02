@@ -46,11 +46,12 @@ def test_register_derives_name_from_camel_case():
         required_fields=frozenset({"text", "image_path"}),
         cost_class=CostClass.MODEL,
     )
-    class WmNsfwCnnOp:  # 缩写连写的难例：应派生 wm_nsfw_cnn
+    class ProbeWmNsfwCnnOp:  # 缩写连写难例：派生 probe_wm_nsfw_cnn
         pass
 
-    assert WmNsfwCnnOp.name == "wm_nsfw_cnn"
-    assert WmNsfwCnnOp.meta.cost_class is CostClass.MODEL
+    # 注意：进程内注册表全局共享，主仓库已注册 wm_nsfw_cnn（重名会被拒绝——设计行为）
+    assert ProbeWmNsfwCnnOp.name == "probe_wm_nsfw_cnn"
+    assert ProbeWmNsfwCnnOp.meta.cost_class is CostClass.MODEL
 
 
 def test_register_explicit_name_and_meta_attached():

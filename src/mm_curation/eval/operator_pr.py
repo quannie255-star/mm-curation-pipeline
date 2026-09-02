@@ -39,6 +39,13 @@ OPERATOR_TARGETS: dict[str, list[str]] = {
     "aspect_ratio": [],
     # Phase2 P1：合成数据自训的检测器，主靶水印 + NSFW 广告占位
     "wm_nsfw_cnn": ["watermark", "nsfw_placeholder"],
+    # V2 β：文本语料算子，靶子为包内文本污染器类型
+    "doc_length": ["truncate_text", "whitespace_pad"],
+    "line_repetition": ["paragraph_repeat"],
+    "boilerplate": ["boilerplate_inject"],
+    "pii_detect": ["pii_inject"],
+    "perplexity": ["mojibake"],
+    "text_minhash": ["exact_duplicate", "near_duplicate_text"],
 }
 
 

@@ -39,6 +39,20 @@ GPU 依赖：`pip install torch torchvision --index-url https://download.pytorch
 > 模型权重在 `models/`（gitignore）：新机器先跑任意 CLIP 命令触发下载，
 > 再 `python scripts/convert_clip_weights.py`（详见 FAQ）。
 
+## 1.5 文本语料实例（V2 β，`text_article` 模态全流程）
+
+| 步骤 | 命令 | 耗时 | 验收 |
+|---|---|---|---|
+| 语料下载 | `python -X utf8 scripts/download_text_corpus.py` | ~2 分钟 | data/raw/text_corpus.jsonl 302,002 篇（维基 zh） |
+| 去重基准 | `python -X utf8 scripts/text_dedup_benchmark.py` | ~3 分钟 | data/reports/text_dedup_benchmark.md：10 万档 exact 召回 1.0 / near 0.97 / 21s |
+| GPT-2 训练对比 | `python -X utf8 scripts/finetune_gpt2.py` | ~1.5 小时 GPU | data/reports/finetune_text_eval.md：dirty_ft 的 held-out ppl 比 clean_ft 高 >5%（默认剂量 100%，四种真损伤） |
+| 文本漏斗 | `python -X utf8 scripts/run_pipeline.py --config configs/text_funnel.yaml` | ~2 小时（10 万档约 40 分钟） | 302,002 → 181,980（保留 60.3%）；text_minhash 合并 88,272 / perplexity 拦 303 |
+
+> 文本算子/污染器的 GPT-2 权重走本地 safetensors：首次使用会自动从
+> HF 缓存转换（`mm_curation/gpt2_weights.py` 的 `ensure_local_gpt2()`）；
+> 缓存为空时按报错提示先 `snapshot_download('uer/gpt2-chinese-cluecorpussmall',
+> endpoint='https://hf-mirror.com')`。
+
 ## 2. 演示（10 分钟，面试/展示）
 
 ```bash

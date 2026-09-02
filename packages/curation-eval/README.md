@@ -27,12 +27,11 @@ pip install -e packages/curation-eval   # 本仓库内
 from curation_eval import ContaminationPlan, Sample, pr_from_drops
 
 samples = [
-    Sample(id="s1", text="一只猫坐在沙发上", image_path="img/1.jpg"),   # 图文模态
-    Sample(id="s2", text="城市夜景灯火辉煌"),                            # 纯文本模态
+    Sample(id="s1", text="一只猫坐在沙发上", image_path="img/1.jpg"),  # 图文模态
+    Sample(id="s2", text="城市夜景灯火辉煌"),  # 纯文本模态
 ]
 
-plan = ContaminationPlan(inject_rate=0.5, seed=42,
-                         kinds={"watermark": 0.5, "mojibake": 0.5})
+plan = ContaminationPlan(inject_rate=0.5, seed=42, kinds={"watermark": 0.5, "mojibake": 0.5})
 mixed, manifest = plan.run(samples, images_out="data/contaminated_images")
 # mixed 中注入样本 labels={"dirty": "watermark"} —— 这就是 ground truth
 # 图像类污染自动只选带图样本；文本类污染对纯文本样本工作

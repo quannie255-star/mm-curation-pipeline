@@ -1,0 +1,39 @@
+# 文本语料清洗漏斗（V2 β，text_article 模态）——与图像漏斗同一框架、同一约定。
+# 约定：score 语义统一为「越高越好」；min/max 为保留阈值；算子按成本递增排序。
+# 语料：中文维基 30 万文档（data/raw/text_corpus.jsonl），阈值校准依据：
+#   - doc_length 下限 30：下载器已滤 <20 字符；30 再滤无信息碎片
+#   - line_repetition 0.8：干净维基行级重复率近 0，段落复读污染 score<0.7
+#   - text_minhash 0.7：基准校准（召回/成本平衡点），见 text_dedup_benchmark.md
+#   - perplexity 0.2（约 ppl>200）：乱码 ppl 数百以上，干净文本 score 0.33-0.83
+name: zh_wiki_text_curation
+description: >
+  文本模态完整漏斗：L1 规则（长度/中文占比/字符重复/行重复/模板句/PII）
+  -> 近似去重（向量化 MinHash）-> L2 模型算子（GPT-2 zh 困惑度）。
+  与 cn_flickr_curation_v2 共享注册表与执行器，零框架特例。
+
+dataset:
+  raw_jsonl: data/raw/text_corpus.jsonl
+
+output:
+  dir: data/processed/text_funnel
+
+operators:
+  # --- L1 规则（毫秒级） ---
+  - op: doc_length
+    params: {min: 30, max: 50000}
+  - op: chinese_ratio
+    params: {min: 0.3}
+  - op: char_repetition
+    params: {min: 0.8}
+  - op: line_repetition   # 段落复读污染的靶子算子
+    params: {min: 0.8}
+  - op: boilerplate       # 广告/导航模板句（公众号导流等）
+    params: {min: 0.8}
+  - op: pii_detect        # 手机号/邮箱/证件号，命中即滤（生产建议改脱敏）
+    params: {min: 0.9}
+  # --- 去重（批量算子，全量视角） ---
+  - op: text_minhash      # 向量化 MinHash-LSH，精确签名预聚类保真重复
+    params: {threshold: 0.7}
+  # --- L2 模型算子（最贵，放最后；GPU 批量推理） ---
+  - op: perplexity        # GPT-2 zh 困惑度：乱码/字符噪声的靶子算子
+    params: {min: 0.2, batch_size: 64}

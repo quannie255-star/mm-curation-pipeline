@@ -26,15 +26,23 @@ jobs:
           pip install -r requirements.txt
           pip install -e packages/curation-eval  # 协议与算子 SDK（V2 单一来源）
           pip install -e .
-          pip install ruff
+          # pin 版本：ruff 的格式化规则随版本漂移，不 pin 会让 CI 在无关提交上随机变红
+          pip install ruff==0.16.3
 
       - name: Ruff lint
-        run: ruff check src tests scripts dags
+        run: ruff check src tests scripts dags packages
 
       - name: Ruff format check
-        run: ruff format --check src tests scripts dags
+        run: ruff format --check src tests scripts dags packages
 
-      - name: Run tests
+      - name: Run tests (主仓库)
         env:
           HF_ENDPOINT: https://hf-mirror.com
         run: pytest -v
+
+      # curation-eval 是对外发布的协议包，必须与主仓库同等门禁
+      # （此前 testpaths 只含 tests/，包的测试从未在 CI 执行过）
+      - name: Run tests (curation-eval 包)
+        env:
+          HF_ENDPOINT: https://hf-mirror.com
+        run: pytest -v packages/curation-eval/tests

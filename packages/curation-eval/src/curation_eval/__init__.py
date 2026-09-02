@@ -11,8 +11,8 @@ from .registry import (
     OperatorMeta,
     available_operator_metas,
     get_operator_meta,
-    unregister,
     register_operator,
+    unregister,
 )
 from .schema import MODALITY_FIELDS, Sample
 from .sdk import (

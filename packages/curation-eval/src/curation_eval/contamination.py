@@ -156,6 +156,89 @@ class MismatchedPair(Contaminator):
         return sample
 
 
+# ------- 文本语料污染器（V2 β：text_article 模态，全部 requires_image=False） -------
+
+_BOILERPLATE_POOL = [
+    "扫码关注公众号，回复关键词领取福利",
+    "本文来自某某代理投稿，转载请注明出处",
+    "点击链接 www.example-promo.cn 立即抢购",
+    "免责声明：本站所有资源均收集于网络",
+    "阅读原文，下载 APP 查看更多精彩内容",
+]
+
+_PII_POOL_TEMPLATES = [
+    "联系人：138{d}，电话随时接通",
+    "邮箱：user{d}@example-promo.cn",
+    "证件号：1101011990{d}（示例）",
+]
+
+
+def _segments(text: str) -> list[str]:
+    """按行/句切出可复制的正文片段。"""
+    lines = [ln for ln in text.split("\n") if ln.strip()]
+    if len(lines) >= 2:
+        return lines
+    return [seg + "。" for seg in text.split("。") if seg.strip()]
+
+
+@register("paragraph_repeat")
+class ParagraphRepeat(Contaminator):
+    """随机正文段落整行复制 2-4 遍——行级重复率算子的靶子。
+    必须按行复制（[seg]*n 后换行 join）而非行内拼接：line_repetition
+    数的是重复行，行内重复它看不见（β 集成验收踩过的坑）。"""
+
+    def apply(self, sample: Sample, ctx: Context) -> Sample:
+        segs = _segments(sample.text)
+        if not segs:
+            return sample
+        pos = ctx.rng.randrange(len(segs))
+        segs.insert(pos, "\n".join([segs[pos]] * ctx.rng.randint(2, 4)))
+        sample.text = "\n".join(segs)
+        return sample
+
+
+@register("boilerplate_inject")
+class BoilerplateInject(Contaminator):
+    """注入广告/版权/导航模板句——boilerplate 算子的靶子。"""
+
+    def apply(self, sample: Sample, ctx: Context) -> Sample:
+        lines = [
+            _BOILERPLATE_POOL[ctx.rng.randrange(len(_BOILERPLATE_POOL))]
+            for _ in range(ctx.rng.randint(1, 2))
+        ]
+        sample.text = "\n".join(lines) + "\n" + sample.text
+        return sample
+
+
+@register("pii_inject")
+class PiiInject(Contaminator):
+    """注入合成手机号/邮箱/证件号（无真实 PII）——pii_detect 算子的靶子。"""
+
+    def apply(self, sample: Sample, ctx: Context) -> Sample:
+        tpl = _PII_POOL_TEMPLATES[ctx.rng.randrange(len(_PII_POOL_TEMPLATES))]
+        payload = tpl.format(d="".join(str(ctx.rng.randint(0, 9)) for _ in range(8)))
+        pos = ctx.rng.randint(0, len(sample.text))
+        sample.text = sample.text[:pos] + " " + payload + " " + sample.text[pos:]
+        return sample
+
+
+@register("whitespace_pad")
+class WhitespacePad(Contaminator):
+    """正文片段被空白块替换（页面抽取坏损的典型形态）——doc_length 靶子。
+    两个实现约束（β 集成验收踩过的坑）：必须替换而非插入（内部插空白
+    经去空白后有效长度不减）；替换必须内部化——尾部空白会被下游算子
+    的 strip() 无声剥离，污染等于没打。"""
+
+    def apply(self, sample: Sample, ctx: Context) -> Sample:
+        n = len(sample.text)
+        if n < 3:
+            return sample
+        cut = ctx.rng.randint(max(1, n // 3), max(2, n // 2))
+        pos = ctx.rng.randint(0, max(0, n - cut - 1))  # pad 后至少留 1 字符
+        sample.text = sample.text[:pos] + "\n" * 4 + "\u3000" * 12 + sample.text[pos + cut :]
+        return sample
+
+
 @dataclass
 class ContaminationPlan:
     """注入计划：inject_rate 相对干净集比例；kinds 为构成（自动归一化）。"""
