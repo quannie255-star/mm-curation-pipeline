@@ -6,6 +6,7 @@
 
 from .contamination import ContaminationPlan, Contaminator, available_kinds, register
 from .metrics import mrr, pr_from_drops, recall_at_k
+from .ray_executor import RayDistributedExecutor
 from .registry import (
     CostClass,
     OperatorMeta,
@@ -38,6 +39,7 @@ __all__ = [
     "BatchOperator",
     "Executor",
     "LocalSequentialExecutor",
+    "RayDistributedExecutor",
     "StageStat",
     "FunnelResult",
     # 污染器与指标

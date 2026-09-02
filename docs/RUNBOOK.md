@@ -53,6 +53,21 @@ GPU 依赖：`pip install torch torchvision --index-url https://download.pytorch
 > 缓存为空时按报错提示先 `snapshot_download('uer/gpt2-chinese-cluecorpussmall',
 > endpoint='https://hf-mirror.com')`。
 
+## 1.7 Ray 双运行时（V2 γ）
+
+同一份 YAML 配置，`runtime: local`（默认，串行）与 `runtime: ray` 两种执行器
+（`RayDistributedExecutor`，ray 懒加载：`pip install curation-eval[ray]` 或
+`pip install ray`，不装 ray 零影响）。等价性口径与确定性约定见
+docs/design_tables.md γ 决策点 3。
+
+| 步骤 | 命令 | 耗时 | 验收 |
+|---|---|---|---|
+| 双运行时基准 | `python -X utf8 scripts/ray_funnel_benchmark.py --n 100000` | ~4 分钟 | data/reports/ray_funnel_benchmark.md：kept 集相等 + StageStat 相等 + 逐 id 分数相等；10 万档 local 21s / ray 92s（单机不追求更快，价值在横向扩展） |
+
+注意：driver 的 sys.path 不传播给 ray worker——脚本方式使用时把 `src` 放进
+worker 的 PYTHONPATH（`ray.init(runtime_env={"env_vars": {"PYTHONPATH": ...}})`）；
+包以 editable 方式安装则 worker 可直接解析 `curation_eval`/`mm_curation`。
+
 ## 2. 演示（10 分钟，面试/展示）
 
 ```bash

@@ -376,3 +376,64 @@
 - 话术：「实验跑完不等于实验成功。0.4% 的阴性结果逼我把『脏』拆成
   剂量、损伤类型、长度混杂三层去归因——阴性对照教会我的，比一次
   顺利的阳性更多：效应量是设计出来的，不是跑出来的」
+
+### 51. 对外发布的包，CI 却从来没测过它
+- 现象：`curation-eval` 已升级为「协议与 SDK 的单一来源」、README 对外
+  宣称 pip 可装，但 CI 的 `pytest -v` 只跑主仓库 129 项——包的 29 项测试
+  **从未在 CI 上执行过**；`ruff check src tests scripts dags` 同样不含
+  `packages/`。也就是说产品化核心在 CI 上是零门禁裸奔的
+- 根因：`pyproject.toml` 的 `testpaths = ["tests"]` 是**白名单**而非发现
+  机制——新增顶层目录（packages/）时不会自动纳入，而包是 α 阶段才加进来的，
+  CI 配置没跟着演进。lint 范围同理是手工列举
+- 决策：CI 显式加一步 `pytest packages/curation-eval/tests`（**不改 testpaths**
+  ——避免改变本地 `pytest` 默认行为影响既有习惯），ruff 两个命令的范围补
+  `packages`；同时把 ruff **pin 到 0.15.7**（与本机开发版本一致）
+- 为什么必须 pin：`ruff format` 的规则随版本漂移。实测本机 venv 是 0.16.3、
+  系统（日常用的）是 0.15.7，两者对同一批 β 代码都判合规，但**只要漂一次就
+  会出现「本地绿、CI 红」的幽灵失败**——这类失败最难排查，因为它与本次改动无关。
+  门禁工具自身的版本，和被测代码一样需要锁定
+- 数字：改造前包侧 29 测试 + 全部 lint 在 CI 上零覆盖；改造后 CI 门禁覆盖
+  158 测试 + 106 个文件的 lint/format
+- 话术：「我对外说这是个可复用的协议包，但 CI 压根不测它——**宣称和保证是
+  两回事**。补门禁时我顺手把 ruff 版本也 pin 住了：一个会自己漂移的门禁，
+  它的『绿』是没有意义的」
+
+### 52. Git Bash 把 PYTHONPATH 转成了 `C:\c\Users\...`
+- 现象：显式 `export PYTHONPATH="C:/Users/.../site-packages"` 后仍
+  `ModuleNotFoundError`；打印 `sys.path` 发现路径变成 `C:\c\Users\...`
+  ——盘符被当成了一层目录
+- 根因：MSYS2 对形如 `/c/...` 和 `C:/...` 的参数都会做 POSIX→Windows 路径
+  转换，拼接时多出一层 `c`。这不是 Python 的问题，是 Git Bash 的
+  **参数重写**发生在 Python 启动之前
+- 决策：`export MSYS_NO_PATHCONV=1` 之后再 export 正斜杠 Windows 路径即可。
+  附带一个更隐蔽的点：editable 安装的 `.pth` 文件**只在目录被当作 site 目录
+  处理时才解析**，用 PYTHONPATH 把 site-packages 挂进去时 pth 不生效——
+  必须直接把包源码目录（`packages/curation-eval/src`）加进 PYTHONPATH
+- 话术：「环境问题的排查顺序是：先看工具实际收到了什么参数，再看参数意味着
+  什么。我以为是 Python 的 site 机制坏了，实际是 shell 在 Python 之前
+  就把路径改写了」
+
+### 53. Ray 化三日谈：worker 导入、map_batches 协议三连、以及「分布式≠更快」
+- 现象一：spike 里算子在 driver 上跑得好好的，一到 ray worker 就
+  ModuleNotFoundError——driver 的 `sys.path.insert` 不会传播给 worker
+  进程；测试里更隐蔽：toy 算子类定义在 test 模块，cloudpickle 对
+  「有模块名的类」按引用序列化，worker 侧 `import test_ray_executor`
+  直接死
+- 现象二：map_batches 返回值协议三连拒：裸 list 不允许（ray≥2.5）→
+  dict 值必须是 list/ndarray（标量 int 都不行）→ 各列必须等长（它们是
+  输出块的 column，不是普通字典）——最终定下「对象列 + 等长 tag 列」
+  协议；take_all 取回还是行级 dict（"item" 对应单个 Sample），与直觉相反
+- 现象三：2 万文档单样本算子，本地 0.33s / ray 11.7s——慢 35 倍
+- 根因：前两件事的共同根源是 ray.data 为表格数据设计，Python 对象是
+  二等公民（pyarrow 列装不下就整列 pickle 兜底）；慢则是调度与序列化
+  开销——分布式执行器买的是横向扩展能力，不是单机提速
+- 决策：(1) 传输协议在 ray_executor.py 模块注释里钉死成文档；(2) 批量
+  算子语义抽 `run_batch_mixed_modality()` 共享函数，Local/Ray 两个执行器
+  消费同一份实现（等价性从「测出来的」升级为「构造出来的」）；(3) 等价
+  口径 = kept 集按 id 相等 + 每级 StageStat 相等 + 逐 id 分数相等，行序
+  不承诺；(4) ray 测试 importorskip——CI 不装 ray 自动跳过，零依赖路径
+  保持干净
+- 话术：「把漏斗搬上 Ray 的三天，我写的不是分布式代码，是两套运行时
+  之间的『语义翻译层』——最后真正保证正确性的设计，是把批量算子的
+  语义抽成两个执行器共用的一个函数：等价性不该靠测试断言祈祷，该靠
+  让两边根本没有各自的可能性」

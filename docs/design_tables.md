@@ -89,3 +89,46 @@ scripts/text_dedup_benchmark.py / scripts/finetune_gpt2.py: 两个实验入口
 2. 去重基准：10 万档吞吐/内存/召回三数字 + 四档扩展曲线
 3. 文本训练对比：clean_ft vs dirty_ft 的 held-out ppl 差值显著（>5%）且方向正确
 4. 全部测试绿（主仓库 112+新增，包 29+新增）；A5 单一来源守卫持续通过
+
+---
+
+# γ 阶段设计表：Ray 分布式执行层（2026-09-03）
+
+> 蓝图来自 ARCHITECTURE_V2 决策 2（方案 B：本地零依赖 + Ray 懒加载双实现）。
+> γ0 spike 结论（Windows 本机实测）见 docs/DEV_PLAN.md 开发日志与笔记 #51。
+
+## 决策点 1：Ray 执行器归属与依赖策略
+
+| 项 | 决策 | 理由 |
+|---|---|---|
+| 归属 | `curation_eval/ray_executor.py`（与 LocalSequentialExecutor 同级） | 执行器协议属 SDK 的产品面；主仓库只是消费方 |
+| 依赖 | 懒加载 `import ray`（仅在 `RayDistributedExecutor.__init__`）；pyproject 加 extra `[ray]` | 不装 ray 的环境 import 包/跑本地漏斗零影响 |
+| 选型失败预案 | Windows 原生 ray 不可用 → WSL2 路线（文档化）或多进程池降级执行器 | γ0 spike 裁决 |
+
+## 决策点 2：算子在两种运行时下的语义映射
+
+| 算子类别（注册表元数据） | Local 串行 | Ray 分布式 |
+|---|---|---|
+| 单样本算子（RULE/PERCEPTUAL/…） | 逐个 `op(s)` | `ds.map_batches` 批间并行（算子实例 cloudpickle 下发；模态不匹配保留不评判计 skipped） |
+| BatchOperator，shardable=True | 全量 `run_batch` | 按块 `run_batch`（batch 仅为效率包装，逐样本独立 → 分片语义不变） |
+| BatchOperator，shardable=False（去重等全量视角） | 全量 `run_batch` | **汇聚单点执行**：`take_all()` → `run_batch` → 重建 Dataset（协议注释已声明 reduce/shuffle 属二期） |
+| StageStat 可观测性 | 进程内统计 | 每级 materialize 后用同一 `_score_stats` 统计（分数进 meta，两运行时同源） |
+
+## 决策点 3：等价性口径（γ3 验收的"一致"定义）
+
+- ray map_batches 不保序 → 等价性定义为：**kept 集合按 id 相等 + 每级 StageStat
+  数字相等 + 每样本分数（meta score:*）逐 id 相等**，行序不承诺
+- 确定性保障（γ3 首跑教训：条数相等但集合不等——去重簇代表依赖块序）：
+  批量算子执行前按 id 规范化排序（簇代表 = 最小 id），跨运行时/跨次运行
+  的去重输出因此确定；本地 id 为零填充递增，行为与既有结果完全一致
+- 等价性测试跑 7 个 CPU 算子（doc_length…text_minhash）；perplexity（MODEL/GPU）
+  本期仍走本地（Ray worker 的 GPU 调度与权重分发列为后续，报告注明）
+- CI：ray 相关测试 `pytest.importorskip("ray")`——CI 默认不装 ray，自动跳过
+
+## 风险
+
+| 风险 | 预案 |
+|---|---|
+| Windows 原生 ray 限制（spike 裁决） | 降级路线已定（见决策点 1） |
+| map_batches batch_format 对 Python 对象的行为差异 | γ0 spike 实测钉死；Sample 走 cloudpickle |
+| ray 本地集群内存（object store）过大 | init 显式 `object_store_memory` 上限 |

@@ -7,8 +7,13 @@
 面向中文多模态大模型训练数据场景的端到端数据管道：**脏数据进 → 漏斗式多算子清洗 →
 质量可量化 → 向量索引 → 检索服务 → 清洗收益可证明**。
 
-> 状态：✅ 主线（Week 1-4）+ Phase 2（P1-P4）完成。路线图见 [docs/ROADMAP.md](docs/ROADMAP.md)。
+> 状态：✅ 主线（Week 1-4）+ Phase 2（P1-P10）+ V2 α/β 完成。路线图见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 > 面试叙事见 [docs/INTERVIEW.md](docs/INTERVIEW.md)。
+>
+> **V2 定位**：从「一条多模态清洗管道」升级为「模态可插拔的数据质量框架」。
+> 协议与算子 SDK 收口进 `curation-eval` 包，图文管道与纯文本语料管道是它的两个
+> 实例——共享同一注册表、同一执行器、同一评测协议，**零框架特例**。
+> 设计见 [docs/ARCHITECTURE_V2.md](docs/ARCHITECTURE_V2.md)。
 
 ## 核心结果（所有数字来自真实实验，可一键复现）
 
@@ -25,11 +30,19 @@
 | **Phase2 · 自训检测器**（防循环论证） | testB 泛化 / 主靶召回 / 误杀 | **87.3% / 100% / 0.8%** |
 | **Phase2 · CLIP 微调对比**（训练级证据） | clean_ft vs dirty_ft R@1 | **0.688 vs 0.636（差 5.2pp）** |
 | **Phase2 · 实时质量门** | POST /api/ingest | 质量评分 + 三层增量判重 + accept 一次返回 |
-| **工程** | 单元测试 | 94 + 6（主仓库 + curation-eval 包） |
+| **Phase2 · 生产化切片** | 跨集去污染 / PSI 漂移监控 / 成本核算 | 召回 94.4% / 换源批 0.36-0.66 告警 / 四维成本表 |
+| **V2 β · 文本去重基准**（10 万档） | exact 召回 / near 召回 / 耗时 | **1.0 / 0.9714 / 21.1s**（30 万档 60.4s，近线性） |
+| **V2 β · GPT-2 zh 微调对比**（文本版训练证据） | clean_ft vs dirty_ft held-out ppl | **7.16 vs 7.70（脏语料 +7.5%，超 5% 验收线）** |
+| **V2 β · 文本全量漏斗**（30.2 万篇中文维基） | 保留率 | **302,002 → 181,980（60.3%）** |
+| **工程** | 单元测试 | **129 + 29**（主仓库 + curation-eval 包） |
 
 > 灵魂叙事：**脏数据 → 11 级漏斗 → 干净集（R@1 +21%）→ 分层采样（再 +18~24%）**
 > → Phase 2 把"代理指标"升级为"训练证据"（脏集微调 CLIP 比 clean 低 5.2pp R@1）。
 > 全链路收益可证、可复现、可归因。
+>
+> **V2 把同一个闭环推广到第二个模态**：同一套协议零特例接入 30.2 万篇中文维基语料，
+> 文本侧同样拿到训练级证据（脏语料微调困惑度 +7.5%）——证明这不是一条管道，
+> 而是一个框架。
 
 ## 架构总览
 
@@ -48,6 +61,16 @@
                                               ▼
                                        Streamlit Demo
 ```
+
+同一套协议支撑两个模态实例（V2 β 起）：
+
+| 实例 | 模态 | 数据规模 | 算子 | 去重 | 下游证据 |
+|---|---|---|---|---|---|
+| 图文管道 | `image_caption` | 2,106 对（COCO-CN 1,620 + 注入 486） | 12 个（L1 规则 / 去重四件套 / CLIP 对齐 / 自训检测器） | md5 + pHash + MinHash + 语义 kNN | CLIP 微调 R@1 0.688 vs 0.636 |
+| 文本语料管道 | `text_article` | 302,002 篇（中文维基） | 8 个（长度 / 中文占比 / 复读 / 模板句 / PII / 困惑度） | 向量化 MinHash-LSH（80 perm / 8 band） | GPT-2 zh 困惑度 7.16 vs 7.70 |
+
+两者共用 `curation-eval` 的 Sample 协议、算子注册表、Executor 与 P/R 评测——
+文本模态接入时**没有新增任何框架特例**。
 
 ## 快速开始
 
@@ -75,7 +98,16 @@ make threshold-scan                   # data/reports/threshold_scan.{json,md,png
 # 6. Phase 2（可选，需 GPU）
 make train-detector                   # 自训水印/NSFW 检测器 → models/detector/
 make finetune-clip                    # 干净/脏集 CLIP 微调对比 → data/reports/finetune_eval.{json,md}
+
+# 7. V2 β：文本语料实例（make-free 等价命令见 docs/RUNBOOK.md 第 1.5 节）
+python -X utf8 scripts/download_text_corpus.py        # 30.2 万篇中文维基
+python -X utf8 scripts/text_dedup_benchmark.py        # 去重吞吐/召回基准
+python -X utf8 scripts/run_pipeline.py --config configs/text_funnel.yaml
+python -X utf8 scripts/finetune_gpt2.py               # 干净/脏语料训练对比（需 GPU）
 ```
+
+> Windows 注意：产出中文的脚本加 `-X utf8`。`.venv` 若因目录搬迁失效，
+> 直接用系统 Python（详见 [RUNBOOK 第 0 节](docs/RUNBOOK.md)）。
 
 ## 目录结构
 
@@ -97,26 +129,34 @@ tests/            # pytest
 data/             # raw / interim / processed / reports（git 忽略，DVC 管理）
 ```
 
-## 独立评测包：curation-eval
+## 独立评测包：curation-eval（V2 起是协议与 SDK 的单一来源）
 
-[`packages/curation-eval/`](packages/curation-eval/) — 从本项目抽炼的
-**数据清洗 ground-truth 评测框架**（pip 可装）：程序化污染器 + 丢弃语义 P/R +
-检索指标。定位：Data-Juicer 等清洗系统提供算子，本包回答"算子好不好"。
+[`packages/curation-eval/`](packages/curation-eval/) — 数据清洗的
+**ground-truth 评测框架**（pip 可装）。定位：Data-Juicer 等清洗系统提供算子，
+本包回答「算子好不好」。
+
+0.2.0 起它同时承载**协议层**：泛化 `Sample` schema（模态可插拔）、算子注册表
+（带模态/成本档/依赖字段元数据）、Executor 抽象、污染器协议、P/R 与检索指标。
+主仓库反向消费本包——**自己产品的第一個用户**，这是"可复用"最硬的证明。
 
 ```bash
 pip install -e packages/curation-eval
-python -m pytest packages/curation-eval/tests   # 6 项协议测试
+python -m pytest packages/curation-eval/tests   # 29 项协议测试
 ```
+
+协议约定、五分钟上手示例与变更记录见 [包内 README](packages/curation-eval/README.md)。
 
 ## 设计文档
 
+- [系统架构 V2（模态可插拔框架：八决策 + 六阶段路线）](docs/ARCHITECTURE_V2.md)
 - [系统架构（数据流 Mermaid + FMEA + 替换成本）](docs/ARCHITECTURE.md)
+- [完整跑法 RUNBOOK（make-free，含 venv 踩坑）](docs/RUNBOOK.md)
 - [服务实测性能与降级矩阵（SLA_README）](docs/SLA_README.md)
 - [FAQ：真实踩坑与评测口径](docs/FAQ.md)
-- [项目路线图](docs/ROADMAP.md) — 周计划 + Phase2 计划 + 进度记录 + 阈值校准
+- [项目路线图](docs/ROADMAP.md) — 周计划 + Phase2 + V2 六阶段 + 进度记录 + 阈值校准
 - [岗位 JD 调研与能力映射](docs/JD_RESEARCH.md)
 - [面试叙事（STAR + 预想追问）](docs/INTERVIEW.md)
-- [工程发现日志 42 条（面试弹药库）](docs/ENGINEERING_NOTES.md)
+- [工程发现日志 50 条（面试弹药库）](docs/ENGINEERING_NOTES.md)
 
 ## License
 

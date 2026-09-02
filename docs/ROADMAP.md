@@ -177,6 +177,24 @@ legacy caption 键永久兼容。下一阶段：β 文本语料实例 → γ Ray
 明确不做：Next.js 真前端（数据岗零回报）、W&B 云依赖（MLflow 本地备选）、
 长期愿景（算子市场/influence-guided/主动清洗）只进 INTERVIEW.md 话术不进代码。
 
+## V2 γ：Ray 双运行时执行层（2026-09-03 完成）
+
+> 目标：证明 α 的 Executor 协议是真的——同一份 YAML 算子图，local 串行与
+> Ray 分布式两种运行时可切换（config 一行 `runtime: ray`），算子零改动。
+> 设计见 docs/design_tables.md γ 决策点 1-3；开发日志见 DEV_PLAN。
+
+| 任务 | 内容 | 状态 |
+|---|---|---|
+| γ0 | Ray spike（Windows 原生 ray 2.58 实测：map_batches 传输协议钉死、等价性预验证、20k 单样本算子 ray 慢 35 倍的诚实结论） | ✅ |
+| γ1 | `RayDistributedExecutor`（curation-eval SDK，ray 懒加载零依赖）+ `run_batch_mixed_modality` 共享语义函数 + `PipelineConfig.runtime` + runner 执行器工厂 | ✅ |
+| γ2 | shardable 语义落地：单样本/shardable 批量走 map_batches 并行；全局批量（去重）汇聚单点执行；等价性测试 5 条（importorskip，CI 零依赖） | ✅ |
+| γ3 | 10 万档双运行时基准：**kept 集相等 + 8 级 StageStat 相等 + 逐 id 分数零不一致**（local 24.0s / ray 89.6s）；首跑暴露簇代表依赖块序 → id 规范化排序修复（跨运行时确定性） | ✅ |
+| γ4 | RUNBOOK γ 段 + 笔记 #51-53 + 基准报告落盘 | ✅ |
+
+**γ 验收数字**：等价性三口径全过；perplexity（GPU）本期不走 Ray（worker GPU
+调度属后续，报告注明）；包 34 + 主仓 133 测试全绿。
+下一阶段：δ LLM-judge → ε 数据 CI。
+
 ## 周计划
 
 ### Week 1：地基 + 数据准备

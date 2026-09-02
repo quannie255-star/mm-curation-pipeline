@@ -109,6 +109,31 @@ def _score_stats(samples: list[Sample], op_name: str) -> tuple[float | None, ...
     return scores[0], p50, scores[-1]
 
 
+def run_batch_mixed_modality(op: BatchOperator, items: list[Sample]):
+    """批量算子对混合模态列表的一次执行（Local/Ray 执行器共用，语义同源）。
+
+    模态不匹配的样本保留不评判（计 skipped）；返回 (survivors, dropped, skipped)。
+
+    确定性约定：执行前按 id 规范化排序——「先到先保留」类算子（去重的
+    簇代表选择）因此只依赖 id 而不依赖输入序/分块序。否则同一份配置在
+    本地与 Ray（块序不保证）会选出不同的簇代表，跨运行时甚至跨次运行
+    都不可复现（γ3 基准实测教训）。
+    """
+    items = sorted(items, key=lambda s: s.id)
+    meta = getattr(op, "meta", None)
+    if meta is None:
+        survivors = op.run_batch(items)
+        done = {s.id for s in survivors}
+        dropped = [s for s in items if s.id not in done]
+        return survivors, dropped, 0
+    applicable = [s for s in items if s.modality in meta.modalities]
+    passthrough = [s for s in items if s.modality not in meta.modalities]
+    done = {s.id for s in op.run_batch(applicable)} | {s.id for s in passthrough}
+    survivors = [s for s in items if s.id in done]
+    dropped = [s for s in items if s.id not in done]
+    return survivors, dropped, len(passthrough)
+
+
 class LocalSequentialExecutor(Executor):
     """单机串行执行（v1 run_funnel 语义 + V2 模态跳过）。
 
@@ -127,17 +152,7 @@ class LocalSequentialExecutor(Executor):
             dropped_here: list[Sample]
             skipped = 0
             if isinstance(op, BatchOperator):
-                if meta is not None:
-                    applicable = [s for s in result.kept if s.modality in meta.modalities]
-                    passthrough = [s for s in result.kept if s.modality not in meta.modalities]
-                    skipped = len(passthrough)
-                    done = {s.id for s in op.run_batch(applicable)} | {s.id for s in passthrough}
-                    survivors = [s for s in result.kept if s.id in done]
-                    dropped_here = [s for s in result.kept if s.id not in done]
-                else:
-                    survivors = op.run_batch(result.kept)
-                    done = {s.id for s in survivors}
-                    dropped_here = [s for s in result.kept if s.id not in done]
+                survivors, dropped_here, skipped = run_batch_mixed_modality(op, result.kept)
                 stat = StageStat(
                     op=op.name,
                     n_in=n_in,

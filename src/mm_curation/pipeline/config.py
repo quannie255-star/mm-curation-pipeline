@@ -32,6 +32,7 @@ class PipelineConfig:
     output_dir: Path
     operators: list[OperatorSpec]
     description: str = ""
+    runtime: str = "local"  # local | ray（执行器选择，见 runner.get_executor）
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "PipelineConfig":
@@ -59,10 +60,15 @@ class PipelineConfig:
         if not specs:
             raise ValueError("operators 不能为空")
 
+        runtime = raw.get("runtime", "local")
+        if runtime not in ("local", "ray"):
+            raise ValueError(f"runtime 只支持 local|ray，得到 {runtime!r}")
+
         return cls(
             name=raw["name"],
             description=raw.get("description", ""),
             raw_jsonl=Path(raw["dataset"]["raw_jsonl"]),
             output_dir=Path(raw["output"]["dir"]),
             operators=specs,
+            runtime=runtime,
         )

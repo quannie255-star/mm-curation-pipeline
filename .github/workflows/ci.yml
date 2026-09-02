@@ -26,8 +26,9 @@ jobs:
           pip install -r requirements.txt
           pip install -e packages/curation-eval  # 协议与算子 SDK（V2 单一来源）
           pip install -e .
-          # pin 版本：ruff 的格式化规则随版本漂移，不 pin 会让 CI 在无关提交上随机变红
-          pip install ruff==0.16.3
+          # pin 到与本机开发一致的 0.15.7：ruff 的格式化规则随版本漂移，
+          # 不 pin 会让 CI 在无关提交上随机变红（本地绿 / CI 红最难排查）
+          pip install ruff==0.15.7
 
       - name: Ruff lint
         run: ruff check src tests scripts dags packages

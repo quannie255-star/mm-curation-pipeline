@@ -72,7 +72,8 @@ def test_batch_op_receives_survivors_not_full_input(tmp_path):
             "都市夜景灯火辉煌",
         ],
     )
-    # 复制 s0 的图与 caption 构造精确重复（id 不同，排在后面 -> 应被 md5 扔）
+    # 复制 s0 的图与 caption 构造精确重复。γ 起簇代表按 id 规范序选择
+    # （"dup" < "s0"，见 sdk.run_batch_mixed_modality）——被扔的是 s0
     dup = Sample(id="dup", image_path=samples[0].image_path, text=samples[0].text)
     samples.append(dup)
 
@@ -87,8 +88,8 @@ def test_batch_op_receives_survivors_not_full_input(tmp_path):
     # 关键断言：批量算子的 n_in 是上一级存活数 3，而不是原始 4
     assert (s1.op, s1.n_in, s1.n_out, s1.dropped, s1.batch) == ("md5_exact", 3, 2, 1, True)
     assert s1.score_min is None and s1.score_p50 is None  # 批量算子无分数
-    assert [s.id for s in result.kept] == ["s0", "s2"]
-    assert [(op, s.id) for op, s in result.dropped] == [("text_length", "s1"), ("md5_exact", "dup")]
+    assert [s.id for s in result.kept] == ["dup", "s2"]
+    assert [(op, s.id) for op, s in result.dropped] == [("text_length", "s1"), ("md5_exact", "s0")]
 
 
 def test_pass_rate_and_empty_stage(tmp_path):
