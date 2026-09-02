@@ -79,21 +79,22 @@ class IncrementalDeduper:
                 continue
             self._md5[rec["md5"]] = rec["id"]
             self._phash.append((rec["id"], int(rec["phash"])))
-            if len(rec["caption"]) >= self.min_caption_len:
-                m = self._minhash(rec["caption"])
+            caption = rec.get("text") or rec.get("caption", "")  # 兼容旧 journal
+            if len(caption) >= self.min_caption_len:
+                m = self._minhash(caption)
                 self._lsh.insert(rec["id"], m)
             n += 1
         logging.getLogger(__name__).info("去重 journal 重放: %s 条", n)
 
-    def check_and_add(self, sample_id: str, image_path: str, caption: str) -> DedupVerdict:
+    def check_and_add(self, sample_id: str, image_path: str, text: str) -> DedupVerdict:
         """查-判-插一体：返回判定；未命中时把该样本登记进三层索引。"""
-        verdict = self.check(sample_id, image_path, caption)
+        verdict = self.check(sample_id, image_path, text)
         if verdict.is_duplicate:
             return verdict
-        self._add(sample_id, image_path, caption)
+        self._add(sample_id, image_path, text)
         return verdict
 
-    def check(self, sample_id: str, image_path: str, caption: str) -> DedupVerdict:
+    def check(self, sample_id: str, image_path: str, text: str) -> DedupVerdict:
         # 1) md5
         digest = hashlib.md5(open(image_path, "rb").read()).hexdigest()
         if digest in self._md5:
@@ -108,14 +109,14 @@ class IncrementalDeduper:
                 if bin(h ^ stored).count("1") <= self.phash_threshold:
                     return DedupVerdict(True, "phash_near", sid)
         # 3) MinHash-LSH
-        if len(caption) >= self.min_caption_len:
-            m = self._minhash(caption)
+        if len(text) >= self.min_caption_len:
+            m = self._minhash(text)
             hits = self._lsh.query(m)
             if hits:
                 return DedupVerdict(True, "minhash_lsh", hits[0])
         return DedupVerdict(False)
 
-    def _add(self, sample_id: str, image_path: str, caption: str) -> None:
+    def _add(self, sample_id: str, image_path: str, text: str) -> None:
         digest = hashlib.md5(open(image_path, "rb").read()).hexdigest()
         self._md5[digest] = sample_id
         import imagehash
@@ -128,13 +129,13 @@ class IncrementalDeduper:
             with open(self.journal, "a", encoding="utf-8") as f:
                 f.write(
                     json.dumps(
-                        {"id": sample_id, "md5": digest, "phash": h, "caption": caption},
+                        {"id": sample_id, "md5": digest, "phash": h, "text": text},
                         ensure_ascii=False,
                     )
                     + "\n"
                 )
-        if len(caption) >= self.min_caption_len:
-            m = self._minhash(caption)
+        if len(text) >= self.min_caption_len:
+            m = self._minhash(text)
             self._lsh.insert(sample_id, m)
             self._sigs[sample_id] = m
 

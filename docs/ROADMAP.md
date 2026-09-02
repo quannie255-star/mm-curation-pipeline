@@ -124,6 +124,25 @@
 | P8 | 分数分布漂移监控（PSI） | 阈值腐烂告警：上游换源时分数分布静默漂移 | 1 天 | ✅ 完成（对照实验：同源批 PSI≈0.01 稳定 / 换源批 0.36-0.66 告警；灵敏度边界已量化，日志 #41） |
 | P9 | SPOF 修复：去重 journal 持久化 | ingest 重启后判重状态完整恢复（重放+崩溃半行容忍） | 半天 | ✅ 完成 |
 | P10 | 逐算子成本核算 | 吞吐/百万耗时/相对倍数/召回四维表，预算取舍依据 | 半天 | ✅ 完成（成本横跨 6 个数量级；两个基准测量陷阱记录在日志 #43） |
+
+---
+
+## V2 演进（2026-09-02 启动）：协议收口 α 阶段完成
+
+> 设计与执行按 docs/ARCHITECTURE_V2.md（八决策）+ docs/design_tables.md（α 设计表）。
+> 目标：从"一条多模态管道"升级为"模态可插拔、运行时可替换、协议即产品的数据质量框架"。
+
+| 任务 | 内容 | 状态 |
+|---|---|---|
+| T1-T3 | curation-eval 0.2 协议核心：Sample schema（modality 推断+legacy 兼容）/ 注册表元数据（fail-fast）/ 算子 SDK + Executor（reduce 占位） | ✅ |
+| T4-T5 | contamination/metrics 迁 Sample 协议 + 包收口 0.2.0（README 协议段+变更记录） | ✅ |
+| T6-T7 | 主仓库 base.py 纯 re-export + caption→text 原子改名（from_dict 永久兼容 legacy 键） | ✅ |
+| T8-T9 | 12 算子迁移到元数据注册（模态/成本档/分片语义）+ runner 委托 LocalSequentialExecutor + 模态 fail-fast | ✅ |
+| T10-T12 | α 验收测试 A1-A7 + legacy 对账（n_kept 精确一致 / 全漏斗召回 99.8%±0.2/误杀 2.16%）+ cost_model 读注册表元数据 + CI/Makefile 装包 | ✅ |
+
+**α 验收数字**：主仓库 112 测试 + 包 29 测试全绿；全漏斗端到端 2106→1586、
+召回 99.8%（差 1 条=数据重注入浮动）/ 误杀 2.16% 与基线一致；样本行键 text、
+legacy caption 键永久兼容。下一阶段：β 文本语料实例 → γ Ray 执行层 → δ LLM-judge → ε 数据 CI。
 | P6 | 规模扩展 8-15k（叠加 train2014 镜像） | 消融非零 delta；分层层采样规模效应 | 1-2 周 | ⏸ 暂缓（求职优先；消融全零已有"冗余+分组消融"完整解释，见 ENGINEERING_NOTES #31） |
 
 明确不做：Next.js 真前端（数据岗零回报）、W&B 云依赖（MLflow 本地备选）、

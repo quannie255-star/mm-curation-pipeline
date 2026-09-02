@@ -66,7 +66,7 @@ def _make_samples(tmp_path, n=4, prefix="COCO_train2014_%012d") -> list[Sample]:
             Sample(
                 id=prefix % i,
                 image_path=str(p),
-                caption=_CAPTIONS[i % len(_CAPTIONS)],
+                text=_CAPTIONS[i % len(_CAPTIONS)],
                 meta={"tags": ["照片"]},
             )
         )
@@ -82,7 +82,7 @@ def _dedup(op_name, samples, **params):
 
 def test_md5_exact_drops_byte_copy_keep_first(tmp_path):
     samples = _make_samples(tmp_path)
-    dup = Sample(id="dup", image_path=samples[0].image_path, caption=samples[0].caption)
+    dup = Sample(id="dup", image_path=samples[0].image_path, text=samples[0].text)
     kept = _dedup("md5_exact", [samples[0], dup, samples[1]])
     assert [s.id for s in kept] == [samples[0].id, samples[1].id]  # 先到先保留
     assert dup.meta["dedup:md5_exact"]["duplicate_of"] == samples[0].id
@@ -100,7 +100,7 @@ def test_phash_near_drops_reencode(tmp_path):
     samples = _make_samples(tmp_path, n=1)
     reencoded = tmp_path / "reencoded.jpg"
     Image.open(samples[0].image_path).save(reencoded, "JPEG", quality=35)
-    dup = Sample(id="dup", image_path=str(reencoded), caption=samples[0].caption)
+    dup = Sample(id="dup", image_path=str(reencoded), text=samples[0].text)
     kept = _dedup("phash_near", [samples[0], dup])
     assert [s.id for s in kept] == [samples[0].id]
 
@@ -119,11 +119,11 @@ def test_minhash_lsh_catches_perturbed_caption(tmp_path):
     from mm_curation.contamination.impl import NearDuplicateText
 
     src = _make_samples(tmp_path, n=1)[0]
-    original = src.caption
-    dup = Sample(id="dup", image_path=src.image_path, caption=original)
+    original = src.text
+    dup = Sample(id="dup", image_path=src.image_path, text=original)
     ctx = ContaminationContext([src], tmp_path / "dirty", random.Random(7))
     NearDuplicateText().apply(dup, 0, ctx)  # 注入与真实污染同源的扰动
-    other = Sample(id="other", image_path=src.image_path, caption="完全不相关的另一段描述文字")
+    other = Sample(id="other", image_path=src.image_path, text="完全不相关的另一段描述文字")
     kept = _dedup("minhash_lsh", [src, dup, other])
     assert [s.id for s in kept] == [src.id, other.id]
 

@@ -78,7 +78,7 @@ def test_emit_samples(tmp_path):
     assert len(lines) == 2
     first = json.loads(lines[0])
     assert first["id"] == "COCO_train2014_000000000101"
-    assert first["caption"] == "一只猫坐在沙发上"
+    assert first["text"] == "一只猫坐在沙发上"
     assert first["meta"]["tags"] == ["猫"] and first["meta"]["split"] == "train"
     assert first["labels"] == {}
     second = json.loads(lines[1])

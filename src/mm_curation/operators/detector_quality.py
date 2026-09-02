@@ -7,13 +7,19 @@ BatchOperator 形态：批量推理（逐样本前向会把 GPU 利用率打到�
 from __future__ import annotations
 
 import numpy as np
+from curation_eval import CostClass, register_operator
 
 from ..detector import model as detector_model
 from .base import BatchOperator, Sample
-from .registry import register
 
 
-@register("wm_nsfw_cnn")
+@register_operator(
+    name="wm_nsfw_cnn",
+    modalities=frozenset({"image_caption"}),
+    required_fields=frozenset({"image_path"}),
+    cost_class=CostClass.MODEL,
+    shardable=True,  # 逐样本独立推理
+)
 class WmNsfwCnnOp(BatchOperator):
     """水印/NSFW 检测：max P(脏类) > 1-min 视为脏。
 

@@ -33,7 +33,7 @@ def _clean(tmp_path, n=3) -> list[Sample]:
         Sample(
             id=f"c{i}",
             image_path=_img(tmp_path, f"c{i}", (i * 40 % 255, 80, 160)),
-            caption=f"这是第{i}张干净的图",
+            text=f"这是第{i}张干净的图",
         )
         for i in range(n)
     ]
@@ -49,7 +49,7 @@ def _labeled(samples: list[Sample], dirty_type: str, ids: list[str]) -> list[Sam
             Sample(
                 id=f"{sid}::{dirty_type}{i}",
                 image_path=s.image_path,
-                caption=s.caption,
+                text=s.text,
                 labels={"dirty": dirty_type},
             )
         )
@@ -89,21 +89,21 @@ def test_md5_independent_vs_funnel(tmp_path):
 
 def test_text_length_recall_on_low_quality(tmp_path):
     cleans = [
-        Sample(id="c0", image_path=_img(tmp_path, "c0"), caption="一只猫坐在沙发上看电视"),
-        Sample(id="c1", image_path=_img(tmp_path, "c1"), caption="两个孩子在公园里玩耍"),
+        Sample(id="c0", image_path=_img(tmp_path, "c0"), text="一只猫坐在沙发上看电视"),
+        Sample(id="c1", image_path=_img(tmp_path, "c1"), text="两个孩子在公园里玩耍"),
     ]
     # low_quality_text: 截断（2字 < min=5）
     dirty = [
         Sample(
             id="d0::low_quality_text0",
             image_path=_img(tmp_path, "d0"),
-            caption="哈" * 30,  # 刷字变体
+            text="哈" * 30,  # 刷字变体
             labels={"dirty": "low_quality_text"},
         ),
         Sample(
             id="d1::low_quality_text1",
             image_path=_img(tmp_path, "d1"),
-            caption="好",
+            text="好",
             labels={"dirty": "low_quality_text"},
         ),
     ]
@@ -130,7 +130,7 @@ def test_evaluate_all_dirty_totals_and_matrix(tmp_path):
         Sample(
             id="d0::blur0",
             image_path=_img(tmp_path, "blur0"),
-            caption=cleans[0].caption,
+            text=cleans[0].text,
             labels={"dirty": "blur"},
         )
     ]
@@ -171,7 +171,7 @@ def test_all_registered_operators_have_target_entry():
 
 def test_run_operator_single_and_batch_branch(tmp_path):
     samples = _clean(tmp_path, 3)
-    dup = Sample(id="dup", image_path=samples[0].image_path, caption=samples[0].caption)
+    dup = Sample(id="dup", image_path=samples[0].image_path, text=samples[0].text)
     samples = samples + [dup]
     # 单样本算子走 __call__ 分支
     op_s = build_operator({"op": "text_length", "params": {"min": 5}})

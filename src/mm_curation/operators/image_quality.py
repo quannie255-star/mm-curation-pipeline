@@ -8,8 +8,12 @@ from __future__ import annotations
 
 from typing import Optional
 
+from curation_eval import CostClass, register_operator
+
 from .base import Operator, Sample
-from .registry import register
+
+_IMAGE = frozenset({"image_caption"})
+_IMAGE_FIELDS = frozenset({"image_path"})
 
 
 def _image_size(sample: Sample) -> Optional[tuple[int, int]]:
@@ -22,7 +26,12 @@ def _image_size(sample: Sample) -> Optional[tuple[int, int]]:
         return None
 
 
-@register("resolution")
+@register_operator(
+    name="resolution",
+    modalities=_IMAGE,
+    required_fields=_IMAGE_FIELDS,
+    cost_class=CostClass.RULE,
+)
 class ResolutionOp(Operator):
     """短边像素数。太小的图对 CLIP 编码与训练几乎无贡献。score = min(w, h)。"""
 
@@ -31,10 +40,15 @@ class ResolutionOp(Operator):
         return float(min(size)) if size else None
 
 
-@register("aspect_ratio")
+@register_operator(
+    name="aspect_ratio",
+    modalities=_IMAGE,
+    required_fields=_IMAGE_FIELDS,
+    cost_class=CostClass.RULE,
+)
 class AspectRatioOp(Operator):
     """长宽比均衡度。score = min(w/h, h/w) ∈ (0, 1]，1 为正方形。
-    极端长宽比多为banner/拼接图。"""
+    极端长宽比多为 banner/拼接图。"""
 
     def score(self, sample: Sample) -> Optional[float]:
         size = _image_size(sample)
@@ -44,7 +58,12 @@ class AspectRatioOp(Operator):
         return min(w / h, h / w)
 
 
-@register("blur")
+@register_operator(
+    name="blur",
+    modalities=_IMAGE,
+    required_fields=_IMAGE_FIELDS,
+    cost_class=CostClass.PERCEPTUAL,
+)
 class BlurOp(Operator):
     """清晰度 = Laplacian 方差（越低越模糊）。score 语义统一为越高越好，
     直接取方差原值，min 阈值按数据校准（典型量级见 configs/）。"""

@@ -121,7 +121,7 @@ def emit_samples(annotations: CocoCnAnnotations, images_dir: Path, out_jsonl: Pa
             sample = {
                 "id": name,
                 "image_path": str(img),
-                "caption": captions[0],  # 一图多句时取首句，其余进 meta
+                "text": captions[0],  # 一图多句时取首句，其余进 meta
                 "meta": {
                     "extra_captions": captions[1:],
                     "tags": annotations.tags.get(name, []),

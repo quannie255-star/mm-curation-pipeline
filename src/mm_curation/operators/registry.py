@@ -1,38 +1,29 @@
-"""算子注册表：YAML 里的算子名 -> 类。
+"""算子注册表——机制在 curation-eval，本模块只提供主仓库便捷封装。
 
-新增算子只需在模块内用 @register("name") 装饰并在 operators/__init__.py
-导入，YAML 即可直接引用，无需改动执行器。
+V2 起：注册机制（元数据声明 + 注册时 fail-fast 校验）来自 curation_eval.registry；
+本模块保留 build_operator / is_batch / available_operators 供管道配置与脚本使用。
 """
 
 from __future__ import annotations
 
-from typing import Any, Type
+from typing import Any
 
-from .base import BatchOperator, Operator
-
-_REGISTRY: dict[str, Type[Operator]] = {}
-
-
-def register(name: str):
-    def decorator(cls: Type[Operator]) -> Type[Operator]:
-        if name in _REGISTRY:
-            raise ValueError(f"算子名冲突: {name} 已注册为 {_REGISTRY[name].__name__}")
-        cls.name = name
-        _REGISTRY[name] = cls
-        return cls
-
-    return decorator
+from curation_eval import BatchOperator, Operator
+from curation_eval.registry import available_operator_metas, get_operator_class
 
 
 def build_operator(spec: dict[str, Any]) -> Operator:
+    """按配置 spec 构造算子实例：{"op": name, "params": {...}}。"""
     op_name = spec.get("op")
-    if op_name not in _REGISTRY:
-        raise KeyError(f"未注册的算子: {op_name!r}。可用算子: {sorted(_REGISTRY)}")
-    return _REGISTRY[op_name](**spec.get("params", {}))
+    try:
+        cls = get_operator_class(op_name)
+    except KeyError:
+        raise KeyError(f"未注册的算子: {op_name!r}。可用算子: {available_operators()}") from None
+    return cls(**spec.get("params", {}))
 
 
 def available_operators() -> list[str]:
-    return sorted(_REGISTRY)
+    return sorted(available_operator_metas())
 
 
 def is_batch(op: Operator) -> bool:

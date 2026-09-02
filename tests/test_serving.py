@@ -29,7 +29,7 @@ class FakeSearcher:
                 "row": 0,
                 "id": "s0",
                 "image_path": "tests/white.png",
-                "caption": "第一张",
+                "text": "第一张",
                 "labels": {},
             }
         ]
@@ -42,7 +42,7 @@ class FakeSearcher:
                 id=f"s{i}",
                 score=1.0 - i * 0.1,
                 image_path="tests/white.png",
-                caption=f"结果{i}",
+                text=f"结果{i}",
                 labels={} if i else {"dirty": "watermark"},
             )
             for i in range(min(top_k, self.n_items))

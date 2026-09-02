@@ -28,7 +28,7 @@ def _samples(tmp_path: Path, captions: list[str], sid_prefix="s") -> list[Sample
     for i, c in enumerate(captions):
         img = tmp_path / f"img{i}.jpg"
         Image.new("RGB", (64, 48), (i * 40 % 255, 80, 160)).save(img, "JPEG")
-        out.append(Sample(id=f"{sid_prefix}{i}", image_path=str(img), caption=c))
+        out.append(Sample(id=f"{sid_prefix}{i}", image_path=str(img), text=c))
     return out
 
 
@@ -73,7 +73,7 @@ def test_batch_op_receives_survivors_not_full_input(tmp_path):
         ],
     )
     # 复制 s0 的图与 caption 构造精确重复（id 不同，排在后面 -> 应被 md5 扔）
-    dup = Sample(id="dup", image_path=samples[0].image_path, caption=samples[0].caption)
+    dup = Sample(id="dup", image_path=samples[0].image_path, text=samples[0].text)
     samples.append(dup)
 
     config = _config(

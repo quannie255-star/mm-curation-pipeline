@@ -16,7 +16,7 @@ from mm_curation.operators.base import Sample
 
 def _sample(sid, caption, extra=None):
     return Sample(
-        id=sid, image_path="unused.jpg", caption=caption, meta={"extra_captions": extra or []}
+        id=sid, image_path="unused.jpg", text=caption, meta={"extra_captions": extra or []}
     )
 
 
@@ -33,7 +33,7 @@ def test_build_queries_origin_split():
 
 
 def _hit(i, score, sid=None):
-    return SearchHit(row=i, id=sid or f"s{i}", score=score, image_path="p", caption="c", labels={})
+    return SearchHit(row=i, id=sid or f"s{i}", score=score, image_path="p", text="c", labels={})
 
 
 def test_target_rank_basic_and_miss():

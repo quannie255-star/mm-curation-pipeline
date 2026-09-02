@@ -32,7 +32,7 @@ def paths(tmp_path):
 
 
 def _sample(path: str, sid: str = "s1") -> Sample:
-    return Sample(id=sid, image_path=path, caption="一只猫坐在沙发上")
+    return Sample(id=sid, image_path=path, text="一只猫坐在沙发上")
 
 
 def test_resolution_score_and_threshold(paths):

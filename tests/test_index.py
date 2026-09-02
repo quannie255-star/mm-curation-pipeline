@@ -63,7 +63,7 @@ def samples(tmp_path):
         # PNG 无损：查询测试按纯色像素定位，JPEG 有损会让颜色漂移 1 而失配
         p = tmp_path / f"img{i}.png"
         Image.new("RGB", (32, 32), (i * 40, 80, 120)).save(p)
-        out.append({"id": f"s{i}", "image_path": str(p), "caption": f"第{i}张图", "labels": {}})
+        out.append({"id": f"s{i}", "image_path": str(p), "text": f"第{i}张图", "labels": {}})
     return out
 
 
@@ -84,7 +84,7 @@ def test_build_produces_aligned_triple(tmp_path, samples):
         json.loads(line) for line in (d / "store.jsonl").read_text(encoding="utf-8").splitlines()
     ]
     assert [r["row"] for r in store] == list(range(6))  # 行号严格对齐
-    assert store[2]["id"] == "s2" and store[2]["caption"] == "第2张图"
+    assert store[2]["id"] == "s2" and store[2]["text"] == "第2张图"
     assert manifest.n_items == 6 and manifest.dim == 8 and manifest.metric == "cosine"
 
     # FAISS 侧行号与 store 对齐：用 one-hot 查询应命中自身
@@ -174,7 +174,7 @@ def test_search_by_text_hits_aligned_row(tmp_path, samples):
         assert hits[0].id == "s2" and hits[0].row == 2
         assert hits[0].score == pytest.approx(1.0)
         assert len(hits) == 3  # top_k 生效（其余为 0 分但按序返回）
-        assert hits[0].caption == "第2张图"
+        assert hits[0].text == "第2张图"
     finally:
         monkey.undo()
 

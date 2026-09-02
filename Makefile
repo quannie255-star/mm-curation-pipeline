@@ -8,6 +8,7 @@ venv: ## 创建 .venv (Python 3.11)
 
 install: ## 安装依赖（CPU 足够的部分）
 	pip install -r requirements.txt
+	pip install -e packages/curation-eval  # 协议与算子 SDK（V2 单一来源）
 	pip install -e .
 
 install-gpu: ## 安装 CUDA 版 torch（Windows + cu121）

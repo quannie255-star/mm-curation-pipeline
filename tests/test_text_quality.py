@@ -15,14 +15,14 @@ from mm_curation.pipeline.config import PipelineConfig
 
 def test_text_length_counts_stripped_chars():
     op = TextLengthOp(min=5, max=100)
-    s = Sample(id="1", image_path="a.jpg", caption="  一只狗在草地上  ")
+    s = Sample(id="1", image_path="a.jpg", text="  一只狗在草地上  ")
     assert op.score(s) == 7
     assert op(s) is not None
 
 
 def test_text_length_rejects_too_short():
     op = TextLengthOp(min=5)
-    s = Sample(id="1", image_path="a.jpg", caption="狗")
+    s = Sample(id="1", image_path="a.jpg", text="狗")
     assert op(s) is None
 
 
@@ -30,7 +30,7 @@ def test_text_length_rejects_too_short():
 
 
 @pytest.mark.parametrize(
-    "caption,expected",
+    "text,expected",
     [
         ("一只狗在草地上奔跑", 1.0),
         ("dog on grass 一只狗", 3 / 16),
@@ -38,16 +38,16 @@ def test_text_length_rejects_too_short():
         ("", 0.0),
     ],
 )
-def test_chinese_ratio(caption, expected):
+def test_chinese_ratio(text, expected):
     op = ChineseRatioOp()
-    s = Sample(id="1", image_path="a.jpg", caption=caption)
+    s = Sample(id="1", image_path="a.jpg", text=text)
     assert op.score(s) == pytest.approx(expected)
 
 
 def test_chinese_ratio_threshold():
     op = ChineseRatioOp(min=0.3)
-    keep = Sample(id="1", image_path="a.jpg", caption="图上有 cat 一只猫")
-    drop = Sample(id="2", image_path="b.jpg", caption="the quick brown fox")
+    keep = Sample(id="1", image_path="a.jpg", text="图上有 cat 一只猫")
+    drop = Sample(id="2", image_path="b.jpg", text="the quick brown fox")
     assert op(keep) is not None
     assert op(drop) is None
 
@@ -57,8 +57,8 @@ def test_chinese_ratio_threshold():
 
 def test_char_repetition_flags_spam_text():
     op = CharRepetitionOp(min=0.8)
-    spam = Sample(id="1", image_path="a.jpg", caption="哈哈哈哈哈哈哈哈哈哈哈哈哈")
-    normal = Sample(id="2", image_path="b.jpg", caption="一只狗在草地上奔跑")
+    spam = Sample(id="1", image_path="a.jpg", text="哈哈哈哈哈哈哈哈哈哈哈哈哈")
+    normal = Sample(id="2", image_path="b.jpg", text="一只狗在草地上奔跑")
     assert op(spam) is None
     assert op(normal) is not None
 
@@ -68,7 +68,7 @@ def test_char_repetition_flags_spam_text():
 
 def test_score_recorded_in_meta():
     op = TextLengthOp(min=1)
-    s = Sample(id="1", image_path="a.jpg", caption="你好世界")
+    s = Sample(id="1", image_path="a.jpg", text="你好世界")
     op(s)
     assert s.meta["score:text_length"] == 4.0
 

@@ -41,16 +41,16 @@ def corpus(tmp_path):
         Sample(
             id=f"c{i}",
             image_path=_structured(tmp_path / f"c{i}.png", i + 1),
-            caption=CAPTIONS[i % 4],
+            text=CAPTIONS[i % 4],
         )
         for i in range(4)
     ]
 
 
 def test_image_overlap_detected(corpus, tmp_path):
-    dup = Sample(id="dup", image_path=corpus[0].image_path, caption="完全无关的文本内容")
+    dup = Sample(id="dup", image_path=corpus[0].image_path, text="完全无关的文本内容")
     fresh = Sample(
-        id="fresh", image_path=_structured(tmp_path / "new.png", 99), caption="全新样本的描述文字"
+        id="fresh", image_path=_structured(tmp_path / "new.png", 99), text="全新样本的描述文字"
     )
     hits = detect_overlap(corpus, [dup, fresh])
     assert [(h.sample_id, h.method) for h in hits] == [("dup", "phash_image")]
@@ -59,7 +59,7 @@ def test_image_overlap_detected(corpus, tmp_path):
 
 def test_text_overlap_detected(corpus, tmp_path):
     near = CAPTIONS[0] + "，一只金毛犬在夕阳下的海滩上奔跑"  # Jaccard 高
-    suspicious = Sample(id="txt", image_path=_structured(tmp_path / "t.png", 77), caption=near)
+    suspicious = Sample(id="txt", image_path=_structured(tmp_path / "t.png", 77), text=near)
     hits = detect_overlap(corpus, [suspicious])
     assert hits and hits[0].method == "minhash_text"
 
@@ -69,18 +69,18 @@ def test_evaluate_against_ground_truth(corpus, tmp_path):
         Sample(
             id="d1",
             image_path=corpus[1].image_path,
-            caption="随便什么文案内容甲",
+            text="随便什么文案内容甲",
             labels={"dirty": "image_leak"},
         ),
         Sample(
             id="d2",
             image_path=_structured(tmp_path / "d2.png", 55),
-            caption=CAPTIONS[2] + "，厨房料理台上摆满了新鲜的蔬菜水果",
+            text=CAPTIONS[2] + "，厨房料理台上摆满了新鲜的蔬菜水果",
             labels={"dirty": "text_leak"},
         ),
     ]
     clean = Sample(
-        id="ok", image_path=_structured(tmp_path / "ok.png", 88), caption="独立的全新描述句子"
+        id="ok", image_path=_structured(tmp_path / "ok.png", 88), text="独立的全新描述句子"
     )
     hits = detect_overlap(corpus, injected + [clean])
     report = evaluate_decontam(hits, injected + [clean])

@@ -13,8 +13,9 @@ from __future__ import annotations
 
 import hashlib
 
+from curation_eval import CostClass, register_operator
+
 from .base import BatchOperator, Sample
-from .registry import register
 
 
 def _keep_first(samples: list[Sample], drop: set[str]) -> list[Sample]:
@@ -25,7 +26,13 @@ def _mark_dup(dup: Sample, kept: Sample, method: str) -> None:
     dup.meta[f"dedup:{method}"] = {"duplicate_of": kept.id}
 
 
-@register("md5_exact")
+@register_operator(
+    name="md5_exact",
+    modalities=frozenset({"image_caption"}),
+    required_fields=frozenset({"image_path"}),
+    cost_class=CostClass.RULE,
+    shardable=False,  # 全局 md5 字典
+)
 class Md5ExactDedup(BatchOperator):
     """图像字节 md5 完全一致 -> 去重。O(n) 哈希表，成本最低，放去重组最前。"""
 
@@ -45,7 +52,14 @@ class Md5ExactDedup(BatchOperator):
         return _keep_first(samples, drop)
 
 
-@register("phash_near")
+@register_operator(
+    name="phash_near",
+    modalities=frozenset({"image_caption"}),
+    required_fields=frozenset({"image_path"}),
+    cost_class=CostClass.PERCEPTUAL,
+    shardable=False,
+    superlinear=True,  # O(n²) 海明比对
+)
 class PHashNearDedup(BatchOperator):
     """感知哈希（pHash, 64bit）海明距离 <= threshold（默认 16）-> 去重。
 
@@ -81,7 +95,13 @@ class PHashNearDedup(BatchOperator):
         return _keep_first(samples, drop)
 
 
-@register("minhash_lsh")
+@register_operator(
+    name="minhash_lsh",
+    modalities=frozenset({"text_article", "image_caption"}),
+    required_fields=frozenset({"text"}),
+    cost_class=CostClass.RULE,
+    shardable=False,  # 全局 LSH 索引
+)
 class MinHashLshDedup(BatchOperator):
     """caption 文本 MinHash + LSH 近似去重。
 
@@ -109,10 +129,10 @@ class MinHashLshDedup(BatchOperator):
         drop: set[str] = set()
         by_id = {s.id: s for s in samples}
         for s in samples:
-            if len(s.caption) < self.min_len:
+            if len(s.text) < self.min_len:
                 continue
             m = MinHash(num_perm=self.num_perm)
-            for gram in self._shingles(s.caption):
+            for gram in self._shingles(s.text):
                 m.update(gram.encode("utf-8"))
             hits = lsh.query(m)
             if hits:

@@ -48,7 +48,7 @@ class Hit(BaseModel):
     id: str
     score: float
     image_path: str
-    caption: str
+    text: str
     labels: dict
 
 

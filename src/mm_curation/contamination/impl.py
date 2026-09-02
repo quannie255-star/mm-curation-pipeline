@@ -75,7 +75,7 @@ class NearDuplicateText(Contaminator):
     """
 
     def apply(self, source: Sample, index: int, ctx: ContaminationContext) -> Sample:
-        text = list(source.caption)
+        text = list(source.text)
         # 删字仅对长文本生效：短 caption（<20 字）删 1 个字就毁掉 ~30% 的
         # 3-gram，会把 J 压到 LSH 阈值以下（真实数据校准结论）
         if len(text) >= 20:
@@ -86,7 +86,7 @@ class NearDuplicateText(Contaminator):
             start = ctx.rng.randrange(len(kept) - 7)
             gram = kept[start : start + 8]
             kept = kept[:start] + gram * 2 + kept[start:]
-        source.caption = kept
+        source.text = kept
         return source
 
 
@@ -102,10 +102,10 @@ class SemanticDuplicate(Contaminator):
         _save_jpeg(img, source, ctx)
         tags = source.meta.get("tags") or []
         if tags:
-            source.caption = f"一张包含{'、'.join(tags[:6])}等内容的照片"
+            source.text = f"一张包含{'、'.join(tags[:6])}等内容的照片"
         else:
-            source.caption = "这张图片展示了" + "，".join(
-                source.caption[i : i + 4] for i in range(0, len(source.caption), 4)
+            source.text = "这张图片展示了" + "，".join(
+                source.text[i : i + 4] for i in range(0, len(source.text), 4)
             )
         return source
 
@@ -147,7 +147,7 @@ class MismatchedPair(Contaminator):
 
     def apply(self, source: Sample, index: int, ctx: ContaminationContext) -> Sample:
         donor = ctx.samples[ctx.rng.randrange(len(ctx.samples))]
-        source.caption = donor.caption
+        source.text = donor.text
         source.meta["mismatch_donor"] = donor.id
         return source
 
@@ -160,17 +160,17 @@ class LowQualityText(Contaminator):
     """四种低质文本变体：截断 / 刷字 / 乱码 / 噪声字。"""
 
     def apply(self, source: Sample, index: int, ctx: ContaminationContext) -> Sample:
-        text = source.caption
+        text = source.text
         variant = ctx.rng.choice(["truncate", "repeat", "mojibake", "noise"])
         if variant == "truncate":
-            source.caption = text[:3]
+            source.text = text[:3]
         elif variant == "repeat":
-            source.caption = text[:8] + "哈" * 30
+            source.text = text[:8] + "哈" * 30
         elif variant == "mojibake":
             garbled = text.encode("gbk", errors="ignore").decode("utf-8", errors="ignore")
-            source.caption = garbled or "?" * 20
+            source.text = garbled or "?" * 20
         else:
-            source.caption = "".join(ctx.rng.choice(_NOISE_CHARS) for _ in range(max(8, len(text))))
+            source.text = "".join(ctx.rng.choice(_NOISE_CHARS) for _ in range(max(8, len(text))))
         source.meta["lqt_variant"] = variant
         return source
 
@@ -216,5 +216,5 @@ class NsfwPlaceholder(Contaminator):
 
         img = render_ad((512, 512), style="blocks", rng=ctx.rng, text="广告示例图", text_size=64)
         _save_jpeg(img, source, ctx)
-        source.caption = "点击领取优惠券，限时特价，马上抢购！"
+        source.text = "点击领取优惠券，限时特价，马上抢购！"
         return source

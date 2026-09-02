@@ -62,8 +62,8 @@ def detect_overlap(
     lsh = MinHashLSH(threshold=text_threshold, num_perm=128)
     corpus_sigs: dict[str, object] = {}
     for s in corpus:
-        if len(s.caption) >= min_caption_len:
-            m = _minhash(s.caption)
+        if len(s.text) >= min_caption_len:
+            m = _minhash(s.text)
             lsh.insert(s.id, m)
             corpus_sigs[s.id] = m
 
@@ -81,8 +81,8 @@ def detect_overlap(
         if match:
             hits.append(OverlapHit(s.id, "phash_image", match[0], float(match[1])))
             continue
-        if len(s.caption) >= min_caption_len:
-            m = _minhash(s.caption)
+        if len(s.text) >= min_caption_len:
+            m = _minhash(s.text)
             found = lsh.query(m)
             if found:
                 j = max(_jaccard(m, corpus_sigs[fid]) for fid in found)

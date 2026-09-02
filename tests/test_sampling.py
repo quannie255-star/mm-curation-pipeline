@@ -20,7 +20,7 @@ def _sample(sid: str, score: float | None, tags: list[str] | None = None) -> Sam
     return Sample(
         id=sid,
         image_path=f"/tmp/{sid}.jpg",
-        caption="测试样本",
+        text="测试样本",
         meta={"score:clip_alignment": score, "tags": tags or []},
     )
 

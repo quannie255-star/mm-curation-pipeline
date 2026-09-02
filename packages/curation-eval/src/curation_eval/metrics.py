@@ -1,18 +1,20 @@
-"""评测指标：丢弃语义的 P/R + 检索指标（与主仓库同源协议）。"""
+"""评测指标：丢弃语义的 P/R + 检索指标（协议单一来源，主仓库消费）。"""
 
 from __future__ import annotations
 
 from typing import Optional, Sequence
 
+from .schema import Sample
 
-def pr_from_drops(dropped_ids: Sequence[str], mixed: list[dict]) -> dict:
+
+def pr_from_drops(dropped_ids: Sequence[str], mixed: list[Sample]) -> dict:
     """从"你的系统丢弃的 id 列表"算 precision / recall。
 
     mixed 为污染后的全量样本（注入样本 labels["dirty"] 存在，干净样本为空）。
     丢弃 = positive：precision=丢得准，recall=抓得全。
     """
-    dirty_ids = {s["id"] for s in mixed if s.get("labels")}
-    clean_ids = {s["id"] for s in mixed if not s.get("labels")}
+    dirty_ids = {s.id for s in mixed if s.labels}
+    clean_ids = {s.id for s in mixed if not s.labels}
     dropped = set(dropped_ids)
     tp = len(dropped & dirty_ids)
     fp = len(dropped & clean_ids)

@@ -42,7 +42,7 @@ def samples(tmp_path):
     for i in range(4):
         p = tmp_path / f"img{i}.jpg"
         Image.new("RGB", (32, 32), (i * 50, 100, 150)).save(p, "JPEG")
-        out.append(Sample(id=f"s{i}", image_path=str(p), caption=f"caption{i}"))
+        out.append(Sample(id=f"s{i}", image_path=str(p), text=f"caption{i}"))
     return out
 
 

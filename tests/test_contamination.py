@@ -56,7 +56,7 @@ def clean_samples(tmp_path):
             Sample(
                 id=f"COCO_train2014_{i:012d}",
                 image_path=str(p),
-                caption=f"一只可爱的动物在草地上玩耍编号{i}",
+                text=f"一只可爱的动物在草地上玩耍编号{i}",
                 meta={"tags": ["动物", "草地"], "split": "train"},
             )
         )
@@ -74,7 +74,7 @@ def test_registry_covers_all_kinds():
 def test_exact_duplicate_keeps_references(clean_samples, tmp_path):
     src = clean_samples[0]
     out = ExactDuplicate().apply(src, 0, _ctx(clean_samples, tmp_path))
-    assert out.image_path == src.image_path and out.caption == src.caption
+    assert out.image_path == src.image_path and out.text == src.text
 
 
 def test_near_duplicate_image_changes_bytes(clean_samples, tmp_path):
@@ -88,19 +88,19 @@ def test_near_duplicate_image_changes_bytes(clean_samples, tmp_path):
 
 def test_near_duplicate_text_still_similar(clean_samples, tmp_path):
     src = clean_samples[0]
-    original = src.caption
+    original = src.text
     out = NearDuplicateText().apply(src, 0, _ctx(clean_samples, tmp_path))
     # 字符 3-gram Jaccard 应保持较高（MinHash-LSH 阈值 0.5 可召回）
     a = {original[i : i + 3] for i in range(len(original) - 2)}
-    b = {out.caption[i : i + 3] for i in range(len(out.caption) - 2)}
+    b = {out.text[i : i + 3] for i in range(len(out.text) - 2)}
     assert len(a & b) / len(a | b) > 0.5
 
 
 def test_semantic_duplicate_rewrites_caption(clean_samples, tmp_path):
     src = clean_samples[0]
-    original = src.caption
+    original = src.text
     out = SemanticDuplicate().apply(src, 0, _ctx(clean_samples, tmp_path))
-    assert out.caption != original and "动物" in out.caption  # tags 改写
+    assert out.text != original and "动物" in out.text  # tags 改写
 
 
 def test_image_quality_kinds_modify_pixels(clean_samples, tmp_path):
@@ -114,10 +114,10 @@ def test_image_quality_kinds_modify_pixels(clean_samples, tmp_path):
 
 def test_mismatched_pair_caption_from_donor(clean_samples, tmp_path):
     src = clean_samples[0]
-    original = src.caption
+    original = src.text
     others = clean_samples[1:]  # 供体池排除自身，保证 caption 必然不同
     out = MismatchedPair().apply(src, 0, _ctx(others, tmp_path))
-    assert out.caption != original
+    assert out.text != original
     assert out.meta["mismatch_donor"] in {s.id for s in others}
 
 
@@ -137,7 +137,7 @@ def test_watermark_and_placeholder(clean_samples, tmp_path):
     assert Image.open(w.image_path).size == (128, 96)
     n = NsfwPlaceholder().apply(clean_samples[4], 0, ctx)
     assert Image.open(n.image_path).size == (512, 512)
-    assert "优惠券" in n.caption  # 广告引流文案，模拟违规占位样本
+    assert "优惠券" in n.text  # 广告引流文案，模拟违规占位样本
 
 
 def test_plan_labels_and_counts(clean_samples, tmp_path):

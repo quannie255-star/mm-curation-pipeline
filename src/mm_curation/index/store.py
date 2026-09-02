@@ -6,7 +6,7 @@ IndexIVFFlat/IndexHNSWFlat 并保持本模块对外接口不变（升级路径�
 
 落盘三件套（data/indexes/<name>/）：
 - faiss.index    向量索引（行号 ↔ store.jsonl 的 row 严格对齐）
-- store.jsonl    样本元数据（id/图路径/caption/labels）
+- store.jsonl    样本元数据（id/图路径/text/labels）
 - manifest.json  索引清单（来源、规模、维度、构建时间）
 """
 
@@ -89,7 +89,7 @@ class IndexBuilder:
                             "row": row,
                             "id": s.id,
                             "image_path": _relpath(s.image_path),
-                            "caption": s.caption,
+                            "text": s.text,
                             "labels": s.labels,
                         },
                         ensure_ascii=False,

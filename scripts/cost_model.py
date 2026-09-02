@@ -39,8 +39,6 @@ OPS = [
     OperatorSpec(op="semantic_dedup", params={"threshold": 0.93}),
     OperatorSpec(op="wm_nsfw_cnn", params={"min": 0.30}),
 ]
-# 批量算子的耗时随规模超线性（O(n²)），单独标注
-SUPERLINEAR = {"phash_near", "semantic_dedup"}
 
 
 def bench(spec: OperatorSpec, samples: list[Sample]) -> dict:
@@ -57,11 +55,15 @@ def bench(spec: OperatorSpec, samples: list[Sample]) -> dict:
     return {
         "op": spec.op,
         "batch": is_batch(op),
+        "cost_class": getattr(getattr(op, "meta", None), "cost_class", None)
+        and op.meta.cost_class.value,
         "n": n,
         "seconds": round(sec, 4),
         "samples_per_sec": round(n / sec, 1),
         "hours_per_million": round(per_1m_hours, 2),
-        "superlinear": spec.op in SUPERLINEAR,
+        "superlinear": bool(
+            getattr(getattr(op, "meta", None), "superlinear", False)
+        ),  # A7: 从注册表元数据读取（原硬编码集合已删）
     }
 
 

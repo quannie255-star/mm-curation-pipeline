@@ -42,11 +42,9 @@ class QualityGate:
                 logger.info("检测器算子不可用，质量门降级: %s", e)
         return cls(ops, detector_op)
 
-    def assess(self, image_path: str, caption: str) -> dict:
-        """逐算子打分并按阈值判 flags。样本缺 caption 时文本算子给 None 分。"""
-        sample = Sample(
-            id="ingest", image_path=image_path, caption=caption if caption is not None else ""
-        )
+    def assess(self, image_path: str, text: str) -> dict:
+        """逐算子打分并按阈值判 flags。样本缺 text 时文本算子给 None 分。"""
+        sample = Sample(id="ingest", image_path=image_path, text=text if text is not None else "")
         scores: dict[str, Optional[float]] = {}
         flags: list[str] = []
         for op in self.ops:

@@ -107,8 +107,18 @@ def register_operator(
     return decorator
 
 
+def unregister(name: str) -> None:
+    """移除注册（测试隔离用；生产算子不应动态注销）。"""
+    _REGISTRY.pop(name, None)
+
+
 def get_operator_meta(name: str) -> OperatorMeta:
     return _REGISTRY[name][1]
+
+
+def get_operator_class(name: str):
+    """按名取算子类；不存在时抛 KeyError（调用方转配置错误）。"""
+    return _REGISTRY[name][0]
 
 
 def available_operator_metas() -> dict[str, OperatorMeta]:

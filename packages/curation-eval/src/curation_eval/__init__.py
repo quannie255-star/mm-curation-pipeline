@@ -11,6 +11,7 @@ from .registry import (
     OperatorMeta,
     available_operator_metas,
     get_operator_meta,
+    unregister,
     register_operator,
 )
 from .schema import MODALITY_FIELDS, Sample
@@ -32,6 +33,7 @@ __all__ = [
     "register_operator",
     "get_operator_meta",
     "available_operator_metas",
+    "unregister",
     "Operator",
     "BatchOperator",
     "Executor",
@@ -47,4 +49,4 @@ __all__ = [
     "recall_at_k",
     "mrr",
 ]
-__version__ = "0.2.0.dev0"
+__version__ = "0.2.0"

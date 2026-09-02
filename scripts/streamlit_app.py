@@ -75,7 +75,7 @@ def _render_hits(hits):
                 f"<div style='font-size:10px;color:#d85a30'>⚠ {label}</div>" if label else ""
             )
             st.markdown(
-                f"<div style='font-size:12px;min-height:48px'>{h.caption}</div>{dirty_html}",
+                f"<div style='font-size:12px;min-height:48px'>{h.text}</div>{dirty_html}",
                 unsafe_allow_html=True,
             )
 
@@ -295,7 +295,7 @@ with tab4:
                 op_by = d.get("dropped_by", "?")
                 st.markdown(
                     "<div style='font-size:11px;min-height:36px'>"
-                    f"{d['caption'][:40]}</div>"
+                    f"{(d.get('text') or d.get('caption', ''))[:40]}</div>"
                     f"<div style='font-size:10px;color:#d85a30'>⚠ {dirty}</div>"
                     f"<div style='font-size:10px;color:#888'>扔 by: {op_by}</div>",
                     unsafe_allow_html=True,

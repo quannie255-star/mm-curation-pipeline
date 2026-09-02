@@ -169,8 +169,8 @@ def main() -> None:
     device = "cuda" if torch.cuda.is_available() else "cpu"
     clean_rows = [json.loads(line) for line in CLEAN.read_text(encoding="utf-8").splitlines()]
     dirty_rows = [json.loads(line) for line in DIRTY.read_text(encoding="utf-8").splitlines()]
-    clean_pairs = [(r["image_path"], r["caption"]) for r in clean_rows]
-    dirty_pairs = [(r["image_path"], r["caption"]) for r in dirty_rows]
+    clean_pairs = [(r["image_path"], r.get("text") or r.get("caption", "")) for r in clean_rows]
+    dirty_pairs = [(r["image_path"], r.get("text") or r.get("caption", "")) for r in dirty_rows]
     queries = build_queries([Sample.from_dict(r) for r in clean_rows])
     index_paths = [r["image_path"] for r in clean_rows]
     logging.info(

@@ -24,7 +24,7 @@ class SearchHit:
     id: str
     score: float  # 余弦相似度 [-1, 1]
     image_path: str
-    caption: str
+    text: str
     labels: dict
 
     def to_dict(self) -> dict:
@@ -33,7 +33,7 @@ class SearchHit:
             "id": self.id,
             "score": round(self.score, 4),
             "image_path": self.image_path,
-            "caption": self.caption,
+            "text": self.text,
             "labels": self.labels,
         }
 
@@ -96,7 +96,7 @@ class IndexSearcher:
                         id=meta["id"],
                         score=float(score),
                         image_path=meta["image_path"],
-                        caption=meta["caption"],
+                        text=meta.get("text") or meta.get("caption", ""),  # 兼容 legacy store
                         labels=meta.get("labels", {}),
                     )
                 )

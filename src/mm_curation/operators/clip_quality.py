@@ -13,17 +13,23 @@ L1 规则与哈希去重之后——便宜算子先缩小规模，昂贵算子�
 from __future__ import annotations
 
 import numpy as np
+from curation_eval import CostClass, register_operator
 
 from ..embedding import clip_encoder
 from .base import BatchOperator, Sample
-from .registry import register
 
 
 def _mark_dup(dup: Sample, kept: Sample, method: str) -> None:
     dup.meta[f"dedup:{method}"] = {"duplicate_of": kept.id}
 
 
-@register("clip_alignment")
+@register_operator(
+    name="clip_alignment",
+    modalities=frozenset({"image_caption"}),
+    required_fields=frozenset({"text", "image_path"}),
+    cost_class=CostClass.MODEL,
+    shardable=True,  # 逐样本独立打分（批量仅为 GPU 效率）
+)
 class ClipAlignmentOp(BatchOperator):
     """Chinese-CLIP 图文对齐分：cos(image, caption) < min 的样本判为错配。
 
@@ -39,7 +45,7 @@ class ClipAlignmentOp(BatchOperator):
     def run_batch(self, samples: list[Sample]) -> list[Sample]:
         encoder = clip_encoder.get_encoder()
         img = encoder.encode_images([s.image_path for s in samples])
-        txt = encoder.encode_texts([s.caption for s in samples])
+        txt = encoder.encode_texts([s.text for s in samples])
         sims = np.sum(img * txt, axis=1)
         kept = []
         for s, sim in zip(samples, sims):
@@ -49,7 +55,15 @@ class ClipAlignmentOp(BatchOperator):
         return kept
 
 
-@register("semantic_dedup")
+@register_operator(
+    name="semantic_dedup",
+    modalities=frozenset({"image_caption"}),
+    required_fields=frozenset({"image_path"}),
+    cost_class=CostClass.MODEL,
+    shardable=False,
+    superlinear=True,  # O(n²) 点积
+    input_signal="embedding:image",  # 复用 clip_alignment 已编码的图像向量
+)
 class SemanticDedupOp(BatchOperator):
     """图像向量 kNN 语义去重：与已保留样本余弦相似度 > threshold 视为重复。
 

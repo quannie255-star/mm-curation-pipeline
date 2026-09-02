@@ -24,6 +24,7 @@ jobs:
           # CPU 版 torch（测试用 FakeEncoder，不需要 GPU；避免 CI 拉 ~2GB CUDA 轮子）
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install -r requirements.txt
+          pip install -e packages/curation-eval  # 协议与算子 SDK（V2 单一来源）
           pip install -e .
           pip install ruff
 

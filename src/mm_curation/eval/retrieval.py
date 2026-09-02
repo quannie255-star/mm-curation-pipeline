@@ -59,7 +59,7 @@ def build_queries(samples: list[Sample]) -> list[QuerySpec]:
         if extra:
             out.append(QuerySpec(s.id, extra[0], "held_out", s.id))
         else:
-            out.append(QuerySpec(s.id, s.caption, "self", s.id))
+            out.append(QuerySpec(s.id, s.text, "self", s.id))
     return out
 
 
