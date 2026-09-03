@@ -87,6 +87,21 @@ worker 的 PYTHONPATH（`ray.init(runtime_env={"env_vars": {"PYTHONPATH": ...}})
 设计要点：确定性抽样（同 config 重跑抽同一批）；解析失败/服务异常 → 保留
 不评判（score=None），L3 是增强不是阻塞；成本口径见 `judge_stats_snapshot()`。
 
+## 1.9 数据 CI 门禁（V2 ε）
+
+数据质量门禁：与代码 CI（单测验证「逻辑对」）互补——本门禁在合成带标注语料上
+**真跑去重实现**，质量数字低于门限即红。GitHub Actions 每周自动跑
+（`.github/workflows/data-ci.yml`），本地一键验证：
+
+```bash
+python scripts/data_ci_benchmark.py          # 绿：exact 1.0 / near 0.954 / 误杀 0（0.5s）
+python scripts/data_ci_benchmark.py --threshold 0.95   # 演示劣化变红（exit 1）
+```
+
+门限：exact ≥0.99 / near ≥0.90 / base 误杀率 ≤1%。合成语料 seed 固定可复现；
+损伤强度按 α 校准方法论标定（删 1 词 + 邻位交换 → J∈[0.86,0.92]——损伤与
+门限是耦合参数，先标定生成器再定门限，门禁测的是去重实现不是生成器）。
+
 ## 2. 演示（10 分钟，面试/展示）
 
 ```bash

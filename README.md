@@ -1,13 +1,14 @@
 # 多模态图文数据清洗与向量检索 Pipeline
 
 [![CI](https://github.com/quannie255-star/mm-curation-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/quannie255-star/mm-curation-pipeline/actions/workflows/ci.yml)
+[![Data CI](https://github.com/quannie255-star/mm-curation-pipeline/actions/workflows/data-ci.yml/badge.svg)](https://github.com/quannie255-star/mm-curation-pipeline/actions/workflows/data-ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 
 面向中文多模态大模型训练数据场景的端到端数据管道：**脏数据进 → 漏斗式多算子清洗 →
 质量可量化 → 向量索引 → 检索服务 → 清洗收益可证明**。
 
-> 状态：✅ 主线（Week 1-4）+ Phase 2（P1-P10）+ V2 α/β 完成。路线图见 [docs/ROADMAP.md](docs/ROADMAP.md)。
+> 状态：✅ 主线（Week 1-4）+ Phase 2（P1-P10）+ **V2 全阶段完成（α 协议 / β 文本语料 / γ Ray 双运行时 / δ LLM-judge / ε 数据 CI）**。路线图见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 > 面试叙事见 [docs/INTERVIEW.md](docs/INTERVIEW.md)。
 >
 > **V2 定位**：从「一条多模态清洗管道」升级为「模态可插拔的数据质量框架」。
