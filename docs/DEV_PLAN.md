@@ -20,8 +20,14 @@
 | V2 ε 数据 CI | ✅（本会话） | data_ci_benchmark 门禁：exact 1.0 / near 0.954 / 误杀 0；劣化注入实测变红；双徽章（代码+数据）；损伤强度按 α 方法论标定 |
 | 工程门禁（CI / lint / 文档） | ✅ | CI 覆盖包侧测试 + packages lint；ruff pin；README 同步 V2 β |
 
-**测试基线**：主仓库 133 + 包 34 全绿；ruff check 全绿。任何提交不得低于该基线。
-**仓库**：github.com/quannie255-star/mm-curation-pipeline（main；推送偶发网络失败，重试即可）。
+**测试基线**：主仓库 151 + 包 40 全绿（2026-09-03 实点，含 ζ 在途测试）；ruff check 全绿。任何提交不得低于该基线。
+> 基线数字历史上被写错过三次（133+34 → 140+40 → 151+40），根因是凭记忆填而不是点数。**改测试后直接用
+> `pytest --collect-only -q` 点数回写**，别沿用上一版的数字。
+
+**仓库**：github.com/quannie255-star/mm-curation-pipeline（main）。
+> **推送排障见 docs/RUNBOOK.md §0.1**（两个独立故障：SSL 证书墙 / 凭据助手挂起，现象相似但修法无关）。
+> 2026-09-03 已根治凭据挂起（global 层空值重置 + wincred），现在裸跑 `git push` 即可，不需要任何 `-c` 参数。
+> 一秒自测：`git ls-remote origin main` 秒回 = 网络与 SSL 正常，push 挂住必然是凭据环节。
 
 ## 下一阶段任务分解
 
@@ -67,7 +73,37 @@
 
 ### 候补池（γδε 完成后或穿插）
 
-- 跨模态统一：图像漏斗迁移到 V2 Sample 协议的 text_article 同款注册（债：α 只迁了 12 算子中的文本/通用部分——开工前先盘点）
+- ~~跨模态统一：图像漏斗迁移到 V2 Sample 协议~~ → **盘点结论：已完成，债务记录作废**（2026-09-03 第四会话实点）。
+  19/19 个注册算子**全部**已声明 V2 元数据（纯图像 8 / 纯文本 7 / 双模态 4），图像漏斗
+  `configs/pipeline.example.yaml` 经 `Sample.from_dict` + V2 Executor 执行——「α 只迁了 12 算子中的
+  文本/通用部分」是 α 当时的快照，β/γ/δ 期间已补齐，**候补池记录未同步**。
+  盘点脚本：`pytest --collect-only` 之外的快速核对见本条目下方命令。
+  **但盘点翻出两个此前没记的真缺口**（已立为候补池前两项）：
+  盘点命令（下次核对直接跑，别再凭记忆）：
+
+  ```bash
+  python -c "
+  import sys; sys.path.insert(0,'src'); sys.path.insert(0,'packages/curation-eval/src')
+  import mm_curation.operators
+  from curation_eval.registry import available_operator_metas as M
+  m = M()
+  for n in sorted(m): print(n, sorted(m[n].modalities), m[n].cost_class.name, m[n].shardable)
+  print('总计', len(m))
+  "
+  ```
+
+  1. **图像漏斗 × Ray 等价性未验证**：γ3 只跑了 `configs/text_funnel.yaml`，图像漏斗从未在 Ray 下跑过。
+     风险集中——图像侧有 3 个 `shardable=False` 全局算子（md5_exact / phash_near / semantic_dedup），
+     而 γ3 首跑失败正是栽在全局去重算子上（text_minhash 簇代表依赖块序）。**phash_near 大概率同坑**。
+  2. **ε 数据 CI 未覆盖图像去重**：`data_ci_benchmark.py` 只锁了文本 `dedup_fast.dedup_texts`，
+     md5/phash 的召回-误杀没有任何门禁，换源漂移不会被抓住。
+- **[新] 图像漏斗 × Ray 等价性验证**（候补池优先项，CPU 子集可跑，不抢 GPU）：
+  复用 γ 的「剔除 GPU 算子」套路——去掉 clip_alignment / semantic_dedup，用
+  `text_length → chinese_ratio → char_repetition → resolution → aspect_ratio → blur → md5_exact → phash_near`
+  在 local/ray 双跑，对齐 γ3 三口径（kept 集 / StageStat / 逐 id 分数）。
+  开工前先写设计表（决策点：phash_near 的簇代表在非分片执行下如何规范化——直接复用 γ3 的 id 排序约定还是新方案）。
+- **[新] ε 门禁扩到图像去重**：md5_exact 精确召回应恒为 1.0（不放过任何字节相同的重复），
+  phash_near 需先标定损伤-门限（同 α/ε 方法论：先标定生成器再定门限），避免门禁测成生成器。
 - ~~INTERVIEW.md 融合 β 新弹药~~ → ✅ 已完成（2026-09-03 第二/三会话）：见「七、V2：从一条管道到一个框架」——已含 α/β/γ/δ/ε 五张杀牌（δ 的 κ 与 ε 的数据 CI 数字已于第三会话补入）+「八、V3 个人微调平台」；**ζ 出 κ 数字后需回填第八节进度表与第七节 STAR 表**
 - **README 状态段补 V3 ζ**（立项一句话 + 进度 + ζ 数字）——ζ 收官时由 ζ 负责人回填。当前 README 仍写到「V2 全阶段完成」，未提 V3/ζ；第三会话已先对齐两处口径：测试数 129+29 → 140+40、工程笔记 53 → 55 条（与 INTERVIEW.md/ROADMAP 一致）
 - P6 规模扩展（暂缓中，见 ROADMAP；注：β 已把语料规模从 1.6k 推到 30.2 万，P6 的紧迫性下降——面试时可直接用 β 的 187 倍规模跨度作答）
@@ -86,6 +122,7 @@
 
 | 日期 | 会话内容 | 关键数字/结论 | commit |
 |---|---|---|---|
+| 2026-09-03（协作方·第四会话） | **根治 git push 挂起 + 候补池盘点**：(1) 定位推送挂死为凭据环节而非网络——`git ls-remote` 秒回但 push 无输出直到 timeout(124)；根因是 system 层 `helper-selector` 取不到凭据后 git 回退终端交互询问、stdin 阻塞，且 `-c credential.helper=X` 是**追加非替换**（system 那条仍先执行，故单加无效）。修法：global 层空值重置 + wincred，**裸跑 `git push` 现已可用**，卡住的 57d7470 已推送（7a29bcb..57d7470）。RUNBOOK 新增 §0.1「Git 推送排障」分列 SSL / 凭据两个故障。(2) 候补池盘点：**跨模态统一债务记录作废——19/19 算子 V2 元数据全齐**（纯图像 8/纯文本 7/双模态 4），图像漏斗早已走 Sample+Executor，「α 只迁 12 算子」是过时快照。同时翻出两个真缺口并立为候补池前两项：图像漏斗从未在 Ray 下验证等价性（3 个 shardable=False 全局算子是高风险区，phash_near 大概率复现 γ3 的簇代表块序坑）、ε 数据 CI 未覆盖图像去重。(3) 测试基线实点为 **151+40**（原记 133+34 / 140+40 均错，已加「别凭记忆填」的提示）。工程笔记 #56 | 推送恢复 + 候补池记录与仓库现状对齐；**仅动 docs/**（RUNBOOK / DEV_PLAN / ENGINEERING_NOTES），未触碰任何代码，持续避让 ζ3-ζ4 在途文件；本会话未跑全量 pytest（GPU 被 ζ3 训练占满，7855/8188MiB） | 本次提交 |
 | 2026-09-03（协作方·第三会话） | **INTERVIEW.md 升级到 δ/ε/V3**：新增杀牌 D（LLM-judge κ 准入门槛——阴性结果敢讲：κ(t) 全阈值域 ±0.015 / judge vs L1 0.056 / L1 参照 0.565）+ 杀牌 E（数据 CI 门禁：exact 1.0 / near 0.954 / 误杀 0 / 0.5s，劣化注入实测 exit 1）；新增「八、V3 个人微调平台」（立项依据＝δ 阴性结果、差异化定位表、ζ 进度表、V2 资产复用表）；**Q5「为什么不用 LLM-judge」由「ROADMAP 预留接口」改写为「已实装但 κ 验收不合格」**（避免与第七节自相矛盾）；STAR 表补 δ/ε 两行并修复 V2 行的三列表格渲染丢列 bug；简历 bullet +3、技术栈 +5、电梯演讲补 δ/ε/V3 三段；笔记条数 53→55；收尾独立为第九节 | 文档口径与 δ/ε/ζ 现状全面对齐；ruff check All checks passed；**仅动 docs/INTERVIEW.md + docs/DEV_PLAN.md，未触碰任何代码**（避让 ζ3-ζ4 进行中的 `finetune_judge_lora.py` / `benchmarks/builder.py` / `tuning/judge_data.py`） | 本次提交 |
 | 2026-09-03 | **V3 立项（ζ 个人微调平台）**：与用户对齐产品愿景（个人化「数据→benchmark→模型」三步），确定锚点「专属数据判官」+ 本机算力路线；PRD 首次落盘 docs/PRD.md；ζ1 开工（新闻源爬取） | 通用 0.5B judge κ≈0.013 → 目标 ≥0.5 | 见 git log |
 | 2026-09-03 | **ε 数据 CI + V2 收官**：data_ci_benchmark.py 合成语料门禁（exact 1.0/near 0.954/误杀 0，劣化注入实测变红）；损伤强度标定（del=2 时 J 跌破捕获带——门禁测实现不是测生成器）；data-ci.yml 双徽章；RUNBOOK/ROADMAP/README 收官账。另：推送 SSL 证书墙 → schannel 后端修复（RUNBOOK 记录） | 门禁 0.5s 跑完；near 0.954 vs 门限 0.90（4.5pp 余量）；V2 五阶段全落地 | 见 git log |

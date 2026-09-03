@@ -468,3 +468,30 @@
 - 话术：「如果我不跑 kappa 直接上线，这是个看起来能用的随机数生成器。
   阴性结果花了我两轮实验，但它把『LLM-judge』从一个信仰变成了一个
   有准入门槛的工程决策——这正是评测框架存在的意义」
+
+### 56. git push 无输出挂死：两个故障长一个样，但成因毫无关系
+- 现象：`git push` 光标卡住无任何输出，直到被 timeout 杀掉（exit 124）。
+  前一轮已修过 SSL 证书墙（`http.sslBackend=schannel`），于是惯性怀疑
+  又是网络，反复重试半小时无果
+- 根因：三个认知错误叠在一起——
+  1. **把"无输出"当成"网络慢"**。实际上 `git ls-remote origin main` 秒回，
+     说明网络与 SSL 都是好的；秒回 vs 挂死这一秒就能区分是凭据还是网络
+  2. **不知道 `-c credential.helper=X` 是追加不是替换**。system 层的
+     `helper-selector` 仍排第一先执行，所以单加 `-c credential.helper=wincred`
+     看起来"修了但没用"
+  3. **不知道取不到凭据会退化成终端交互**。helper-selector 拿不到凭据后，
+     git 回退到终端询问 username/password，非交互会话 stdin 无输入 → 永久阻塞
+- 决策：不碰 system 层（它在 WorkBuddy 内置 PortableGit 目录里，改了影响
+  面不可控），改在 **global 层用空值重置**——`git config --global
+  credential.helper ""` 然后 `--add credential.helper wincred`。空值会清空
+  已累积的助手列表（含 system 那条），这是唯一不需要管理员权限的覆盖手段
+- 教训泛化：**诊断顺序应该按"能否被一秒证伪"排**。SSL 故障会明确报错，
+  凭据挂起什么都不说——先跑 `ls-remote` 用一秒排除掉整个网络分支，剩下
+  的才是凭据。同理，任何"改了配置没生效"的场合，先确认这个配置项是
+  **覆盖语义还是追加语义**（git 的 multi-valued 配置、PATH、LD_LIBRARY_PATH
+  都是追加），这一条能省掉大量"我明明改了"的困惑
+- 话术：「两个故障都是 push 失败，一个报错一个沉默。报错的那个我半小时
+  修好了，沉默的那个我重试了半小时——因为我一直在用修前一个的思路修后
+  一个。真正的转折点是我花一秒跑了 ls-remote 发现网络是通的，那一秒把
+  搜索空间砍掉一半。之后又踩了『-c 是追加不是替换』，所以最终修法是在
+  global 层用空值先重置列表」

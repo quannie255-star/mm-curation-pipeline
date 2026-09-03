@@ -19,6 +19,62 @@ python -m pytest -q             # 健康检查：105 passed
 依赖缺失时：`pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple`
 GPU 依赖：`pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121`
 
+## 0.1 Git 推送排障（两个独立故障，别混为一谈）
+
+本机推送踩过两个**成因完全不同**的坑，现象都是「卡住/报错」，但修法无关：
+
+### 故障 A：SSL 证书校验失败（报错快，有错误信息）
+
+```
+fatal: unable to access 'https://github.com/.../':
+SSL certificate problem: unable to get local issuer certificate
+```
+
+修法——改用 Windows 系统证书库校验（本仓库已固化此配置）：
+
+```bash
+git config http.sslBackend schannel
+```
+
+原因：代理/VPN 接管的网络路径下，Git 自带的 OpenSSL CA bundle 常缺中间证书；
+schannel 走系统证书库即可正常验证。**注意这与是否信任证书无关，别用
+`http.sslVerify false` 绕过——那是把校验整个关掉。**
+
+### 故障 B：凭据助手挂起（无输出，直到超时，最容易被误判为"网络不好"）
+
+```
+$ git push origin main
+（光标卡住，无任何输出，几分钟后被 timeout 杀掉，exit 124）
+```
+
+**根因链**（三层，缺一不可理解）：
+
+1. Git for Windows 在 **system 层**默认配 `credential.helper = helper-selector`。
+   本机它解析不到已存的凭据（凭据管理器里确有 `git:https://github.com` 条目）。
+2. 拿不到凭据后，git 回退到**终端交互式询问** username/password；非交互会话里
+   stdin 无输入 → 永久阻塞。这就是"无输出地挂住"。
+3. `-c credential.helper=wincred` **不是替换而是追加**——system 层的
+   `helper-selector` 仍排在前面先执行，所以单加这个参数无效，看起来就像"修了但没用"。
+
+修法——在 **global 层用空值先重置列表**，再指定 wincred（空值会清空已累积的
+助手列表，包括 system 层那条）：
+
+```bash
+git config --global credential.helper ""        # 空值 = 重置助手列表
+git config --global --add credential.helper wincred
+```
+
+验证（两步都应秒回，不该有任何卡顿）：
+
+```bash
+printf 'protocol=https\nhost=github.com\n\n' | git credential fill   # 应输出 username/password
+git push --dry-run origin main
+```
+
+> 排查心法：`git ls-remote origin main` **秒回**就说明网络与 SSL 都正常，
+> 那么 push 挂住必然是凭据环节（故障 B），不是网络。这个一秒的判断能省掉
+> 半小时的无效重试。
+
 ## 1. 完整复现（按管道顺序，每步有验收数字）
 
 | 步骤 | 命令（make-free） | 耗时 | 验收 |

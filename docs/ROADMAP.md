@@ -236,7 +236,7 @@ API 只改 base_url，机制已就绪，判力提升列为后续。主仓 140 + 
 **δ LLM-judge**（全链路机制 + kappa 协议，0.5B 判官阴性如实记录）→
 **ε 数据 CI**（质量门禁徽章）。
 测试基线：主仓 140 + 包 40 全绿；CI 双徽章（代码 + 数据）。
-开发日志全程见 docs/DEV_PLAN.md；面试弹药库见 docs/ENGINEERING_NOTES.md（55 条）。
+开发日志全程见 docs/DEV_PLAN.md；面试弹药库见 docs/ENGINEERING_NOTES.md（56 条）。
 
 ## 周计划
 
