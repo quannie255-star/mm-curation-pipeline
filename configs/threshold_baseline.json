@@ -1,0 +1,112 @@
+{
+ "meta": {
+  "generated_at": "2026-09-03 19:14:45",
+  "scale": 1.0,
+  "corpus": {
+   "text": [
+    250,
+    80
+   ],
+   "image": [
+    300,
+    100
+   ]
+  },
+  "tolerances": {
+   "recall": 0.05,
+   "clean_kill_rate": 0.02
+  },
+  "env": {
+   "python": "3.11.2",
+   "pillow": "12.1.1",
+   "datasketch": "2.0.0",
+   "imagehash": "4.3.2"
+  }
+ },
+ "curves": {
+  "minhash_lsh": [
+   {
+    "threshold": 0.4,
+    "primary_recall": 1.0,
+    "clean_kill_rate": 0.0
+   },
+   {
+    "threshold": 0.5,
+    "primary_recall": 1.0,
+    "clean_kill_rate": 0.0
+   },
+   {
+    "threshold": 0.55,
+    "primary_recall": 1.0,
+    "clean_kill_rate": 0.0
+   },
+   {
+    "threshold": 0.6,
+    "primary_recall": 0.9875,
+    "clean_kill_rate": 0.0
+   },
+   {
+    "threshold": 0.65,
+    "primary_recall": 0.9625,
+    "clean_kill_rate": 0.0
+   },
+   {
+    "threshold": 0.7,
+    "primary_recall": 0.875,
+    "clean_kill_rate": 0.0
+   },
+   {
+    "threshold": 0.75,
+    "primary_recall": 0.6125,
+    "clean_kill_rate": 0.0
+   },
+   {
+    "threshold": 0.85,
+    "primary_recall": 0.1875,
+    "clean_kill_rate": 0.0
+   }
+  ],
+  "phash_near": [
+   {
+    "threshold": 4,
+    "primary_recall": 0.54,
+    "clean_kill_rate": 0.0
+   },
+   {
+    "threshold": 6,
+    "primary_recall": 0.77,
+    "clean_kill_rate": 0.0
+   },
+   {
+    "threshold": 8,
+    "primary_recall": 0.92,
+    "clean_kill_rate": 0.0
+   },
+   {
+    "threshold": 10,
+    "primary_recall": 0.98,
+    "clean_kill_rate": 0.0
+   },
+   {
+    "threshold": 12,
+    "primary_recall": 1.0,
+    "clean_kill_rate": 0.0
+   },
+   {
+    "threshold": 14,
+    "primary_recall": 1.0,
+    "clean_kill_rate": 0.0
+   },
+   {
+    "threshold": 16,
+    "primary_recall": 1.0,
+    "clean_kill_rate": 0.005
+   },
+   {
+    "threshold": 20,
+    "primary_recall": 0.9,
+    "clean_kill_rate": 0.265
+   }
+  ]
+ }
+}

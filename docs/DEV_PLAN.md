@@ -20,7 +20,7 @@
 | V2 ε 数据 CI | ✅（本会话） | data_ci_benchmark 门禁：exact 1.0 / near 0.954 / 误杀 0；劣化注入实测变红；双徽章（代码+数据）；损伤强度按 α 方法论标定 |
 | 工程门禁（CI / lint / 文档） | ✅ | CI 覆盖包侧测试 + packages lint；ruff pin；README 同步 V2 β |
 
-**测试基线**：主仓库 152 + 包 40 全绿（2026-09-03 第五会话实点，含 ζ 在途测试 + 图像 Ray 等价性测试）；ruff check 全绿。任何提交不得低于该基线。
+**测试基线**：主仓库 157 + 包 40（2026-09-03 第七会话实点，`pytest --collect-only` 计数；GPU 忙全量未真跑，新增 5 测单独真跑绿）；ruff check 全绿。任何提交不得低于该基线。
 > 基线数字历史上被写错过三次（133+34 → 140+40 → 151+40），根因是凭记忆填而不是点数。**改测试后直接用
 > `pytest --collect-only -q` 点数回写**，别沿用上一版的数字。
 
@@ -58,7 +58,7 @@
 | 任务 | 内容 | 验收标准 | 预估 |
 |---|---|---|---|
 | ε1 | 新 workflow `data-ci.yml`：定时/手动触发小规模污染基准（1 万档），断言 P/R 不低于门限（exact ≥0.99 / near ≥0.90） | Action 绿；人为注入劣化能变红 | 1 天 |
-| ε2 | 阈值回归门：threshold_scan 关键算子拐点偏移超警戒即失败（防上游换源静默漂移） | 门限逻辑 + 测试 | 1 天 |
+| ε2 | 阈值回归门：threshold_scan 关键算子拐点偏移超警戒即失败（防上游换源静默漂移）→ ✅ **2026-09-03 第七会话收官**：`scripts/threshold_regression_gate.py` 曲线对冻结基线 `configs/threshold_baseline.json` 逐点比对 | 门限逻辑 + 测试 | 1 天 |
 | ε3 | README 徽章 + 失败通知说明 + 文档四件套 | 推送后徽章显示绿 | 1 天 |
 
 ### ζ 个人微调平台（首战「专属数据判官」，PRD 见 docs/PRD.md）
@@ -129,6 +129,7 @@
 
 | 日期 | 会话内容 | 关键数字/结论 | commit |
 |---|---|---|---|
+| 2026-09-03（协作方·第七会话） | **ε2 阈值回归门收官（ε 阶段最后一个真缺口）**：实点发现 DEV_PLAN 的 ε2（threshold_scan 曲线回归门）从未实现——ROADMAP 标 ✅ 的 ε2 是另一编号体系（损伤强度标定）。新脚本 `scripts/threshold_regression_gate.py`：扫描曲线 import `threshold_scan.scan_operator`（单一定义源，两处永不漂移），对冻结基线 `configs/threshold_baseline.json` **逐点比对**（recall 偏移 >0.05 / 误杀偏移 >0.02 即红），锁轻依赖双主算子 **minhash_lsh（datasketch）/ phash_near（imagehash）**（blur 要 opencv、clip/semantic 要编码器，不入 CI 门禁）。合成语料沿用两条已标定配方（文本 #49 大词表 / 图像 #57 8x8 随机块 + 1~5% 裁剪）。**门禁绿 13s**；基线曲线健康——minhash 拐点在 0.7→0.75（1.0→0.6125）、phash 在 20 过松时误杀飙 26.5%。测试 `tests/test_threshold_regression_gate.py` 5 条（匹配绿 / recall 漂移红 / 误杀漂移红 / 阈值点缺失红 / 语料 label 契约）。已接入 data-ci.yml（补装 datasketch） | CI 三层锁：代码逻辑 → 单点质量数字 → **整条阈值曲线**；换库版本（imagehash/datasketch）静默漂移先被曲线抓住。测试基线 **157+40**（实点；GPU 忙全量未真跑，新增 5 测单独真跑绿）；ζ3-ζ4 在途文件未触碰 | 本次提交 |
 | 2026-09-03（协作方·第六会话） | **ε 门禁扩到图像去重（候补池收官）**：新脚本 `scripts/data_ci_image_benchmark.py` 锁 md5_exact / phash_near——2800 张合成图（2000 base 8x8 随机块放大 / 300 exact 字节复制 / 500 near 裁剪+JPEG 重编码注入）真跑漏斗算子，**exact 1.0 / near 0.994 / 误杀 0/2000 → GATE PASSED（去重 40s）**；劣化注入 --crop 0.80,0.90 实测 near 0.152 → **exit 1**；已接入 data-ci.yml。**标定三轮收窄损伤**：V1 near_duplicate_image 的 4~10% 裁剪参数用在块状合成图上 15.6% 距离超阈 12（块网格被裁剪错位，比真实照片敏感），收到 1~5% 后 p90=8，门限 0.97 留 2.4pp 余量——「先标定生成器再定门限」的图像版实践。RUNBOOK §1.9.1、INTERVIEW 杀牌 E 回写 | 候补池两项全收官；数据 CI 双模态全覆盖；劣化注入红、正常绿；ζ3-ζ4 在途文件未触碰 | 本次提交 |
 | 2026-09-03（协作方·第五会话） | **图像漏斗 × Ray 等价性验证（候补池第一项收官）**：设计表入 design_tables.md——γ3 三口径 + 新增第四口径（dedup 标记 duplicate_of 逐 id 相等，只比 kept 集看不出"簇代表换了谁"）。实现 `scripts/ray_image_funnel_benchmark.py`（镜像 γ3 脚本，GPU 算子剔除同套路）+ 等价性测试 `tests/test_image_ray_equivalence.py`（importorskip 守卫）。实测 **2106 条全量双跑四口径全等**（kept 1608 / StageStat / 逐 id 分数 0 不一致 / dedup 标记 324 条），local 65.4s vs ray 137.3s（init 11.0s）。**附带发现**：id 排序使簇代表 = 字典序最小 id，注入复制品（id 小）会成为簇代表而非原始图——与污染模块「种子在前」约定相反，审计 duplicate_of 指向时需知晓（kept 质量不受影响）。**坑**：合成测试图两连败（噪声图与单频光栅在 phash 眼里都互相塌缩），终版 8x8 随机块 + 测试内自校验种子（两两距离 ≥16），工程笔记 #57；ray object store 2GB 在内存紧张时 init 失败，降到 1GB | 四口径全等，图像模态等价性债收掉；测试基线 **152+40** 全绿（GPU 空闲，全量 pytest 已跑）；ζ3-ζ4 在途文件未触碰 | 本次提交 |
 | 2026-09-03（协作方·第四会话） | **根治 git push 挂起 + 候补池盘点**：(1) 定位推送挂死为凭据环节而非网络——`git ls-remote` 秒回但 push 无输出直到 timeout(124)；根因是 system 层 `helper-selector` 取不到凭据后 git 回退终端交互询问、stdin 阻塞，且 `-c credential.helper=X` 是**追加非替换**（system 那条仍先执行，故单加无效）。修法：global 层空值重置 + wincred，**裸跑 `git push` 现已可用**，卡住的 57d7470 已推送（7a29bcb..57d7470）。RUNBOOK 新增 §0.1「Git 推送排障」分列 SSL / 凭据两个故障。(2) 候补池盘点：**跨模态统一债务记录作废——19/19 算子 V2 元数据全齐**（纯图像 8/纯文本 7/双模态 4），图像漏斗早已走 Sample+Executor，「α 只迁 12 算子」是过时快照。同时翻出两个真缺口并立为候补池前两项：图像漏斗从未在 Ray 下验证等价性（3 个 shardable=False 全局算子是高风险区，phash_near 大概率复现 γ3 的簇代表块序坑）、ε 数据 CI 未覆盖图像去重。(3) 测试基线实点为 **151+40**（原记 133+34 / 140+40 均错，已加「别凭记忆填」的提示）。工程笔记 #56 | 推送恢复 + 候补池记录与仓库现状对齐；**仅动 docs/**（RUNBOOK / DEV_PLAN / ENGINEERING_NOTES），未触碰任何代码，持续避让 ζ3-ζ4 在途文件；本会话未跑全量 pytest（GPU 被 ζ3 训练占满，7855/8188MiB） | 本次提交 |

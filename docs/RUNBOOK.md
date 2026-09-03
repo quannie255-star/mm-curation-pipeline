@@ -173,6 +173,24 @@ python -X utf8 scripts/data_ci_image_benchmark.py --crop 0.80,0.90   # 劣化注
 照片敏感（裁剪移动 8px 块网格），V1 参数下 15.6% 样本超阈——按预案修生成器
 而非放水门限。
 
+### 1.9.2 阈值回归门（ε2，2026-09-03）
+
+锁「整条阈值敏感性曲线」而非单点数字：threshold_scan 曲线对冻结基线
+`configs/threshold_baseline.json` 逐点比对（recall 偏移 >0.05 / 误杀偏移
+>0.02 即红），防上游**换库版本/换实现**静默漂移（单测绿、单点门禁过、
+曲线先变）。锁轻依赖双主算子 minhash_lsh / phash_near（blur 要 opencv、
+clip/semantic 要编码器，不入 CI），data-ci.yml 自动跑：
+
+```bash
+python -X utf8 scripts/threshold_regression_gate.py                   # 绿：2 算子逐点比对通过（~13s）
+python -X utf8 scripts/threshold_regression_gate.py --update-baseline # 重生成冻结基线（diff 需人工审查）
+```
+
+维护约定：升级 imagehash/datasketch 后若门禁红，先看基线 `meta.env` 版本
+归因——确认是环境升级而非实现劣化后，`--update-baseline` 显式接受新曲线；
+扫描区间/生产默认与 `scripts/threshold_scan.py` 共用 THRESHOLD_SPECS
+（单一定义源），改区间必须重新生成基线。
+
 ## 2. 演示（10 分钟，面试/展示）
 
 ```bash

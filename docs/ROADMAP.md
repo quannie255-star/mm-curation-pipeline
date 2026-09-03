@@ -227,6 +227,7 @@ API 只改 base_url，机制已就绪，判力提升列为后续。主仓 140 + 
 | ε1 | `scripts/data_ci_benchmark.py`：6000 篇合成语料（seed 固定，大词表随机组句规避模板自相似）+ 300 精确/700 近似注入 → 真跑 dedup_fast → 门限断言 exact ≥0.99 / near ≥0.90 / 误杀 ≤1% | ✅ 实测 exact 1.0 / near 0.954 / 误杀 0（0.5s）；threshold=0.95 劣化注入实测 exit 1 |
 | ε2 | 损伤强度标定（α 方法论闭环）：del=1+swap → J∈[0.86,0.92]；del=2 跌破捕获带——先标定生成器再定门限，门禁测实现不是测生成器 | ✅ |
 | ε3 | `.github/workflows/data-ci.yml`（push/PR/每周定时；numpy+pillow 轻依赖 1 分钟跑完）+ README Data CI 徽章 | ✅ |
+| ε4 | 阈值回归门（DEV_PLAN ε2）：`scripts/threshold_regression_gate.py` threshold_scan 曲线对冻结基线（configs/threshold_baseline.json）逐点比对，偏移超警戒即红——防上游换库版本/换实现静默漂移；锁轻依赖 minhash_lsh / phash_near | ✅ 实测门禁绿 13s；劣化（曲线漂移注入）由单测验证会红 |
 
 ## V2 收官账（2026-09-03）
 
