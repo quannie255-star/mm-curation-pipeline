@@ -43,12 +43,19 @@ def build_sft_rows(
     n_dirty: int,
     seed: int = TRAIN_SEED,
     images_out: Path | None = None,
+    exclude_source_ids: set[str] | None = None,
 ) -> list[dict]:
-    """域语料 → SFT 行：{prompt, completion, label, kind, source_id}。"""
-    if len(corpus) < n_clean:
-        raise ValueError(f"域语料不足：需 {n_clean}，只有 {len(corpus)}")
+    """域语料 → SFT 行：{prompt, completion, label, kind, source_id}。
+
+    exclude_source_ids：benchmark 已占用的源文档 id——同源文档换 seed 污染
+    ≠ 独立样本，必须结构性排除（泄漏检查只防文本级重合，防不了同源增强）。
+    """
+    exclude = exclude_source_ids or set()
+    pool_all = [s for s in corpus if s.id not in exclude]
+    if len(pool_all) < n_clean:
+        raise ValueError(f"排除 benchmark 源后域语料不足：需 {n_clean}，只有 {len(pool_all)}")
     rng = random.Random(seed)
-    pool = sorted(corpus, key=lambda s: s.id)
+    pool = sorted(pool_all, key=lambda s: s.id)
     rng.shuffle(pool)
     clean = pool[:n_clean]
 

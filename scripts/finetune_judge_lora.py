@@ -43,23 +43,51 @@ def load_corpus(path: Path, min_chars: int = 200) -> list:
 
 
 def batches(rows: list[dict], tok, batch: int, seq_len: int, rng: random.Random):
+    """训练/推理同协议（chat template）+ completion 必须完整落在窗口内。
+
+    首训的隐藏大坑：新闻正文 ~1500 token >> 窗口 384，右截断后 completion
+    完全在窗外 → 模型学的是「续写文章」而非「输出判分」（loss 1.9 的真相）。
+    修正：prompt 按 completion 长度预留预算截断，JSON 判分永不被截掉。
+    """
     order = list(range(len(rows)))
     rng.shuffle(order)
-    for start in range(0, len(order) - batch + 1, batch):
-        chunk = [rows[i] for i in order[start : start + batch]]
-        prompts = [r["prompt"] for r in chunk]
-        full = [r["prompt"] + r["completion"] for r in chunk]
-        enc_p = tok(prompts, return_tensors="pt", truncation=True, max_length=seq_len)
-        enc_f = tok(
-            full, return_tensors="pt", truncation=True, max_length=seq_len + 48, padding=True
+    templated = [
+        tok.apply_chat_template(
+            [{"role": "user", "content": r["prompt"]}],
+            tokenize=False,
+            add_generation_prompt=True,
         )
-        labels = enc_f["input_ids"].clone()
-        # 只对 completion 段计 loss：prompt 部分置 -100（长度差按 token 级对齐）
-        for b in range(len(chunk)):
-            plen = min((enc_p["attention_mask"][b] == 1).sum().item(), seq_len)
-            labels[b, :plen] = -100
-        labels[enc_f["attention_mask"] == 0] = -100
-        yield enc_f["input_ids"], enc_f["attention_mask"], labels
+        for r in rows
+    ]
+    completions = [r["completion"] for r in rows]
+
+    def encode(texts, max_len):
+        return tok(texts, add_special_tokens=False, truncation=True, max_length=max_len)[
+            "input_ids"
+        ]
+
+    for start in range(0, len(order) - batch + 1, batch):
+        idx = order[start : start + batch]
+        p_ids, f_ids = [], []
+        for i in idx:
+            c_ids = encode([completions[i]], 48)[0]
+            budget = seq_len - len(c_ids) - 4  # completion 完整保留，prompt 吃剩余预算
+            p = encode([templated[i]], budget)[0]
+            p_ids.append(p)
+            f_ids.append((p + c_ids)[:seq_len])
+        max_len = max(len(f) for f in f_ids)
+        input_ids, attn, labels = [], [], []
+        for p, f in zip(p_ids, f_ids):
+            pad = max_len - len(f)
+            input_ids.append(f + [tok.pad_token_id] * pad)
+            attn.append([1] * len(f) + [0] * pad)
+            lab = [-100] * len(p) + f[len(p) :] + [-100] * pad
+            labels.append(lab)
+
+        def to_tensor(x):
+            return torch.tensor(x, dtype=torch.long).to("cuda")
+
+        yield to_tensor(input_ids), to_tensor(attn), to_tensor(labels)
 
 
 def main() -> None:
@@ -71,16 +99,35 @@ def main() -> None:
     parser.add_argument("--n-dirty", type=int, default=1600)
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--batch", type=int, default=8)
-    parser.add_argument("--seq-len", type=int, default=384)
+    parser.add_argument("--seq-len", type=int, default=640)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--lora-r", type=int, default=16)
     parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument(
+        "--benchmark",
+        default="benchmarks/judge_news_v1",
+        help="结构性隔离：其 clean 项的源文档不进训练集",
+    )
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
     corpus = load_corpus(Path(args.corpus))
-    logging.info("域语料 %s 篇（≥200 字）", len(corpus))
-    rows = build_sft_rows(corpus, n_clean=args.n_clean, n_dirty=args.n_dirty, seed=TRAIN_SEED)
+    exclude: set[str] = set()
+    bitems = Path(args.benchmark) / "items.jsonl"
+    if bitems.exists():
+        for ln in bitems.read_text(encoding="utf-8").split("\n"):
+            if ln.strip():
+                sid = json.loads(ln).get("source_id")
+                if sid:
+                    exclude.add(sid)
+    logging.info("域语料 %s 篇（排除 benchmark 源 %s 篇）", len(corpus), len(exclude))
+    rows = build_sft_rows(
+        corpus,
+        n_clean=args.n_clean,
+        n_dirty=args.n_dirty,
+        seed=TRAIN_SEED,
+        exclude_source_ids=exclude,
+    )
     sft_path = Path("data/interim/judge_sft.jsonl")
     write_sft_jsonl(rows, sft_path)
     n_dirty = sum(1 for r in rows if r["label"] == "dirty")

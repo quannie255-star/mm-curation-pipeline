@@ -86,10 +86,14 @@ def _leak_check(items: list[dict], train_jsonl: Path | None) -> dict:
     train_rows = [
         json.loads(ln) for ln in train_jsonl.read_text(encoding="utf-8").split("\n") if ln.strip()
     ]
-    md5s = {_fingerprint(r["text"]) for r in train_rows}
+
+    def _row_text(r: dict) -> str:
+        return r.get("text") or r.get("prompt") or ""
+
+    md5s = {_fingerprint(_row_text(r)) for r in train_rows}
     band_keys: dict[bytes, str] = {}
     for r in train_rows:
-        for k in _minhash_keys(r["text"]):
+        for k in _minhash_keys(_row_text(r)):
             band_keys.setdefault(k, r["id"])
     for it in items:
         if _fingerprint(it["text"]) in md5s:

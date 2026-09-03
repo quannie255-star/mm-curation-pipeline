@@ -305,3 +305,27 @@ https://download.pytorch.org/whl/cu121` 后 GPU 可用（RTX 4060）。
 | 2026-08-26 | **Week4 D4-D5 完成（消融实验 + 面试叙事，Week4 收官）**：`scripts/eval_ablation.py`（逐个 + 分组移除算子，零重编码：重跑漏斗后过滤 dirty_raw 索引子集评测）+ `docs/INTERVIEW.md`（STAR 故事 + 8 个预想追问 + 简历 bullet）。**消融核心发现**：单个算子 ΔR@1 均为 0（非 load-bearing），但分组消融显示**去重组移除后 R@1 -0.017**（246 条重复回流，唯一显著组）——证明清洗是系统性工程，去重四件套贡献最大。文本/图像质量算子对 held_out 检索无影响（它们丢的样本本就不会被查询匹配）。86 测试绿；`make eval-ablation` 一键复现 | **Week4 收官**（D1 Demo + D4 消融 + D5 INTERVIEW）。仅剩 D3 CI（可选） |
 | 2026-08-26 | **Week4 D3 完成（GitHub Actions CI）**：`.github/workflows/ci.yml`——push/PR 触发 ruff lint + format check + pytest（CPU torch + FakeEncoder，3 个数据依赖测试 skipif 自动跳过）。README 加 CI 徽章。本地验证全绿 | **Week1-4 主线 100% 完成** |
 | 2026-08-31 | **V2 β 文本语料实例完成（T0-T7）**：30.2 万维基语料接入 + 6 文本算子/4 文本污染器（对靶修复）+ `dedup_fast` 向量化 MinHash-LSH（10 万档 exact 1.0/near 0.97/21s，三个深层 bug：U+2028、模板簇撑破 LSH 桶、union-find 合并方向）+ perplexity（GPT-2 zh，CVE 墙→`ensure_local_gpt2` 权重入口）+ 全量漏斗 302,002→181,980（保留 60.3%）+ 微调对比 **clean 7.16 vs dirty 7.70（+7.5%）**。129+29 测试全绿；工程笔记 #44-50 | **β 收官**。下一阶段：γ Ray 执行层 → δ LLM-judge → ε 数据 CI |
+
+## V3 ζ：个人微调平台·首战「专属数据判官」（2026-09-03 首战达标）
+
+> 产品愿景（PRD 首次落盘 docs/PRD.md）：自己的数据 → 自己的 benchmark → 自己的模型。
+> 锚点问题：δ 阶段证明通用 0.5B 判官 κ≈0——本阶段用平台四步把 κ 做到 ≥0.5。
+
+| 任务 | 内容 | 状态 |
+|---|---|---|
+| ζ1 | 数据获取器：中新网爬取（robots 合规/限速/幂等/解析与站点解耦），705 篇正文 | ✅ |
+| ζ2 | benchmark 构建器：judge_news_v1 冻结（300 条 150/150；seed 隔离/配比隔离/md5+MinHash 泄漏检查；SFT 结构性排除 benchmark 源文档） | ✅ |
+| ζ3 | LoRA 微调器：peft+Qwen2.5-0.5B（本机 8GB，fp16，8.8M 可训参数）+ 实验 ledger | ✅ |
+| ζ4 | 评测 runner + 端到端出数 | ✅ |
+
+**钱表（judge_news_v1 冻结 benchmark，300 条）**：
+
+| 判官 | κ | P | R | 解析率 |
+|---|---|---|---|---|
+| 通用 Qwen2.5-0.5B-Instruct | -0.024 | 0.417 | 0.067 | 45% |
+| LoRA 微调判官（v3） | **+0.560** | **0.706** | **0.960** | **100%** |
+
+两次中间阴性（v1 -0.180 / v2 -0.007）的根因链与修复见笔记 #56-57：
+训练/推理协议错位 + completion 被截断在窗外（loss 曲线健康的静默任务替换）。
+测试基线：主仓 151 + 包 40 全绿。
+| 2026-09-03 | **V3 ζ 首战达标**：PRD 落盘（个人微调平台，锚点「专属数据判官」）+ 数据获取器（中新网 705 篇，robots/限速/幂等）+ benchmark 构建器（judge_news_v1 冻结 300 条，三重独立性保障）+ LoRA 微调器（peft+0.5B 本机 8GB）+ 评测 runner；**钱表：通用 κ=-0.024 → 微调 κ=+0.560（R=0.960，解析率 100%）**；两次中间阴性的根因链（协议错位/completion 窗外截断）进笔记 #56-57 | 首战闭环完成；扩语料（sitemap 源）、7B 租卡、第二数据域为后续 | 见 git log |

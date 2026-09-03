@@ -158,6 +158,22 @@ python scripts/data_ci_benchmark.py --threshold 0.95   # 演示劣化变红（ex
 损伤强度按 α 校准方法论标定（删 1 词 + 邻位交换 → J∈[0.86,0.92]——损伤与
 门限是耦合参数，先标定生成器再定门限，门禁测的是去重实现不是生成器）。
 
+## 1.10 个人微调平台·首战「专属数据判官」（V3 ζ）
+
+四步闭环：获取 → 清洗（复用 V2 漏斗）→ 冻结 benchmark → LoRA 微调 → κ 出数。
+
+| 步骤 | 命令 | 耗时 | 验收 |
+|---|---|---|---|
+| 数据获取 | `python -X utf8 scripts/fetch_news_corpus.py --max-docs 2000` | ~35 分钟 | data/raw/news_corpus.jsonl（robots 合规/限速/幂等；当前 705 篇） |
+| 冻结 benchmark | `python -X utf8 scripts/build_judge_benchmark.py` | ~1 分钟 | benchmarks/judge_news_v1/（300 条 150/150，manifest 含 seed 隔离与泄漏检查） |
+| LoRA 微调 | `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python -X utf8 scripts/finetune_judge_lora.py --n-clean 500 --n-dirty 500 --epochs 3 --batch 4` | ~70 分钟（8GB 本机） | adapter 落 models/judge_lora_v1 + 实验 ledger runs/experiments.jsonl |
+| 出钱表 | `python -X utf8 scripts/run_judge_benchmark.py --adapter models/judge_lora_v1` | ~3 分钟 | **通用 κ=-0.024 → 微调 κ=+0.560（P=0.706/R=0.960，解析率 100%）** |
+
+工程红线（两次阴性训练换来的，见笔记 #56-57）：训练与推理必须同一
+chat template 协议；**completion 必须完整落在窗口内**（prompt 按
+completion 长度预留预算截断）——否则 loss 曲线健康、任务被静默替换。
+训练/推理窗口不一致会引入视野错位，两侧统一 640。
+
 ### 1.9.1 图像去重门禁（ε 补强，2026-09-03）
 
 同一方法论扩到图像模态，锁 md5_exact / phash_near（data-ci.yml 同工作流自动跑）：
