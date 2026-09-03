@@ -31,3 +31,11 @@ jobs:
 
       - name: Dedup quality gate (exact ≥0.99 / near ≥0.90 / false-kill ≤1%)
         run: python scripts/data_ci_benchmark.py
+
+      # ε 补强（2026-09-03）：图像去重门禁——md5/phash 同样被锁。
+      # imagehash 自带 numpy/PyWavelets 依赖，不拉 torch，约 1 分钟
+      - name: Install image deps
+        run: pip install imagehash
+
+      - name: Image dedup quality gate (exact ≥0.99 / near ≥0.97 / false-kill ≤1%)
+        run: python scripts/data_ci_image_benchmark.py

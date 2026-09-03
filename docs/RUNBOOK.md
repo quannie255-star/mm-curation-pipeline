@@ -158,6 +158,21 @@ python scripts/data_ci_benchmark.py --threshold 0.95   # 演示劣化变红（ex
 损伤强度按 α 校准方法论标定（删 1 词 + 邻位交换 → J∈[0.86,0.92]——损伤与
 门限是耦合参数，先标定生成器再定门限，门禁测的是去重实现不是生成器）。
 
+### 1.9.1 图像去重门禁（ε 补强，2026-09-03）
+
+同一方法论扩到图像模态，锁 md5_exact / phash_near（data-ci.yml 同工作流自动跑）：
+
+```bash
+python -X utf8 scripts/data_ci_image_benchmark.py             # 绿：exact 1.0 / near 0.994 / 误杀 0（~50s）
+python -X utf8 scripts/data_ci_image_benchmark.py --calibrate # 打印 near 距离分布（改损伤后先标定）
+python -X utf8 scripts/data_ci_image_benchmark.py --crop 0.80,0.90   # 劣化注入：near 0.152 → 红（exit 1）
+```
+
+门限：exact ≥0.99 / near ≥0.97 / 误杀 ≤1%（near 生成器实测 0.994，留 2.4pp
+劣化余量）。标定过程三收窄（裁剪 4~10% → 1~5%）：块状合成图对裁剪比真实
+照片敏感（裁剪移动 8px 块网格），V1 参数下 15.6% 样本超阈——按预案修生成器
+而非放水门限。
+
 ## 2. 演示（10 分钟，面试/展示）
 
 ```bash
