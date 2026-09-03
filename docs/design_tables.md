@@ -176,3 +176,54 @@ scripts/text_dedup_benchmark.py / scripts/finetune_gpt2.py: 两个实验入口
 | 本地小模型判力弱 → kappa 低 | 如实报告——kappa 是可信度证明不是宣传数字；换更大模型只改 base_url |
 | judge 输出不守格式 | 解析失败 → None 保留不评判 + 计数入报告（诚实呈现解析率） |
 | CI/无卡环境 | 算子测试全走 FakeClient，零网络零 GPU |
+
+---
+
+# 补强设计表：图像漏斗 × Ray 等价性验证（2026-09-03）
+
+> 背景：γ3 只验证了文本漏斗（configs/text_funnel.yaml），图像漏斗
+> （configs/pipeline.example.yaml，cn_flickr_curation_v2）从未在 Ray 下跑过。
+> 候补池盘点（DEV_PLAN 2026-09-03 第四会话）确认 19/19 算子 V2 元数据齐备、
+> 框架层确定性修复（run_batch_mixed_modality 执行前按 id 排序，sdk.py）已覆盖
+> 全部批量算子——理论风险低，但"从未实测"本身就是债。
+
+## 决策点 1：语料与漏斗来源
+
+| 项 | 决策 | 理由 |
+|---|---|---|
+| 漏斗 | `pipeline.example.yaml` 剔除 GPU 算子（clip_alignment / semantic_dedup），余 9 级 CPU（text_length…minhash_lsh） | 与 γ3 同套路：GPU worker 调度属后续；phash_near O(n²) 991 张无压力 |
+| 语料 | `data/interim/contaminated/samples.jsonl` 全量（991 条，含注入污染） | 验证等价性必须有重复对——污染集是现成的靶子；量小全量跑，不抽样 |
+
+## 决策点 2：装载方式
+
+- `Sample.from_dict` 装载（v1 caption 键永久兼容，schema.py 已声明）；
+  image_path 非空自动推断 image_caption 模态，装载代码不需要特判
+- 读图失败的样本（OSError）：算子内静默跳过，两运行时行为同源——
+  等价性口径天然覆盖，无需预处理
+
+## 决策点 3：等价性口径（γ3 三口径 + 一条图像专属）
+
+1. kept 集按 id 相等；2. 每级 StageStat 数字相等；3. 逐 id 分数（score:*）相等
+4. **新增：dedup 标记逐 id 相等**（`meta["dedup:*"]["duplicate_of"]` 映射）——
+   簇代表选择是本次靶子，只比 kept 集比不出"代表换了谁"
+
+## 决策点 4：实现形式
+
+| 方案 | 决策 | 理由 |
+|---|---|---|
+| A 泛化 γ3 脚本加 --config | 否 | 装载逻辑文本专属（按 text 字段），泛化会把两个模态的装载揉进一个脚本 |
+| B 镜像新脚本 `scripts/ray_image_funnel_benchmark.py`，共用 stage_diff 等价函数 | **采用** | 与 γ3 报告并列（data/reports/ray_image_funnel_benchmark.{json,md}），口径代码从 γ3 脚本 import 不复制 |
+
+## 风险
+
+| 风险 | 预案 |
+|---|---|
+| 框架层 id 排序修复未覆盖某算子路径（如 v1 无元数据算子） | 等价性不通过即如实落报告——阴性结果照 γ3 先例处理，反查 run_batch_mixed_modality 覆盖面 |
+| Ray 下读图路径（相对路径 image_path）在 worker 的 CWD 不同 | γ0/γ3 已验 Windows 本地集群同 CWD；报告注明前提，多机属二期 |
+| phash_near 在 991 张上的 O(n²) 耗时 | 实测预估秒级（991² ≈ 10⁶ 次海明比对），不构成风险，报告记耗时即可 |
+
+## 验收标准
+
+- 991 条全量 local/ray 双跑，口径 1-4 全等 → 报告 + 等价性测试入 tests/
+  （ray importorskip 守卫，与 γ 同款）；任一不等 → 报告如实呈现差异清单，
+  转入根因分析而非强行对齐
