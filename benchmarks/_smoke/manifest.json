@@ -1,0 +1,42 @@
+{
+  "benchmark": "judge_news_v1",
+  "version": "v1",
+  "created": "2026-09-03",
+  "domain": "中文新闻正文（中国新闻网，2026-09 滚动新闻）的训练适用性判定",
+  "n_items": 79,
+  "label_balance": {
+    "clean": 40,
+    "dirty": 39
+  },
+  "contamination": {
+    "seed": 9000,
+    "kinds": {
+      "paragraph_repeat": 0.4,
+      "boilerplate_inject": 0.3,
+      "whitespace_pad": 0.3
+    },
+    "counts": {
+      "seed": 9000,
+      "n_clean": 40,
+      "n_injected": 40,
+      "counts": {
+        "boilerplate_inject": 10,
+        "paragraph_repeat": 13,
+        "whitespace_pad": 17
+      }
+    }
+  },
+  "train_seed_isolation": {
+    "benchmark_seed": 9000,
+    "train_seeds": [
+      23
+    ]
+  },
+  "leakage_check": {
+    "train_file": null,
+    "md5_leaks": [],
+    "minhash_leaks": [],
+    "note": "训练集尚未产出，泄漏检查随训练集构建后补跑（build_train 时强制）"
+  },
+  "label_protocol": "clean=域内正常文本；dirty=程序化注入损伤（kinds 见上）；judge 任务：二分类 keep/drop，κ 与 P/R 对本表结算"
+}
