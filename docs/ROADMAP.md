@@ -195,6 +195,28 @@ legacy caption 键永久兼容。下一阶段：β 文本语料实例 → γ Ray
 调度属后续，报告注明）；包 34 + 主仓 133 测试全绿。
 下一阶段：δ LLM-judge → ε 数据 CI。
 
+## V2 δ：L3 LLM-judge（2026-09-03 完成）
+
+> 目标：三层漏斗补上最后一层——judge 是普通注册算子（ARCHITECTURE_V2 决策 7），
+> 走 OpenAI 兼容协议，服务端可插拔；可信度用 Cohen's kappa 对 ground truth 结算。
+> 设计见 docs/design_tables.md δ 决策点 1-4。
+
+| 任务 | 内容 | 状态 |
+|---|---|---|
+| δ0 | 设计门：Windows 跑不了 vLLM → 附带 serve_judge.py 极简兼容层（Qwen2.5-0.5B-Instruct，safetensors）；失败语义 skip 优先（L3 是增强不是阻塞） | ✅ |
+| δ1 | `LlmJudgeOp`（LLM 成本档，shardable）：确定性抽样（sha1(seed+id)，重跑同批）、rubric JSON 解析（失败→None 保留不评判）、批内并发、`cohen_kappa` 进包（协议级指标） | ✅ |
+| δ2 | `eval_judge.py` kappa 实验：污染器带标注脏集 → judge 全评 → 三 κ（judge vs 标签 / judge vs L1 / L1 vs 标签）+ 分歧样本清单 | ✅ |
+| δ3 | `configs/text_funnel_llm.yaml`（L1+去重+困惑度后 judge 抽 10% 终审）+ OPERATOR_TARGETS 显式空靶 + 测试（FakeClient 零网络） | ✅ |
+
+**δ 验收数字（诚实阴性）**：机制全链路通——解析成功率 69.5%（chat template
+修复把解析失败 78%→30.5%，延迟 17.2s→10.7s）、确定性抽样、失败语义、阈值
+扫描全工作。但 **Qwen2.5-0.5B 判官不合格**：κ(t) 全阈值域平坦在 ~0（判分
+与脏净无相关性），judge vs L1 κ=0.056；L1 参照 κ=0.565（规则有效）。
+结论：0.5B 无判官资格，kappa 协议的价值恰恰是把这种 judge 筛出来
+（决策 7「judge 不是真理，一致性才是可信度证明」的实证）；换 7B+/云端
+API 只改 base_url，机制已就绪，判力提升列为后续。主仓 140 + 包 40 测试全绿。
+下一阶段：ε 数据 CI（污染基准门限 + 阈值回归门 + 徽章）。
+
 ## 周计划
 
 ### Week 1：地基 + 数据准备

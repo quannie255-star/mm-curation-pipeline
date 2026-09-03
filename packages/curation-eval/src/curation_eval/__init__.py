@@ -5,7 +5,7 @@
 """
 
 from .contamination import ContaminationPlan, Contaminator, available_kinds, register
-from .metrics import mrr, pr_from_drops, recall_at_k
+from .metrics import cohen_kappa, mrr, pr_from_drops, recall_at_k
 from .ray_executor import RayDistributedExecutor
 from .registry import (
     CostClass,
@@ -50,5 +50,6 @@ __all__ = [
     "pr_from_drops",
     "recall_at_k",
     "mrr",
+    "cohen_kappa",
 ]
 __version__ = "0.2.0"

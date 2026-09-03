@@ -68,6 +68,21 @@ docs/design_tables.md γ 决策点 3。
 worker 的 PYTHONPATH（`ray.init(runtime_env={"env_vars": {"PYTHONPATH": ...}})`）；
 包以 editable 方式安装则 worker 可直接解析 `curation_eval`/`mm_curation`。
 
+## 1.8 L3 LLM-judge（V2 δ）
+
+三层漏斗的最后一层：judge 是普通注册算子，走 OpenAI 兼容协议，服务端可插拔
+（本机 serve_judge.py / Linux 上 vLLM / 云端 API，算子零改动）。judge 的可信度
+用 Cohen's kappa 对 ground truth 结算——它不是真理，一致性才是卖点。
+
+| 步骤 | 命令 | 耗时 | 验收 |
+|---|---|---|---|
+| 启动判官服务 | `python -X utf8 scripts/serve_judge.py` | 首次 +1GB 下载 | 监听 127.0.0.1:8100（Qwen2.5-0.5B-Instruct） |
+| kappa 实验 | `python -X utf8 scripts/eval_judge.py --n 400` | ~10 分钟 | data/reports/judge_kappa.md：judge vs 脏标签 / judge vs L1 / L1 vs 标签 三 κ + 分歧样本 |
+| L3 漏斗 | `python -X utf8 scripts/run_pipeline.py --config configs/text_funnel_llm.yaml` | 同漏斗 + 抽样调用 | L1+去重+困惑度后 judge 抽 10% 终审；on_error: skip 服务挂不死漏斗 |
+
+设计要点：确定性抽样（同 config 重跑抽同一批）；解析失败/服务异常 → 保留
+不评判（score=None），L3 是增强不是阻塞；成本口径见 `judge_stats_snapshot()`。
+
 ## 2. 演示（10 分钟，面试/展示）
 
 ```bash

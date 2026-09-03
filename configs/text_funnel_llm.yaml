@@ -1,0 +1,35 @@
+# L3 演示配置：文本漏斗 + LLM-judge 终审（V2 δ）
+#
+# 与 configs/text_funnel.yaml 的差别仅在末尾追加 llm_judge 一级：
+# L1 规则 + 去重 + 困惑度先拦大头，judge 只抽样裁决歧义区（成本意识）。
+# 前置：python -X utf8 scripts/serve_judge.py（本地 OpenAI 兼容判官服务）
+#
+# 运行：python -X utf8 scripts/run_pipeline.py --config configs/text_funnel_llm.yaml
+
+name: zh_wiki_text_curation_llm
+description: 文本漏斗 + L3 LLM-judge 终审（抽样）
+runtime: local
+
+dataset:
+  raw_jsonl: data/raw/text_corpus.jsonl
+
+output:
+  dir: data/processed/text_funnel_llm
+
+operators:
+  - { op: doc_length,       params: { min: 30, max: 50000 } }
+  - { op: chinese_ratio,    params: { min: 0.3 } }
+  - { op: char_repetition,  params: { min: 0.8 } }
+  - { op: line_repetition,  params: { min: 0.8 } }
+  - { op: boilerplate,      params: { min: 0.8 } }
+  - { op: pii_detect,       params: { min: 0.9 } }
+  - { op: text_minhash,     params: { threshold: 0.7 } }
+  - { op: perplexity,       params: { min: 0.2, batch_size: 64 } }
+  - op: llm_judge
+    params:
+      base_url: http://127.0.0.1:8100/v1
+      model: judge
+      sample_rate: 0.1        # 只抽 10% 终审（确定性抽样，seed 固定可复现）
+      min: 0.5
+      max_workers: 4
+      on_error: skip          # 服务挂了漏斗不死——L3 是增强不是阻塞

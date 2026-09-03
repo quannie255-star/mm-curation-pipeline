@@ -5,6 +5,7 @@ from . import (  # noqa: F401
     dedup,
     detector_quality,
     image_quality,
+    llm_judge,
     text_corpus,
     text_quality,
 )

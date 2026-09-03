@@ -132,3 +132,47 @@ scripts/text_dedup_benchmark.py / scripts/finetune_gpt2.py: 两个实验入口
 | Windows 原生 ray 限制（spike 裁决） | 降级路线已定（见决策点 1） |
 | map_batches batch_format 对 Python 对象的行为差异 | γ0 spike 实测钉死；Sample 走 cloudpickle |
 | ray 本地集群内存（object store）过大 | init 显式 `object_store_memory` 上限 |
+
+---
+
+# δ 阶段设计表：L3 LLM-judge（2026-09-03）
+
+> 蓝图来自 ARCHITECTURE_V2 决策 7：judge 是普通注册算子 + 独立推理边界
+> （OpenAI 兼容客户端）；可信度用 Cohen's kappa 证明。
+
+## 决策点 1：服务边界与 Windows 现实
+
+| 项 | 决策 | 理由 |
+|---|---|---|
+| 客户端 | OpenAI 兼容 `/v1/chat/completions`（base_url/model 配置化，api_key 走 env） | 决策 7 的推理边界；换 provider 不改算子 |
+| 服务端 | 附带 `scripts/serve_judge.py`（FastAPI 极简兼容层，包本地 HF Instruct 模型，默认 Qwen2.5-0.5B-Instruct，hf-mirror + safetensors） | vLLM 不支持原生 Windows；本地 0.5B 够跑通协议与实验，Linux 换 vLLM 零改动 |
+| 失败语义 | `on_error: skip`（默认：超时/解析失败 → 保留不评判，score=None）/ `fail` | L3 是增强不是阻塞——服务挂了漏斗不该死 |
+
+## 决策点 2：抽样协议（成本意识）
+
+- `sample_rate`（默认 0.1）：确定性抽样 `sha1(seed + sample.id) % 10**9 / 10**9 < rate`
+  ——同一 config 重跑抽同一批，可复现可审计
+- judge 只看进入该级的存活样本（L1/L2 已拦大头，L3 只裁决歧义区）
+
+## 决策点 3：rubric 与解析
+
+- prompt：中文，角色=LLM 训练语料质量审核员，只输出 JSON
+  `{"score": 0-10 整数, "reason": "<=30字"}`
+- 解析：正则抽首个 JSON 对象 → 失败置 None；score/10 归一化写
+  `meta["score:llm_judge"]`；阈值 `min` 默认 0.5
+- 批内并发：ThreadPoolExecutor（服务是 IO 边界）；逐样本独立 → shardable=True
+
+## 决策点 4：kappa 评测协议（δ2 验收）
+
+- `curation_eval.metrics.cohen_kappa()`（框架级指标，非本项目私有）
+- `scripts/eval_judge.py`：污染器造带标注脏集 → judge 全评抽样 →
+  (a) judge vs 脏标签（可信度主证）；(b) judge vs L1 漏斗判定（增量信息：
+  kappa 高 = L3 冗余，低 = 互补）；(c) 分歧样本清单进报告
+
+## 风险
+
+| 风险 | 预案 |
+|---|---|
+| 本地小模型判力弱 → kappa 低 | 如实报告——kappa 是可信度证明不是宣传数字；换更大模型只改 base_url |
+| judge 输出不守格式 | 解析失败 → None 保留不评判 + 计数入报告（诚实呈现解析率） |
+| CI/无卡环境 | 算子测试全走 FakeClient，零网络零 GPU |

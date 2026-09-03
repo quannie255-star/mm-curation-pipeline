@@ -41,3 +41,26 @@ def mrr(rankings: list[Optional[int]]) -> float:
     if not rankings:
         return 0.0
     return sum(1.0 / r for r in rankings if r is not None) / len(rankings)
+
+
+def cohen_kappa(y1: Sequence, y2: Sequence) -> Optional[float]:
+    """Cohen's kappa：两个判定者（如 LLM-judge 与 ground truth）的一致性，
+    修正了随机一致。κ = (p_o - p_e) / (1 - p_e)。
+
+    - 完全一致 → 1.0；与随机抽签一致 → 0.0；负值 = 比随机还差
+    - 无法计算（空输入 / 只有一个类别导致 p_e=1）时返回 None——
+      调用方应如实呈现「不可评」而不是拿到假 0 分
+    """
+    if len(y1) != len(y2):
+        raise ValueError(f"两序列长度不一致: {len(y1)} vs {len(y2)}")
+    n = len(y1)
+    if n == 0:
+        return None
+    labels = set(y1) | set(y2)
+    po = sum(1 for a, b in zip(y1, y2) if a == b) / n
+    pe = sum(
+        (sum(1 for a in y1 if a == c) / n) * (sum(1 for b in y2 if b == c) / n) for c in labels
+    )
+    if pe == 1.0:  # 两者都只判了一个类别——一致性无信息
+        return None
+    return (po - pe) / (1.0 - pe)

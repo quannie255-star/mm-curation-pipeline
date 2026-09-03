@@ -43,6 +43,9 @@ OPERATOR_TARGETS: dict[str, list[str]] = {
     "doc_length": ["truncate_text", "whitespace_pad"],
     "line_repetition": ["paragraph_repeat"],
     "boilerplate": ["boilerplate_inject"],
+    # V2 δ：LLM-judge 是质量裁决增强层，无单一注入主靶（一致性走 kappa
+    # 协议，见 scripts/eval_judge.py），按约定显式空靶
+    "llm_judge": [],
     "pii_detect": ["pii_inject"],
     "perplexity": ["mojibake"],
     "text_minhash": ["exact_duplicate", "near_duplicate_text"],
