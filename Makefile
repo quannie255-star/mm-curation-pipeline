@@ -79,3 +79,13 @@ airflow-down: ## 停止 Airflow
 
 airflow-logs: ## 查看 scheduler 日志
 	docker compose logs -f airflow-scheduler
+
+# ---- V3 ζ：个人微调平台·专属数据判官（详见 docs/RUNBOOK.md 1.10）----
+fetch-news: ## 爬取新闻域语料（robots 合规/限速/幂等）
+	python -X utf8 scripts/fetch_news_corpus.py --max-docs 2000
+build-benchmark: ## 构建/更新冻结 benchmark（judge_news_v1）
+	python -X utf8 scripts/build_judge_benchmark.py
+finetune-judge: ## LoRA 微调专属判官（8GB 本机 ~70 分钟）
+	PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python -X utf8 scripts/finetune_judge_lora.py --n-clean 500 --n-dirty 500 --epochs 3 --batch 4
+eval-judge: ## 冻结 benchmark 上出钱表（--adapter 缺省=通用基线）
+	python -X utf8 scripts/run_judge_benchmark.py --adapter models/judge_lora_v1

@@ -16,6 +16,7 @@ datasketch>=1.6         # MinHash-LSH 文本去重（JD 生态标配，见 docs/
 
 # --- 模型与编码（Week2/3 启用）---
 transformers>=4.40      # Chinese-CLIP (OFA-Sys/chinese-clip-vit-base-patch16)
+peft>=0.14              # V3 ζ：LoRA 微调（专属判官/个人微调平台）
 huggingface_hub>=0.23
 datasets>=2.19
 sentencepiece>=0.2

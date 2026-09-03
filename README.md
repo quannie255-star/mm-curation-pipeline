@@ -111,6 +111,12 @@ python -X utf8 scripts/download_text_corpus.py        # 30.2 万篇中文维基
 python -X utf8 scripts/text_dedup_benchmark.py        # 去重吞吐/召回基准
 python -X utf8 scripts/run_pipeline.py --config configs/text_funnel.yaml
 python -X utf8 scripts/finetune_gpt2.py               # 干净/脏语料训练对比（需 GPU）
+
+# 8. V3 ζ：个人微调平台·专属数据判官（四步闭环，详见 docs/PRD.md + RUNBOOK 1.10）
+make fetch-news                       # ① 原始数据获取（爬虫，robots 合规/幂等）
+make build-benchmark                  # ② 构建自己的 benchmark（300 条版本冻结+防污染）
+make finetune-judge                   # ③ LoRA 微调自己的模型（8GB 本机 ~70 分钟）
+make eval-judge                       # ④ 冻结 benchmark 出钱表：通用 κ-0.024 → 微调 κ+0.560
 ```
 
 > Windows 注意：产出中文的脚本加 `-X utf8`。`.venv` 若因目录搬迁失效，
@@ -132,6 +138,10 @@ src/mm_curation/  # 核心包
   index/          # FAISS 索引
   serving/        # FastAPI 检索服务
   eval/           # 检索评测 + 算子评测
+  benchmarks/     # V3：benchmark 构建器（版本冻结 + 防污染 + 泄漏检查）
+  tuning/         # V3：LoRA 判官微调（SFT 数据生成 + 训练对隔离）
+benchmarks/       # V3 产物：冻结评测集（items.jsonl + manifest，入库资产）
+runs/             # V3：实验 ledger（配置/loss/评测数字追加式）
 tests/            # pytest
 data/             # raw / interim / processed / reports（git 忽略，DVC 管理）
 ```
