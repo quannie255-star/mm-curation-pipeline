@@ -38,6 +38,10 @@ GPU 依赖：`pip install torch torchvision --index-url https://download.pytorch
 > Windows 注意：产出中文的脚本加 `-X utf8`；指标随污染 seed 有 ±1pp 正常浮动。
 > 模型权重在 `models/`（gitignore）：新机器先跑任意 CLIP 命令触发下载，
 > 再 `python scripts/convert_clip_weights.py`（详见 FAQ）。
+> 推送报 `SSL certificate problem: unable to get local issuer certificate` 时：
+> `git config http.sslBackend schannel`（改用 Windows 系统证书库校验，本仓库
+> 已固化此配置）——代理/VPN 接管的网络路径下 OpenSSL 自带 CA bundle 常缺
+> 中间证书，schannel 走系统证书库即可正常验证。
 
 ## 1.5 文本语料实例（V2 β，`text_article` 模态全流程）
 
