@@ -19,7 +19,7 @@
 > 复现：`streamlit run scripts/streamlit_app.py`（依赖见下文快速开始）。
 
 > 状态：✅ 主线（Week 1-4）+ Phase 2（P1-P10）+ **V2 全阶段完成（α 协议 / β 文本语料 / γ Ray 双运行时 / δ LLM-judge / ε 数据 CI）** + **V3 ζ 收官（域专属判官 κ +0.560 达标）**。路线图见 [docs/ROADMAP.md](docs/ROADMAP.md)。
-> 面试叙事见 [docs/INTERVIEW.md](docs/INTERVIEW.md)。
+> 面试叙事见 [docs/INTERVIEW.md](docs/INTERVIEW.md)，自测题库见 [docs/INTERVIEW_SELFTEST.md](docs/INTERVIEW_SELFTEST.md)（41 题：数字 / 根因 / 取舍 / 拆现场四层）。
 >
 > **V2 定位**：从「一条多模态清洗管道」升级为「模态可插拔的数据质量框架」。
 > 协议与算子 SDK 收口进 `curation-eval` 包，图文管道与纯文本语料管道是它的两个
@@ -34,7 +34,7 @@
 | | MRR | 0.599 → 0.670 |
 | | Recall@10 | 0.874 → 0.901 |
 | **配比收益**（分层 vs 随机采样，budget=1000） | Recall@1 | **0.353 → 0.437（+24%）** |
-| **漏斗**（11 级算子，2106 → 1585） | 脏数据召回 / 误杀 | **100% / 2.16%** |
+| **漏斗**（11 级算子，2106 → 1586 存活 / 1585 入索引） | 脏数据召回 / 误杀 | **99.8%（485/486）/ 2.16%** |
 | **消融归因**（分组消融） | 去重组贡献 | **R@1 -0.017**（唯一显著组） |
 | **算子级评测**（独立评测口径） | phash_near 主靶 recall / 误杀 | 84% / 0.24% |
 | | clip_alignment 主靶 recall / 误杀 | 96% / 0.19% |
@@ -126,7 +126,7 @@ python -X utf8 scripts/finetune_gpt2.py               # 干净/脏语料训练�
 make fetch-news                       # ① 原始数据获取（爬虫，robots 合规/幂等）
 make build-benchmark                  # ② 构建自己的 benchmark（300 条版本冻结+防污染）
 make finetune-judge                   # ③ LoRA 微调自己的模型（8GB 本机 ~70 分钟）
-make eval-judge                       # ④ 冻结 benchmark 出钱表：通用 κ-0.024 → 微调 κ+0.560
+make eval-judge                       # ④ 冻结 benchmark 出成绩表：通用 κ-0.024 → 微调 κ+0.560
 ```
 
 > Windows 注意：产出中文的脚本加 `-X utf8`。`.venv` 若因目录搬迁失效，
@@ -164,7 +164,7 @@ data/             # raw / interim / processed / reports（git 忽略，DVC 管�
 
 0.2.0 起它同时承载**协议层**：泛化 `Sample` schema（模态可插拔）、算子注册表
 （带模态/成本档/依赖字段元数据）、Executor 抽象、污染器协议、P/R 与检索指标。
-主仓库反向消费本包——**自己产品的第一個用户**，这是"可复用"最硬的证明。
+主仓库反向消费本包——**自己产品的第一个用户**，这是"可复用"最硬的证明。
 
 ```bash
 pip install -e packages/curation-eval

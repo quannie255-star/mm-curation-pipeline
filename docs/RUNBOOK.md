@@ -167,7 +167,7 @@ python scripts/data_ci_benchmark.py --threshold 0.95   # 演示劣化变红（ex
 | 数据获取 | `python -X utf8 scripts/fetch_news_corpus.py --max-docs 2000` | ~35 分钟 | data/raw/news_corpus.jsonl（robots 合规/限速/幂等；当前 705 篇） |
 | 冻结 benchmark | `python -X utf8 scripts/build_judge_benchmark.py` | ~1 分钟 | benchmarks/judge_news_v1/（300 条 150/150，manifest 含 seed 隔离与泄漏检查） |
 | LoRA 微调 | `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python -X utf8 scripts/finetune_judge_lora.py --n-clean 500 --n-dirty 500 --epochs 3 --batch 4` | ~70 分钟（8GB 本机） | adapter 落 models/judge_lora_v1 + 实验 ledger runs/experiments.jsonl |
-| 出钱表 | `python -X utf8 scripts/run_judge_benchmark.py --adapter models/judge_lora_v1` | ~3 分钟 | **通用 κ=-0.024 → 微调 κ=+0.560（P=0.706/R=0.960，解析率 100%）** |
+| 出成绩表 | `python -X utf8 scripts/run_judge_benchmark.py --adapter models/judge_lora_v1` | ~3 分钟 | **通用 κ=-0.024 → 微调 κ=+0.560（P=0.706/R=0.960，解析率 100%）** |
 
 工程红线（两次阴性训练换来的，见笔记 #58-59）：训练与推理必须同一
 chat template 协议；**completion 必须完整落在窗口内**（prompt 按
