@@ -31,6 +31,9 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+# curation_eval（包源码直连）——CI 环境不安装本包，漏这条路径会 ImportError
+# （2026-09-03 Data CI 连红三次的根因：本地 editable 安装掩盖了它）
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "packages" / "curation-eval" / "src"))
 
 N_BASE, N_EXACT, N_NEAR = 2000, 300, 500
 

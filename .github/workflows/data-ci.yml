@@ -25,10 +25,10 @@ jobs:
           python-version: "3.11"
 
       # 门禁只依赖 numpy（dedup_fast 向量化签名）+ pillow（包的协议导入）
-      # + datasketch（阈值回归门 minhash_lsh），
+      # + datasketch（阈值回归门 minhash_lsh）+ pyyaml（配置导入链），
       # 不拉 torch——数据门禁要在 1 分钟内跑完才有存在感
       - name: Install minimal deps
-        run: pip install numpy pillow datasketch
+        run: pip install numpy pillow datasketch pyyaml
 
       - name: Dedup quality gate (exact ≥0.99 / near ≥0.90 / false-kill ≤1%)
         run: python scripts/data_ci_benchmark.py
@@ -40,3 +40,9 @@ jobs:
 
       - name: Image dedup quality gate (exact ≥0.99 / near ≥0.97 / false-kill ≤1%)
         run: python scripts/data_ci_image_benchmark.py
+
+      # ε2（2026-09-03）：阈值回归门——threshold_scan 敏感性曲线对冻结基线
+      # configs/threshold_baseline.json 逐点比对（recall 偏移 >0.05 /
+      # 误杀 >0.02 即红），防 imagehash/datasketch 换库版本静默漂移
+      - name: Threshold regression gate (curve vs frozen baseline)
+        run: python scripts/threshold_regression_gate.py
