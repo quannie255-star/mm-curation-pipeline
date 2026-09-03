@@ -8,6 +8,16 @@
 面向中文多模态大模型训练数据场景的端到端数据管道：**脏数据进 → 漏斗式多算子清洗 →
 质量可量化 → 向量索引 → 检索服务 → 清洗收益可证明**。
 
+## Demo 一览（Streamlit 四 Tab 实录）
+
+![Demo 演示：检索 → 清洗漏斗 → 算子评测 → 丢弃样本](docs/assets/demo_walkthrough.gif)
+
+| 🔍 语义检索（FAISS, 1585 条索引） | 📊 清洗漏斗（脏数据召回 99.8%） | 🔬 算子级 P/R 评测 | 🗑️ 丢弃样本分布 |
+|---|---|---|---|
+| <img src="docs/assets/demo_search.png" width="260"/> | <img src="docs/assets/demo_funnel.png" width="260"/> | <img src="docs/assets/demo_eval.png" width="260"/> | <img src="docs/assets/demo_dropped.png" width="260"/> |
+
+> 复现：`streamlit run scripts/streamlit_app.py`（依赖见下文快速开始）。
+
 > 状态：✅ 主线（Week 1-4）+ Phase 2（P1-P10）+ **V2 全阶段完成（α 协议 / β 文本语料 / γ Ray 双运行时 / δ LLM-judge / ε 数据 CI）** + **V3 ζ 收官（域专属判官 κ +0.560 达标）**。路线图见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 > 面试叙事见 [docs/INTERVIEW.md](docs/INTERVIEW.md)。
 >
