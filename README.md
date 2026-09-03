@@ -141,7 +141,7 @@ data/             # raw / interim / processed / reports（git 忽略，DVC 管�
 
 ```bash
 pip install -e packages/curation-eval
-python -m pytest packages/curation-eval/tests   # 29 项协议测试
+python -m pytest packages/curation-eval/tests   # 40 项协议测试
 ```
 
 协议约定、五分钟上手示例与变更记录见 [包内 README](packages/curation-eval/README.md)。
@@ -156,7 +156,7 @@ python -m pytest packages/curation-eval/tests   # 29 项协议测试
 - [项目路线图](docs/ROADMAP.md) — 周计划 + Phase2 + V2 六阶段 + 进度记录 + 阈值校准
 - [岗位 JD 调研与能力映射](docs/JD_RESEARCH.md)
 - [面试叙事（STAR + 预想追问）](docs/INTERVIEW.md)
-- [工程发现日志 50 条（面试弹药库）](docs/ENGINEERING_NOTES.md)
+- [工程发现日志 53 条（面试弹药库）](docs/ENGINEERING_NOTES.md)
 
 ## License
 
