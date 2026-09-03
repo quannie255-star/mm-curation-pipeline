@@ -35,7 +35,7 @@
 | **V2 β · 文本去重基准**（10 万档） | exact 召回 / near 召回 / 耗时 | **1.0 / 0.9714 / 21.1s**（30 万档 60.4s，近线性） |
 | **V2 β · GPT-2 zh 微调对比**（文本版训练证据） | clean_ft vs dirty_ft held-out ppl | **7.16 vs 7.70（脏语料 +7.5%，超 5% 验收线）** |
 | **V2 β · 文本全量漏斗**（30.2 万篇中文维基） | 保留率 | **302,002 → 181,980（60.3%）** |
-| **工程** | 单元测试 | **129 + 29**（主仓库 + curation-eval 包） |
+| **工程** | 单元测试 | **140 + 40**（主仓库 + curation-eval 包） |
 
 > 灵魂叙事：**脏数据 → 11 级漏斗 → 干净集（R@1 +21%）→ 分层采样（再 +18~24%）**
 > → Phase 2 把"代理指标"升级为"训练证据"（脏集微调 CLIP 比 clean 低 5.2pp R@1）。
@@ -157,7 +157,7 @@ python -m pytest packages/curation-eval/tests   # 40 项协议测试
 - [项目路线图](docs/ROADMAP.md) — 周计划 + Phase2 + V2 六阶段 + 进度记录 + 阈值校准
 - [岗位 JD 调研与能力映射](docs/JD_RESEARCH.md)
 - [面试叙事（STAR + 预想追问）](docs/INTERVIEW.md)
-- [工程发现日志 53 条（面试弹药库）](docs/ENGINEERING_NOTES.md)
+- [工程发现日志 55 条（面试弹药库）](docs/ENGINEERING_NOTES.md)
 
 ## License
 
