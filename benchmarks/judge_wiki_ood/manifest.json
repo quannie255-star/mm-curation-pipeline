@@ -1,0 +1,62 @@
+{
+  "benchmark": "judge_wiki_ood",
+  "version": "v1",
+  "created": "2026-09-04",
+  "domain": "中文维基百科正文（域外泛化评测集，域内为新闻）",
+  "n_items": 198,
+  "label_balance": {
+    "clean": 100,
+    "dirty": 98
+  },
+  "contamination": {
+    "seed": 9500,
+    "kinds": {
+      "paragraph_repeat": 0.4,
+      "boilerplate_inject": 0.3,
+      "whitespace_pad": 0.3
+    },
+    "counts": {
+      "seed": 9500,
+      "n_clean": 100,
+      "n_injected": 100,
+      "counts": {
+        "boilerplate_inject": 28,
+        "paragraph_repeat": 44,
+        "whitespace_pad": 28
+      }
+    }
+  },
+  "train_seed_isolation": {
+    "benchmark_seed": 9500,
+    "train_seeds": [
+      23
+    ]
+  },
+  "leakage_check": {
+    "train_file": "data\\interim\\judge_sft.jsonl",
+    "md5_leaks": [],
+    "minhash_leaks": [
+      "bm-025009969b",
+      "bm-bf556d6bb2",
+      "bm-929e17fc0e",
+      "bm-b3768f291c",
+      "bm-47a614e8be",
+      "bm-c48129219a",
+      "bm-31935fd17c",
+      "bm-20ffb350e7",
+      "bm-acf2abe027",
+      "bm-62d12e1bbb",
+      "bm-183d71fe2e",
+      "bm-e9b25b834a",
+      "bm-a186dd59a9",
+      "bm-ea01b1b741",
+      "bm-deeebbdd51",
+      "bm-914b6605ca",
+      "bm-dc592f6394",
+      "bm-da8c90da13",
+      "bm-d323cbe26a",
+      "bm-0f02f9ccd7"
+    ]
+  },
+  "label_protocol": "clean=域内正常文本；dirty=程序化注入损伤（kinds 见上）；judge 任务：二分类 keep/drop，κ 与 P/R 对本表结算"
+}

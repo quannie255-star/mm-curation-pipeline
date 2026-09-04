@@ -92,14 +92,15 @@ def _leak_check(items: list[dict], train_jsonl: Path | None) -> dict:
 
     md5s = {_fingerprint(_row_text(r)) for r in train_rows}
     band_keys: dict[bytes, str] = {}
-    for r in train_rows:
+    for n, r in enumerate(train_rows):
         for k in _minhash_keys(_row_text(r)):
-            band_keys.setdefault(k, r["id"])
+            band_keys.setdefault(k, r.get("id", f"train{n}"))
     for it in items:
-        if _fingerprint(it["text"]) in md5s:
+        it_text = _row_text(it)
+        if _fingerprint(it_text) in md5s:
             report["md5_leaks"].append(it["id"])
             continue
-        if any(k in band_keys for k in _minhash_keys(it["text"])):
+        if any(k in band_keys for k in _minhash_keys(it_text)):
             report["minhash_leaks"].append(it["id"])
     return report
 

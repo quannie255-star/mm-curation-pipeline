@@ -28,6 +28,12 @@ def main() -> None:
     parser.add_argument("--n-clean", type=int, default=150)
     parser.add_argument("--n-dirty", type=int, default=150)
     parser.add_argument("--train-jsonl", default="data/interim/judge_train.jsonl")
+    parser.add_argument("--name", default="judge_news_v1")
+    parser.add_argument(
+        "--domain",
+        default="中文新闻正文（中国新闻网，2026-09 滚动新闻）的训练适用性判定",
+    )
+    parser.add_argument("--seed", type=int, default=9000)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
@@ -36,18 +42,18 @@ def main() -> None:
         json.loads(ln) for ln in corpus_path.read_text(encoding="utf-8").split("\n") if ln.strip()
     ]
     corpus = [
-        Sample(id=r["id"], text=r["text"])
-        for r in rows
+        Sample(id=r.get("id") or f"doc{i:07d}", text=r["text"])
+        for i, r in enumerate(rows)
         if len(r["text"]) >= 200  # 判官 benchmark 取长文（短文无质量语义）
     ]
     logging.info("域语料 %s 篇（≥200 字的 %s 篇）", len(rows), len(corpus))
 
     spec = BenchmarkSpec(
-        name="judge_news_v1",
-        domain_desc="中文新闻正文（中国新闻网，2026-09 滚动新闻）的训练适用性判定",
+        name=args.name,
+        domain_desc=args.domain,
         n_clean=args.n_clean,
         n_dirty=args.n_dirty,
-        seed=9000,
+        seed=args.seed,
         train_seeds=TRAIN_SEEDS,
     )
     manifest = build_benchmark(

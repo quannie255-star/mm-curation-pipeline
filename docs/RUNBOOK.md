@@ -174,6 +174,20 @@ chat template 协议；**completion 必须完整落在窗口内**（prompt 按
 completion 长度预留预算截断）——否则 loss 曲线健康、任务被静默替换。
 训练/推理窗口不一致会引入视野错位，两侧统一 640。
 
+## 1.11 偏好闭环·首战（V3 η-a）
+
+三步：偏好数据构造（persona-oracle）→ DPO 双判官 → 冻结偏好 benchmark 出分歧率。
+
+| 步骤 | 命令 | 耗时 | 验收 |
+|---|---|---|---|
+| 偏好数据+冻结题 | `python -X utf8 scripts/build_pref_data.py` | ~1 分钟 | data/interim/pref_dpo.jsonl 880 三元组 + benchmarks/pref_news_v1 150 题（结构性排除 judge 训练/评测源） |
+| DPO 双判官 | `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python -X utf8 scripts/finetune_judge_dpo.py --persona PA --out models/judge_pref_PA`（PB 同理） | 各 ~17 分钟（8GB 本机） | adapter ×2 + 实验 ledger |
+| 出钱表 | `python -X utf8 scripts/run_pref_benchmark.py` | ~8 分钟 | **PA 命中率 0.933 / PB 命中率 0.867（线 ≥0.75）；分歧率 0.783（线 ≥40%）；通用基线 0.48/0.40** |
+
+工程红线（一次学崩换来的，见笔记 #60-61）：DPO 的 chosen/rejected 必须是
+**最小对**（唯一差异在判别维度上）——差异面在模板文本上时梯度全被模板吸收；
+评测解析器只抓判别字段（别要求完整 JSON），max_new_tokens 留足闭括号余量。
+
 ### 1.9.1 图像去重门禁（ε 补强，2026-09-03）
 
 同一方法论扩到图像模态，锁 md5_exact / phash_near（data-ci.yml 同工作流自动跑）：
