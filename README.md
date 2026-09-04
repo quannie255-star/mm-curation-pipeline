@@ -1,12 +1,16 @@
-# 多模态图文数据清洗与向量检索 Pipeline
+# 多模态数据质量平台：清洗管道 → 向量检索 → 个人微调
+
+> mm-curation-pipeline —— 三级演进：**V1 一条清洗管道**（脏数据进 → 漏斗清洗 →
+> 向量检索，收益可证明）**→ V2 一个模态可插拔的质量框架**（协议/算子 SDK 收口成包）
+> **→ V3 一个个人微调平台**（自己的数据 → 自己的 benchmark → 自己的域判官）。
 
 [![CI](https://github.com/quannie255-star/mm-curation-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/quannie255-star/mm-curation-pipeline/actions/workflows/ci.yml)
 [![Data CI](https://github.com/quannie255-star/mm-curation-pipeline/actions/workflows/data-ci.yml/badge.svg)](https://github.com/quannie255-star/mm-curation-pipeline/actions/workflows/data-ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 
-面向中文多模态大模型训练数据场景的端到端数据管道：**脏数据进 → 漏斗式多算子清洗 →
-质量可量化 → 向量索引 → 检索服务 → 清洗收益可证明**。
+面向中文多模态大模型训练数据场景的端到端平台：**脏数据进 → 漏斗式多算子清洗 →
+质量可量化 → 向量索引 → 检索服务 → 清洗收益可证明 → 域专属判官微调（LoRA，κ 达标）**。
 
 ## Demo 一览（Streamlit 四 Tab 实录）
 
@@ -25,6 +29,11 @@
 > 协议与算子 SDK 收口进 `curation-eval` 包，图文管道与纯文本语料管道是它的两个
 > 实例——共享同一注册表、同一执行器、同一评测协议，**零框架特例**。
 > 设计见 [docs/ARCHITECTURE_V2.md](docs/ARCHITECTURE_V2.md)。
+>
+> **V3 定位**：在框架上长出「个人微调平台」——域数据获取 → 自建 benchmark
+> （300 条版本冻结 + 防污染）→ LoRA 域判官微调（本机 8GB）→ 冻结评测出分。
+> 锚点任务达标：**通用 κ -0.024 → 微调 +0.560**（验收线 ≥0.5），
+> 「通用不行，微调自己的就行」有全链路证据。见 [docs/PRD.md](docs/PRD.md)。
 
 ## 核心结果（所有数字来自真实实验，可一键复现）
 
