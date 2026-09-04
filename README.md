@@ -76,7 +76,7 @@
                     ┌────────────────────────────────────────────────┐
                     │                Airflow DAG 编排                 │
                     └────────────────────────────────────────────────┘
- raw 图文对 ──► 污染器(9类脏数据+标注) ──► 清洗漏斗(算子可配置) ──► 质量报告
+ raw 图文对 ──► 污染器(10类脏数据+标注) ──► 清洗漏斗(算子可配置) ──► 质量报告
                                               │                       ▲
                                               ▼                       │
                                    Chinese-CLIP 编码 ──► FAISS 索引   算子级 P/R 评测 +
@@ -190,8 +190,9 @@ python -m pytest packages/curation-eval/tests   # 40 项协议测试
 - [服务实测性能与降级矩阵（SLA_README）](docs/SLA_README.md)
 - [FAQ：真实踩坑与评测口径](docs/FAQ.md)
 - [项目路线图](docs/ROADMAP.md) — 周计划 + Phase2 + V2 六阶段 + 进度记录 + 阈值校准
+- [V3 产品文档 PRD（个人微调平台：目标 / 验收线 / ζ 分解）](docs/PRD.md)
 - [岗位 JD 调研与能力映射](docs/JD_RESEARCH.md)
-- [面试叙事（STAR + 预想追问）](docs/INTERVIEW.md)
+- [面试叙事（STAR + 预想追问）](docs/INTERVIEW.md) · [面试自测题库（41 题四层）](docs/INTERVIEW_SELFTEST.md)
 - [工程发现日志 59 条（面试弹药库）](docs/ENGINEERING_NOTES.md)
 
 ## License
