@@ -277,3 +277,66 @@ scripts/text_dedup_benchmark.py / scripts/finetune_gpt2.py: 两个实验入口
 - 门禁脚本默认参数跑出 GATE PASSED，门限经标定背书（数字写进脚本 docstring）
 - 劣化注入（加重裁剪）实测 exit 1
 - ruff 全绿；报告数字回写 DEV_PLAN 开发日志
+
+---
+
+# η 阶段设计表：偏好闭环试点 + 迁移验证（2026-09-04）
+
+> 依据：docs/PRD.md §九三条差距。η-c 是热身（补验收 4 欠账），η-a 是本阶段核心，
+> η-b 视 η-a 结果再立项。本表经确认后才动代码。
+
+## η-a 决策点 1：「偏好」的操作化定义
+
+| 项 | 决策 | 理由 |
+|---|---|---|
+| 偏好维度 | **详略偏好**：精炼派（PA）vs 求全派（PB） | 改写可程序化构造（无 LLM 偏差、可复现）；两 persona 在同一维度上取向相反，天然对称；「分歧率」证据直观 |
+| persona 协议 | 选择规则**文本化入 manifest**：PA=保导语要素（时间/地点/主体/结果），容忍删细节；PB=保数字/引语/背景细节，容忍篇幅 | 「偏好协议」是产品资产的一部分——换 persona = 换一段协议文本（这正是「个人化」的最小可行形态） |
+| 诚实边界 | v1 的标注是 **persona-oracle**（确定性规则函数模拟真人 A/B 选择），不是真人标注；manifest 与报告如实写 | 真人标注是 η 后续；先把「偏好进训练信号→偏好改变模型行为」的机制链路打通并量化 |
+
+## η-a 决策点 2：偏好对构造
+
+- 源文档切分：导语段（首段）+ 细节段（含数字/引语的后续段落，规则识别）
+- 变体 S = 标题 + 导语；变体 F = 标题 + 导语 + 全部细节段；偏好对 = (S, F)
+- **候选顺序随机化**（甲/乙 50/50）防位置偏置
+- 数据量：400 文档 × 2 persona = 800 判定题（DPO 三元组或 SFT 行）
+- 防退化（不许学成纯长度分类器）的保障：验收集含**内容对照题**——同长度的
+  S vs F、以及「带损伤的 F vs 干净的 S」对照子集（各 ≥30 题），oracle 判定
+  依赖要素计数而非字节数；对照题上两判官的表现单独报告
+
+## η-a 决策点 3：训练方案（主案 DPO，退化案 SFT）
+
+| 方案 | 形式 | 依赖/显存 | 触发条件 |
+|---|---|---|---|
+| 主案 DPO | prompt = persona 协议 + 候选甲/乙；chosen/rejected = 正确/错误选择的同格式 JSON `{"choice":"甲","reason":"…"}`。trl DPOTrainer + peft LoRA（Qwen2.5-0.5B-Instruct，beta=0.1，lr 5e-6 级） | trl 未装（装 0.12-0.17 区间兼容 transformers 4.57）；ref model 用 adapter-disabled base，显存 ≈3GB，8GB 可跑 | trl 可装且 DPOTrainer 跑通 |
+| 退化案 SFT | 同 prompt 同 completion，正例直接 SFT（现有 finetune 管线加 preference 模式） | 零新依赖 | trl 不可用 / DPO 学崩（表现为命中率不升或格式崩坏）——如实记录后降级 |
+
+- 工程红线沿用 #58/#59：训推同 chat template；completion 完整进窗口
+  （persona 协议 + 两候选各截 600 字符 + JSON → **窗口 1024**，batch 4 显存不够就 2+梯度累积）
+- 数据隔离：DPO 数据排除 judge_news_v1 源文档（结构性隔离沿用 ζ），seed 用新族（如 31）
+
+## η-a 决策点 4：评测口径与验收线
+
+- 冻结 benchmark `benchmarks/pref_news_v1`：held-out 100 文档 × 2 persona = 200 题；
+  manifest 含 persona 协议文本、seed、对 SFT/DPO 数据文件的泄漏检查
+- 指标：①**命中率**（与对应 persona oracle 一致比例）②**分歧率**（PA-判官与
+  PB-判官对同题选择不同的比例——「偏好进了信号」的直接证据）③通用基线
+  （0.5B 不微调、同 prompt）命中率
+- **验收线**：两判官命中率各 ≥0.75 且**分歧率 ≥40%**；通用基线预期 ≈0.5
+  （如显著偏离如实报告并解释）；对照题子集单独出数
+- 产物：runs/experiments.jsonl 逐 run 落账 + data/reports/pref_alignment.md 钱表
+
+## η-b（待 η-a 后立项，预研性记录）
+
+第二任务候选：文风模仿判官（同文体的两段续写哪个「更像原文风格」——
+构造靠句长分布/连接词风格程序化克隆，难度高于详略偏好）或抽取质量判官
+（两份抽取结果哪个漏了原文数字——可用对齐计数构造）。骨架复用已验证，
+难点在 oracle 设计，届时单独走设计门。
+
+## η-c 决策点：域外泛化补账（热身，已确认可先行）
+
+| 项 | 内容 |
+|---|---|
+| 做法 | 现有脚本零改动跑通：wiki 语料建 `benchmarks/judge_wiki_ood`（100/100，seed 9500，--train-jsonl 对 judge_sft.jsonl 跑泄漏检查）→ v3 adapter 与 generic 各跑一遍 |
+| **工具补丁披露（需随 η-a 一起确认）** | build_judge_benchmark.py 的 name/domain 目前硬编码 judge_news_v1——OOD 产物会贴错域标签。需加 `--name/--domain/--seed` 三个 CLI 透传参数（约 5 行，不改逻辑） |
+| 指标 | κ / P / R 相对域内（+0.560/0.706/0.960）的衰减幅度，如实出报告 data/reports/judge_ood_report.md |
+| 预期 | 泛化衰减真实存在（域专属正是卖点）；若 κ 崩到 0 也如实记——「域专属」本来就是产品主张 |
