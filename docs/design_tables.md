@@ -419,3 +419,107 @@ scripts/text_dedup_benchmark.py / scripts/finetune_gpt2.py: 两个实验入口
 |---|---|
 | number_swap 对 0.5B 仍是细粒度数字比对 | 分层报告如实呈现；若该项拖垮总分，验收线只压 supported+cross_doc 并注明 |
 | 与 ext 任务共享源文档的交叉污染 | 不同任务的标签空间独立（supported vs 甲/乙），机制上无共享信号 |
+
+---
+
+# θ 设计表：偏好判官工坊——真人偏好闭环 + 大众可用向导（2026-09-06）
+
+> 动机：PRD §九差距 1（偏好闭环还是 persona-oracle）+ 差距 3（「个人可驾驭」=
+> 开发者可驾驭）。η-a 已证明「偏好进训练信号」机制成立（DPO 命中率 0.933/0.867）；
+> θ 把标注来源换成真人点击，并给「数据→benchmark→训练→评测→试用」全流程一个
+> 非开发者可用的外壳。用户已确认方向（个人偏好判官 + Streamlit 全流程向导）。
+
+## 决策点 1：真人标注数据链路（现有工具的硬缺口）
+
+| 项 | 决策 | 理由 |
+|---|---|---|
+| 现状缺口 | platform_app.py 标注页只落 `cand_a_chars/cand_b_chars`（字数），候选全文不落盘——存量标注无法还原成 DPO 对，真人闭环事实上断裂 | 现场盘点发现；标注工具先于数据构造需求存在，属设计时序缺口 |
+| 标注 v2 | 新文件 `data/annot/pref_labels_v2.jsonl`：每行落**候选全文**+变体元数据（source_id / variant_a / variant_b / 协议文本 / labeler=human\|oracle / choice）；旧 v1 文件保留不动 | 全文是 DPO 构造的必要输入；labeler 字段为「模拟用户先行验收」留通道 |
+| 标注来源 ×2 | ①程序化变体对：导入/示例文档 → 复用 preference.py 的 S/F 切分生成器（候选截 350 字沿用）；②自由对：用户自己贴 甲/乙 两段 | ①零门槛可批量；②兜底非新闻结构文档（切分失败不阻塞标注） |
+
+## 决策点 2：从点击到训练数据（η-a 配方复用）
+
+- DPO 三元组：prompt = PREF_PROMPT(用户协议原文, 甲全文, 乙全文)；chosen/rejected =
+  只差「甲/乙」字母的**最小对**（reason 固定）——#60 纪律内建，训练脚本零改动
+  （`finetune_judge_dpo.py --persona USER --data data/interim/pref_user_dpo.jsonl`）
+- holdout **按偏好对为单位**切 25% 进 benchmark（同一对的文本不得同时进训练与评测）；
+  REJECT（两个都不合格）不进训练、只进统计——chosen 不存在无法构造最小对，如实记录
+- 对照题：程序化损伤对（广告样板注入 vs 干净版，复用 η-a 的 _BOILERPLATE）以
+  kind=control 入 benchmark——「先看污染，再谈偏好」的质检位保留
+- 偏好协议文本：用户在向导第 1 步用自己的话写（默认给精炼派模板），原文进 prompt 与 manifest
+
+## 决策点 3：个人版冻结 benchmark 与验收线（两本账）
+
+| 项 | 决策 |
+|---|---|
+| benchmark | `benchmarks/pref_user_v1`：held-out 真人点击题 + 对照题；manifest 含协议原文、标注量、labeler=human 声明、对 DPO 文件的泄漏检查 |
+| 流程验收（模拟用户） | oracle 按 v2 通道造 ≥200 条标注先行跑通五步，held-out 命中率 **≥0.75**（oracle 信号应接近 η-a 水平；不达标如实归因通道差异） |
+| 真人验收 | 用户真实点击 **≥150 对**，held-out 命中率 **≥0.70**（真人噪声，较 oracle 线 0.75 放宽并注明），通用基线（0.5B 同 prompt）对照预期 ≈0.5 |
+| 学习曲线 | RUNBOOK 级实验（非向导默认路径）：50/100/200 点击子集各自训练评测 → 「最少多少次点击显著超随机」数字 |
+| 两本账 | 模拟用户与真人的数字分开报告，不混算 |
+
+## 决策点 4：向导形态（scripts/judge_studio.py，新入口）
+
+- 五步向导（侧边栏步骤条）：①导入（粘贴/上传 txt·md，或一键「用示例语料」= 新闻爬取
+  产物排除 judge 占用）→ ②点击标注（甲/乙大按钮 + REJECT + 进度条 + 建议量提示）→
+  ③一键训练（subprocess 现有脚本，全默认参数，实时 tail loss 日志）→ ④冻结 benchmark +
+  评测（对比出分：通用 vs 你的判官）→ ⑤试用（贴任意 甲/乙 对，判官替你选）
+- 每步一句白话解释（「这一步在做什么」）；不暴露任何路径 / YAML / make
+- 旧 platform_app.py 标注页保留不动（兼容）；工坊为独立入口 `streamlit run scripts/judge_studio.py`
+- run_pref_benchmark.py 报告落盘名改为按 benchmark 名区分（`pref_alignment_<name>.json`，
+  约 5 行）——避免向导评测覆盖 η-a 的 pref_alignment.json（ledger 本就可回溯、报告不入库，
+  此处只为并行工作流互不覆盖）
+
+## 数据结构表
+
+| 数据 | 字段 | 消费方 |
+|---|---|---|
+| `data/annot/pref_labels_v2.jsonl` | ts / session / protocol / source_id / cand_a / cand_b / variant_a / variant_b / choice(甲\|乙\|REJECT) / labeler(human\|oracle) / note | build_user_pref_data.py |
+| `data/interim/pref_user_dpo.jsonl` | 同 pref_dpo.jsonl：persona/kind/prompt/chosen/rejected/gold/gold_variant/source_id | finetune_judge_dpo.py（零改动） |
+| `benchmarks/pref_user_v1/{items.jsonl,manifest.json}` | 同 pref_news_v1 + manifest.labeler=human + 标注统计 | run_pref_benchmark.py / 控制台矩阵页 |
+| `runs/experiments.jsonl` | 不变（共享追加账本） | 控制台 / 报告 |
+
+## 接口约定表（CLI）
+
+| 命令 | 输入 → 输出 | 退出码 |
+|---|---|---|
+| `python -X utf8 scripts/build_user_pref_data.py --labels <v2.jsonl> --out-dpo <...> --out-benchmark <dir> [--holdout 0.25] [--limit N]` | v2 标注 → DPO 文件 + 冻结 benchmark（manifest 含泄漏检查） | 0=成；2=标注不足（低于最低可训量） |
+| `python -X utf8 scripts/finetune_judge_dpo.py --persona USER --data ... --out models/judge_pref_USER` | 现有脚本零改动 | 不变 |
+| `python -X utf8 scripts/run_pref_benchmark.py --benchmark benchmarks/pref_user_v1 --adapters USER=models/judge_pref_USER --generic` | 现有脚本 + 报告名小改 | 不变 |
+| `streamlit run scripts/judge_studio.py` | 向导入口（内部 subprocess 调上面三步） | — |
+
+## 流转表（标注 → 判官 生命周期）
+
+```
+导入文档 ──→ 变体对生成 ──→ 待标注队列 ──(点击 甲/乙/REJECT)──→ v2 标注文件
+                                                                    │
+                              ┌─────────────────────────────────────┘
+                              ▼
+              build_user_pref_data（按对 holdout 25% + 对照题生成 + 泄漏检查）
+                ├── train 75% → pref_user_dpo.jsonl ──→ DPO/SFT 训练 → adapter
+                └── eval  25% → benchmarks/pref_user_v1 ──→ 冻结评测（+通用基线）
+                                                                │
+                                        ledger 落账 → 向导出分页 → 试用页
+```
+
+向导状态机：EMPTY → COLLECTING(<150) → READY(≥150) → TRAINING → EVALUATED
+（可回第②步追加标注后重训，adapter 按 out 目录版本化）
+
+## 风险
+
+| 风险 | 对策 |
+|---|---|
+| 真人标注噪声/自相矛盾 | 验收线放宽 0.70 + 注明；学习曲线如实；产品语义 =「判官复现你的显性一致性」，manifest 写明 |
+| 标注疲劳半途而废 | 候选截 350 字（η-a 沿用）；建议量进度条；150 对起步（学习曲线可能证明更少即可） |
+| 用户文档非新闻结构，切分失败率高 | 导入步报告可用率；自由粘贴对兜底 |
+| 真人标签下 DPO 学崩（η-a 首训教训在噪声下放大） | 最小对纪律内建；SFT 退化案已就绪（--sft），如实降级 |
+| GPU 被在途任务占用 | 向导启动时 cuda 检测明示；训练/评测分步手动触发，不自动排队 |
+| 与 η-b' 在途代码冲突 | 工坊全部为新文件 + preference.py 增量函数；不触碰 tuning/extraction.py |
+
+## 验收标准汇总
+
+1. 五步向导 e2e（模拟用户 oracle 标注 ≥200 条）：标注→DPO→冻结 benchmark→训练→评测→试用全通，held-out 命中率 ≥0.75
+2. 真人标注 ≥150 对：held-out 命中率 ≥0.70 vs 通用基线 ≈0.5（两本账分开报告）
+3. 对照题（损伤否决）单独出数不设线
+4. 测试基线不倒退（当前 162+40），新增单测覆盖 v2 schema 解析 / 按对 holdout / 最小对构造 / REJECT 剔除
+5. ruff 全绿；RUNBOOK θ 段 + DEV_PLAN / ROADMAP / 笔记回写
