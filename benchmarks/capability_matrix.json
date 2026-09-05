@@ -1,0 +1,74 @@
+{
+  "updated": "2026-09-06",
+  "note": "全部数字来自冻结 benchmark 实测（runs/experiments.jsonl 可回溯）；❌ = 该基座不具备该任务资质，非训练失败",
+  "tasks": [
+    {
+      "task": "客观质量裁决（κ）",
+      "benchmark": "judge_news_v1",
+      "threshold": 0.5,
+      "metric": "κ"
+    },
+    {
+      "task": "偏好裁决·精炼派（命中率）",
+      "benchmark": "pref_news_v1",
+      "threshold": 0.75,
+      "metric": "hit"
+    },
+    {
+      "task": "偏好裁决·求全派（命中率）",
+      "benchmark": "pref_news_v1",
+      "threshold": 0.75,
+      "metric": "hit"
+    },
+    {
+      "task": "抽取忠实性·数字篡改",
+      "benchmark": "ext_news_v1",
+      "threshold": 0.75,
+      "metric": "hit"
+    },
+    {
+      "task": "抽取忠实性·幻觉注入",
+      "benchmark": "ext_news_v1",
+      "threshold": 0.75,
+      "metric": "hit"
+    },
+    {
+      "task": "抽取忠实性·关键遗漏",
+      "benchmark": "ext_news_v1",
+      "threshold": 0.75,
+      "metric": "hit"
+    }
+  ],
+  "models": [
+    {
+      "model": "Qwen2.5-0.5B LoRA/DPO",
+      "scores": {
+        "客观质量裁决（κ）": 0.56,
+        "偏好裁决·精炼派（命中率）": 0.933,
+        "偏好裁决·求全派（命中率）": 0.867,
+        "抽取忠实性·数字篡改": 0.529,
+        "抽取忠实性·幻觉注入": 0.415,
+        "抽取忠实性·关键遗漏": 0.5
+      }
+    },
+    {
+      "model": "Qwen2.5-1.5B SFT",
+      "scores": {
+        "抽取忠实性·数字篡改": 0.591,
+        "抽取忠实性·幻觉注入": 0.515,
+        "抽取忠实性·关键遗漏": 0.48
+      }
+    },
+    {
+      "model": "通用基线（不微调 0.5B）",
+      "scores": {
+        "客观质量裁决（κ）": -0.024,
+        "偏好裁决·精炼派（命中率）": 0.483,
+        "偏好裁决·求全派（命中率）": 0.4,
+        "抽取忠实性·数字篡改": 0.471,
+        "抽取忠实性·幻觉注入": 0.415,
+        "抽取忠实性·关键遗漏": 0.409
+      }
+    }
+  ]
+}

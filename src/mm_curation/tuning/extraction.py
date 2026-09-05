@@ -36,7 +36,9 @@ _FACT_RE = re.compile(r"[\d%]|「[^」]+」|“[^”]+”")
 _SENT_SPLIT = re.compile(r"(?<=[。！？])")
 NUM_RE = re.compile(r"\d+")
 
-SOURCE_MAX_CHARS = 900  # 原文窗口：事实产量在 800-1500 字窗口近乎平坦（476→509），取 900 换可训性
+# 原文窗口：事实产量在 800-1500 字窗口近乎平坦（476→509 篇），取 500 字换
+# 1.5B 训练的显存/速度可训性（窗口权衡实测见 η-b 开发记录）
+SOURCE_MAX_CHARS = 500
 CANDIDATE_MAX_CHARS = 320  # 候选截断：保 prompt 完整含指令尾
 
 

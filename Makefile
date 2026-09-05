@@ -89,3 +89,7 @@ finetune-judge: ## LoRA 微调专属判官（8GB 本机 ~70 分钟）
 	PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python -X utf8 scripts/finetune_judge_lora.py --n-clean 500 --n-dirty 500 --epochs 3 --batch 4
 eval-judge: ## 冻结 benchmark 上出钱表（--adapter 缺省=通用基线）
 	python -X utf8 scripts/run_judge_benchmark.py --adapter models/judge_lora_v1
+platform: ## 启动个人微调平台控制台（Streamlit）
+	streamlit run scripts/platform_app.py
+judge-cost: ## 判官成本核算报告（本机 vs API vs 人工）
+	python -X utf8 scripts/judge_cost_report.py
