@@ -28,21 +28,23 @@ from peft import LoraConfig  # noqa: E402
 from transformers import AutoModelForCausalLM, AutoTokenizer  # noqa: E402
 from trl import DPOConfig, DPOTrainer  # noqa: E402
 
-from mm_curation.tuning.preference import PERSONAS  # noqa: E402
-
 DATA = Path("data/interim/pref_dpo.jsonl")
 LEDGER = Path("runs/experiments.jsonl")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--persona", choices=sorted(PERSONAS), required=True)
+    parser.add_argument("--persona", required=True, help="PA/PB（偏好）或 EXT（抽取）")
+    parser.add_argument("--data", default=str(DATA))
     parser.add_argument("--model", default="Qwen/Qwen2.5-0.5B-Instruct")
     parser.add_argument("--out", default=None)
     parser.add_argument("--epochs", type=float, default=2)
     parser.add_argument("--batch", type=int, default=1)
     parser.add_argument("--grad-accum", type=int, default=8)
     parser.add_argument("--lr", type=float, default=5e-6)
+    parser.add_argument("--max-prompt", type=int, default=560)
+    parser.add_argument("--max-completion", type=int, default=48)
+    parser.add_argument("--max-length", type=int, default=608)
     parser.add_argument("--beta", type=float, default=0.1)
     args = parser.parse_args()
     out = Path(args.out or f"models/judge_pref_{args.persona}")
@@ -50,9 +52,11 @@ def main() -> None:
 
     rows = [
         json.loads(ln)
-        for ln in DATA.read_text(encoding="utf-8").split("\n")
+        for ln in Path(args.data).read_text(encoding="utf-8").split("\n")
         if ln.strip() and json.loads(ln)["persona"] == args.persona
     ]
+    if not rows:
+        raise SystemExit(f"数据中无 persona={args.persona} 的行：{args.data}")
     logging.info("persona %s：%s 条 DPO 三元组", args.persona, len(rows))
 
     tok = AutoTokenizer.from_pretrained(args.model)
@@ -93,9 +97,9 @@ def main() -> None:
         num_train_epochs=args.epochs,
         learning_rate=args.lr,
         beta=args.beta,
-        max_prompt_length=560,
-        max_completion_length=48,
-        max_length=608,
+        max_prompt_length=args.max_prompt,
+        max_completion_length=args.max_completion,
+        max_length=args.max_length,
         bf16=True,
         precompute_ref_log_probs=True,
         logging_steps=20,

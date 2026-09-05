@@ -37,7 +37,14 @@ def parse_choice(content: str) -> str | None:
 
 
 def answer_all(
-    prompts: list[str], model, tok, device: str, *, batch: int = 1, max_new_tokens: int = 96
+    prompts: list[str],
+    model,
+    tok,
+    device: str,
+    *,
+    batch: int = 1,
+    max_new_tokens: int = 96,
+    max_length: int = 704,
 ) -> list[str | None]:
     """逐条生成（无 padding）：批量左 padding 路径曾被实测出与单样本不一致的
     结果（DPO adapter 对 pad 敏感，见 η-a 笔记），判分以单样本为准。"""
@@ -47,7 +54,9 @@ def answer_all(
             templated = tok.apply_chat_template(
                 [{"role": "user", "content": p}], tokenize=False, add_generation_prompt=True
             )
-            enc = tok(templated, return_tensors="pt", truncation=True, max_length=704).to(device)
+            enc = tok(templated, return_tensors="pt", truncation=True, max_length=max_length).to(
+                device
+            )
             gen = model.generate(
                 **enc, max_new_tokens=max_new_tokens, do_sample=False, pad_token_id=tok.pad_token_id
             )
@@ -64,6 +73,7 @@ def main() -> None:
     parser.add_argument("--model", default="Qwen/Qwen2.5-0.5B-Instruct")
     parser.add_argument("--adapters", default="PA=models/judge_pref_PA,PB=models/judge_pref_PB")
     parser.add_argument("--generic", action="store_true", help="只跑通用基线")
+    parser.add_argument("--max-length", type=int, default=704)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
@@ -95,7 +105,8 @@ def main() -> None:
             model = PeftModel.from_pretrained(model, adapter)
             logging.info("已加载 adapter %s", adapter)
         model.eval()
-        choices = answer_all(prompts, model, tok, device)
+        choices = answer_all(prompts, model, tok, device,
+                             max_length=args.max_length)
         result: dict[str, dict] = {}
         for it, ch in zip(items, choices):
             result[f"{it['persona']}/{it['kind']}/{it['id']}"] = {

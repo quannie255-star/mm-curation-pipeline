@@ -188,6 +188,20 @@ completion 长度预留预算截断）——否则 loss 曲线健康、任务被
 **最小对**（唯一差异在判别维度上）——差异面在模板文本上时梯度全被模板吸收；
 评测解析器只抓判别字段（别要求完整 JSON），max_new_tokens 留足闭括号余量。
 
+## 1.12 抽取忠实性判官（V3 η-b，首轮未达标·如实记录）
+
+| 步骤 | 命令 | 说明 |
+|---|---|---|
+| 数据+冻结题 | `python -X utf8 scripts/build_ext_data.py` | 250 三元组 + ext_news_v1 80 题（三损伤分层，结构性排除全部既有占用） |
+| DPO 训练 | `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python -X utf8 scripts/finetune_judge_dpo.py --persona EXT --data data/interim/ext_dpo.jsonl --out models/judge_ext_v1 --max-prompt 1120 --max-completion 48 --max-length 1168 --epochs 2` | 0.5B 本机 ~55 分钟 |
+| 出数 | `python -X utf8 scripts/run_pref_benchmark.py --benchmark benchmarks/ext_news_v1 --adapters EXT=models/judge_ext_v1 --max-length 1700` | 见下 |
+
+**首轮结果（未达标）**：微调判官 number_swap 0.53 / omit 0.50 / hallucinate
+0.41 ≈ 通用基线（0.47/0.41/0.41）——验收线 ≥0.75 未过。根因诊断：抽取忠实性
+要求逐条事实回原文对齐（真阅读理解），超出 0.5B 能力下限（对照 η-a 偏好裁决
+靠浅层特征可达 0.93）。**业务结论见判官能力矩阵（笔记 #62）**：忠实性判官
+需 1.5B+ 基座，重训选项=租卡或 Qwen2.5-1.5B 量化。
+
 ### 1.9.1 图像去重门禁（ε 补强，2026-09-03）
 
 同一方法论扩到图像模态，锁 md5_exact / phash_near（data-ci.yml 同工作流自动跑）：
