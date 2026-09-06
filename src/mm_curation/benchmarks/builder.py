@@ -73,19 +73,29 @@ def _minhash_keys(text: str, bands: int = 8, rows: int = 10) -> set[bytes]:
     return {sig[i * rows : (i + 1) * rows].tobytes() for i in range(bands)}
 
 
-def _leak_check(items: list[dict], train_jsonl: Path | None) -> dict:
-    """对训练集做 md5 + MinHash band 双重泄漏检查（结果进 manifest）。"""
+def _leak_check(
+    items: list[dict], train_jsonl: Path | None, *, train_rows: list[dict] | None = None
+) -> dict:
+    """对训练集做 md5 + MinHash band 双重泄漏检查（结果进 manifest）。
+
+    train_rows：调用方已投影/裁剪过的训练行（如 θ 的 prompt→候选正文投影），
+    传入则不再读文件——指纹必须打在有效载荷上，共享模板前缀会支配 MinHash
+    极小值造成全量假阳性（pref_news_v1 冻结 manifest 的 150/150 教训）。
+    """
     report: dict = {
         "train_file": str(train_jsonl) if train_jsonl else None,
         "md5_leaks": [],
         "minhash_leaks": [],
     }
-    if train_jsonl is None or not train_jsonl.exists():
-        report["note"] = "训练集尚未产出，泄漏检查随训练集构建后补跑（build_train 时强制）"
-        return report
-    train_rows = [
-        json.loads(ln) for ln in train_jsonl.read_text(encoding="utf-8").split("\n") if ln.strip()
-    ]
+    if train_rows is None:
+        if train_jsonl is None or not Path(train_jsonl).exists():
+            report["note"] = "训练集尚未产出，泄漏检查随训练集构建后补跑（build_train 时强制）"
+            return report
+        train_rows = [
+            json.loads(ln)
+            for ln in Path(train_jsonl).read_text(encoding="utf-8").split("\n")
+            if ln.strip()
+        ]
 
     def _row_text(r: dict) -> str:
         return r.get("text") or r.get("prompt") or ""

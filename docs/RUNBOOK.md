@@ -256,6 +256,43 @@ python -X utf8 scripts/threshold_regression_gate.py --update-baseline # 重生�
 扫描区间/生产默认与 `scripts/threshold_scan.py` 共用 THRESHOLD_SPECS
 （单一定义源），改区间必须重新生成基线。
 
+## 1.14 偏好判官工坊（V3 θ，2026-09-06）
+
+大众入口（推荐）：`make studio`（= `streamlit run scripts/judge_studio.py`）——
+五步向导：①导入（粘贴/上传/一键示例语料）→ ②点击标注（甲/乙/都不合格，
+建议 ≥150 对，最低 80）→ ③一键训练（subprocess 现有 DPO 脚本，日志实时）→
+④评测出分（冻结 benchmark + 通用基线对比）→ ⑤试用（贴任意一对，判官裁决）。
+训练/评测期间勿刷新页面（Streamlit 单线程阻塞）。
+
+命令行等价（全部可独立复现）：
+
+```bash
+# 真人标注（向导②步落盘 data/annot/pref_labels_v2.jsonl，全文+变体元数据）
+python -X utf8 scripts/build_user_pref_data.py --labels data/annot/pref_labels_v2.jsonl
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True   python -X utf8 scripts/finetune_judge_dpo.py   --persona USER --data data/interim/pref_user_dpo.jsonl --out models/judge_pref_USER
+python -X utf8 scripts/run_pref_benchmark.py   --benchmark benchmarks/pref_user_v1 --adapters USER=models/judge_pref_USER --generic
+
+# 模拟用户（流程验收账，与真人分文件分账；seed 53 完全可复现，产物不入库）
+python -X utf8 scripts/build_oracle_labels.py --n-docs 250
+python -X utf8 scripts/build_user_pref_data.py --labels data/annot/pref_labels_oracle.jsonl
+
+# 学习曲线实验（50/100/200 点击各训一次；--min-pairs 放宽下限）
+python -X utf8 scripts/build_user_pref_data.py --labels <v2/oracle>   --limit 50 --min-pairs 30 --out-dpo data/interim/pref_user_lc50.jsonl   --out-benchmark benchmarks/pref_user_lc50
+```
+
+**模拟用户验收（2026-09-06 实测，冻结考卷 77 题 = 62 main + 15 对照）**：
+通用基线 main 0.532 / 对照 0.40 → 550 条标注（536 三元组）训出判官
+**main 0.839（+30.6pp）/ 对照 0.80**。学习曲线警示：188 main 对同配方
+只有 0.532（≈通用，未学会）——**最少标注量 ≈ 500 对**是当前证据下的
+产品参数；向导建议量已按此设定，MIN_PAIRS=80 只是流程下限而非达标线。
+
+纪律：真人标注/其 benchmark 属个人数据，默认不入库；评测报告按 benchmark 名
+落盘（pref_alignment_<name>.json），向导不会覆盖 η-a 的报告。示例语料经
+`load_news_corpus_excluded()` 结构性排除 judge/pref/ext 全部既有占用。
+追加标注不换考卷：`build_user_pref_data.py --freeze-eval-from
+benchmarks/pref_user_v1/items.jsonl`（冻结 main 题 source_id 强制留评测，
+其余全进训练）。
+
 ## 2. 演示（10 分钟，面试/展示）
 
 ```bash

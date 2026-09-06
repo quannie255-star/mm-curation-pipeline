@@ -29,6 +29,11 @@ LEDGER = Path("runs/experiments.jsonl")
 _CHOICE_RE = re.compile(r'"choice"\s*:\s*"(甲|乙)"')
 
 
+def report_path(benchmark: str) -> Path:
+    """按 benchmark 名落报告（θ）：向导评测不得覆盖 η-a 的 pref_alignment_pref_news_v1。"""
+    return Path(f"data/reports/pref_alignment_{Path(benchmark).name}.json")
+
+
 def parse_choice(content: str) -> str | None:
     """只抓字母不解析整块 JSON——生成常在闭合前被 max_new_tokens 截断
     （DPO 判官输出多行美化 JSON，一次 eval 54/60 因此误判为 None）。"""
@@ -72,7 +77,11 @@ def main() -> None:
     parser.add_argument("--benchmark", default="benchmarks/pref_news_v1")
     parser.add_argument("--model", default="Qwen/Qwen2.5-0.5B-Instruct")
     parser.add_argument("--adapters", default="PA=models/judge_pref_PA,PB=models/judge_pref_PB")
-    parser.add_argument("--generic", action="store_true", help="只跑通用基线")
+    parser.add_argument(
+        "--generic", action="store_true",
+        help="附加跑通用基线（可与 --adapters 同用；θ 语义修正：旧版带此 flag"
+        "会静默跳过 adapters）",
+    )
     parser.add_argument("--max-length", type=int, default=704)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -90,8 +99,8 @@ def main() -> None:
     prompts = [it["prompt"] for it in items]
 
     adapter_map = {}
-    if not args.generic:
-        for pair in args.adapters.split(","):
+    for pair in args.adapters.split(","):
+        if pair.strip():
             k, v = pair.split("=")
             adapter_map[k.strip()] = v.strip()
 
@@ -176,10 +185,9 @@ def main() -> None:
         )
     report["ts"] = ts
     Path("data/reports").mkdir(exist_ok=True)
-    Path("data/reports/pref_alignment.json").write_text(
-        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
-    logging.info("报告: data/reports/pref_alignment.json + ledger")
+    out = report_path(args.benchmark)
+    out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    logging.info("报告: %s + ledger", out)
 
 
 if __name__ == "__main__":
