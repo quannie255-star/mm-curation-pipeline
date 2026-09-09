@@ -34,18 +34,21 @@ class TextLengthOp(Operator):
     cost_class=CostClass.RULE,
 )
 class ChineseRatioOp(Operator):
-    """中文字符占比。面向中文语料，纯英文文本（爬取混入）与
-    乱码（编码错误、OCR 噪声）都会把该比值压低。"""
+    """中文字符占比（去空白后计）。面向中文语料，纯英文文本（爬取混入）与
+    乱码（编码错误、OCR 噪声）都会把该比值压低。空白不是语言证据——
+    爬虫抽取缺陷的空白膨胀曾把分母撑爆造成 773/778 误杀（真实数据试跑，
+    笔记 #65），故先去全部空白再算比值。"""
 
     @staticmethod
     def _cjk_ratio(text: str) -> float:
-        if not text:
+        body = "".join(text.split())
+        if not body:
             return 0.0
-        cjk = sum("\u4e00" <= ch <= "\u9fff" for ch in text)
-        return cjk / len(text)
+        cjk = sum("\u4e00" <= ch <= "\u9fff" for ch in body)
+        return cjk / len(body)
 
     def score(self, sample: Sample) -> Optional[float]:
-        return self._cjk_ratio(sample.text.strip())
+        return self._cjk_ratio(sample.text)
 
 
 @register_operator(

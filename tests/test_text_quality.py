@@ -33,15 +33,28 @@ def test_text_length_rejects_too_short():
     "text,expected",
     [
         ("一只狗在草地上奔跑", 1.0),
-        ("dog on grass 一只狗", 3 / 16),
+        ("dog on grass 一只狗", 3 / 13),  # 去空白后 13 字符（#65 语义修正）
         ("!!!???...", 0.0),
         ("", 0.0),
+        ("   \r\n\t  ", 0.0),  # 纯空白
     ],
 )
 def test_chinese_ratio(text, expected):
     op = ChineseRatioOp()
     s = Sample(id="1", image_path="a.jpg", text=text)
     assert op.score(s) == pytest.approx(expected)
+
+
+def test_chinese_ratio_ignores_whitespace_inflation():
+    # #65 真实数据试跑：爬虫空白膨胀曾把正常新闻拖过阈值（773/778 误杀）
+    op = ChineseRatioOp(min=0.3)
+    inflated = Sample(
+        id="1", image_path="a.jpg", text="上海市发布雷电黄色预警信号" + " \r\n\t" * 800
+    )
+    assert op.score(inflated) == pytest.approx(1.0)
+    assert op(inflated) is not None
+    # 真非中文仍然拦
+    assert op(Sample(id="2", image_path="b.jpg", text="the quick brown fox" + " " * 500)) is None
 
 
 def test_chinese_ratio_threshold():

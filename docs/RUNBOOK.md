@@ -108,6 +108,18 @@ git push --dry-run origin main
 | GPT-2 训练对比 | `python -X utf8 scripts/finetune_gpt2.py` | ~1.5 小时 GPU | data/reports/finetune_text_eval.md：dirty_ft 的 held-out ppl 比 clean_ft 高 >5%（默认剂量 100%，四种真损伤） |
 | 文本漏斗 | `python -X utf8 scripts/run_pipeline.py --config configs/text_funnel.yaml` | ~2 小时（10 万档约 40 分钟） | 302,002 → 181,980（保留 60.3%）；text_minhash 合并 88,272 / perplexity 拦 303 |
 
+### 1.5.1 真实脏数据试跑（新闻语料，2026-09-06）
+
+```bash
+python -X utf8 scripts/run_pipeline.py --config configs/text_funnel.yaml   --input data/raw/news_corpus.jsonl    # 2066 篇真实爬取新闻
+```
+
+实测 **2066 → 2031（保留 98.3%）**：chinese_ratio 拦 5（1 篇 GBK 乱码 + 4 篇
+低占比边缘案例）、text_minhash 合并 29 条真实转载、perplexity 拦 1（人名连串）。
+同语料在 chinese_ratio 语义修复（去空白后计占比，#65）之前只保留 61.5%——
+爬虫空白膨胀曾把 773 篇正常新闻拖过阈值。注：β 维基漏斗数字（60.3%）为旧
+语义产物；干净文本空白占比 ~1.4%，语义修正对该口径影响 <2pp，方向只减误杀。
+
 > 文本算子/污染器的 GPT-2 权重走本地 safetensors：首次使用会自动从
 > HF 缓存转换（`mm_curation/gpt2_weights.py` 的 `ensure_local_gpt2()`）；
 > 缓存为空时按报错提示先 `snapshot_download('uer/gpt2-chinese-cluecorpussmall',
