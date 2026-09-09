@@ -12,6 +12,21 @@
 面向中文多模态大模型训练数据场景的端到端平台：**脏数据进 → 漏斗式多算子清洗 →
 质量可量化 → 向量索引 → 检索服务 → 清洗收益可证明 → 域专属判官微调（LoRA，κ 达标）**。
 
+## 面试官 30 秒入口
+
+> 没时间读全文？看这 5 个数，以及它们各自回答什么质疑。
+
+| # | 一句话结论 | 硬数字 | 回答的质疑 |
+|---|---|---|---|
+| 1 | 清洗真的有用 | 脏索引 → 净索引 Recall@1 **0.459 → 0.556（+21%）** | 「清洗效果怎么证明？」 |
+| 2 | 脏数据真的伤模型 | CLIP 干净集 vs 脏集微调 R@1 **0.688 vs 0.636**；中文语料 GPT-2 困惑度 **7.16 vs 7.70** | 「只是检索指标好看吧？」 |
+| 3 | 是框架不是管道 | 同一协议**零特例**接入第二模态（30.2 万篇维基）；local/Ray 双运行时**逐 id 零差异** | 「换数据是不是要重写？」 |
+| 4 | 通用模型不认识你的域 | 通用判官 κ **-0.024** → 域专属 LoRA 判官 **+0.560**；偏好判官 0.532 → **0.839** | 「LLM 打分不就行了？」 |
+| 5 | 敢报阴性结果 | δ 判官 κ≈0 判不合格、η-b 未达标、域外 κ 0.560→0.178 —— **全部原样落文档** | 「数字是不是挑过的？」 |
+
+完整叙事见 [docs/INTERVIEW.md](docs/INTERVIEW.md)（3 分钟电梯演讲 + 追问预案），
+自测题库见 [docs/INTERVIEW_SELFTEST.md](docs/INTERVIEW_SELFTEST.md)（41 题四层）。
+
 ## Demo 一览（Streamlit 四 Tab 实录）
 
 ![Demo 演示：检索 → 清洗漏斗 → 算子评测 → 丢弃样本](docs/assets/demo_walkthrough.gif)
@@ -22,7 +37,7 @@
 
 > 复现：`streamlit run scripts/streamlit_app.py`（依赖见下文快速开始）。
 
-> 状态：✅ 主线（Week 1-4）+ Phase 2（P1-P10）+ **V2 全阶段完成（α 协议 / β 文本语料 / γ Ray 双运行时 / δ LLM-judge / ε 数据 CI）** + **V3 ζ 收官（域专属判官 κ +0.560 达标）**。路线图见 [docs/ROADMAP.md](docs/ROADMAP.md)。
+> 状态：✅ 主线（Week 1-4）+ Phase 2（P1-P10）+ **V2 全阶段完成（α 协议 / β 文本语料 / γ Ray 双运行时 / δ LLM-judge / ε 数据 CI）** + **V3 全阶段收官（ζ 域专属判官 κ +0.560 / η 偏好闭环 0.933 / θ 工坊判官 0.839）**。路线图见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 > 面试叙事见 [docs/INTERVIEW.md](docs/INTERVIEW.md)，自测题库见 [docs/INTERVIEW_SELFTEST.md](docs/INTERVIEW_SELFTEST.md)（41 题：数字 / 根因 / 取舍 / 拆现场四层）。
 >
 > **V2 定位**：从「一条多模态清洗管道」升级为「模态可插拔的数据质量框架」。
@@ -32,8 +47,9 @@
 >
 > **V3 定位**：在框架上长出「个人微调平台」——域数据获取 → 自建 benchmark
 > （300 条版本冻结 + 防污染）→ LoRA 域判官微调（本机 8GB）→ 冻结评测出分。
-> 锚点任务达标：**通用 κ -0.024 → 微调 +0.560**（验收线 ≥0.5），
-> 「通用不行，微调自己的就行」有全链路证据。见 [docs/PRD.md](docs/PRD.md)。
+> 三个锚点全部达标：**域判官 κ -0.024 → +0.560**（验收线 ≥0.5）、
+> **偏好判官命中率 0.933 / 0.867**（分歧率 0.783）、**工坊判官 0.532 → 0.839**
+> ——「通用不行，微调自己的就行」有全链路证据。见 [docs/PRD.md](docs/PRD.md)。
 
 ## 核心结果（所有数字来自真实实验，可一键复现）
 
@@ -55,7 +71,9 @@
 | **V2 β · GPT-2 zh 微调对比**（文本版训练证据） | clean_ft vs dirty_ft held-out ppl | **7.16 vs 7.70（脏语料 +7.5%，超 5% 验收线）** |
 | **V2 β · 文本全量漏斗**（30.2 万篇中文维基） | 保留率 | **302,002 → 181,980（60.3%）** |
 | **V3 ζ · 域专属判官**（judge_news_v1 冻结 benchmark） | 通用 κ → LoRA 微调 κ | **-0.024 → +0.560**（P=0.706 / R=0.960 / 解析率 100%，验收线 ≥0.5） |
-| **工程** | 单元测试 | **157 + 40**（主仓库 + curation-eval 包） |
+| **V3 η · 偏好闭环**（DPO + persona-oracle 协议） | 双判官命中率 / 分歧率 | **0.933 / 0.867 · 0.783**（线 ≥0.75 / ≥40%）；域外 κ 0.560→0.178 如实报 |
+| **V3 θ · 偏好判官工坊**（五步向导，冻结考卷 77 题） | 通用 → 个人判官命中率 | **0.532 → 0.839（+30.6pp）**；学习曲线 188 对未学会 / 488 对达标 |
+| **工程** | 单元测试 | **175 + 40**（主仓库 + curation-eval 包；包侧 5 条 Ray 测试无 ray 环境自动跳过） |
 
 > 灵魂叙事：**脏数据 → 11 级漏斗 → 干净集（R@1 +21%）→ 分层采样（再 +18~24%）**
 > → Phase 2 把"代理指标"升级为"训练证据"（脏集微调 CLIP 比 clean 低 5.2pp R@1）。
@@ -69,6 +87,8 @@
 > ——自己的数据 → 自己的 benchmark（judge_news_v1，300 条版本冻结 + 防污染）
 > → 自己的模型（LoRA + Qwen2.5-0.5B，本机 8GB）。锚点任务达标：**通用 κ=-0.024
 > → 微调 κ=+0.560**——「通用不行，微调自己的就行」有全链路证据。
+> 再往前两步：η 证明**主观偏好也能进训练信号**（双 persona 判官 0.933/0.867、
+> 分歧率 0.783），θ 把它做成**非开发者可用的五步向导**（冻结考卷上 0.532 → 0.839）。
 
 ## 架构总览
 
@@ -136,6 +156,11 @@ make fetch-news                       # ① 原始数据获取（爬虫，robots
 make build-benchmark                  # ② 构建自己的 benchmark（300 条版本冻结+防污染）
 make finetune-judge                   # ③ LoRA 微调自己的模型（8GB 本机 ~70 分钟）
 make eval-judge                       # ④ 冻结 benchmark 出成绩表：通用 κ-0.024 → 微调 κ+0.560
+
+# 9. V3 η/θ：偏好闭环 + 判官工坊（非开发者五步向导）
+make studio                           # 五步向导：导入 → 标注 → 训练 → 评测 → 试用
+make platform                         # 平台控制台：能力矩阵 / 成本计算器 / A-B 标注
+make judge-cost                       # 判官成本核算：本机 vs API vs 人工
 ```
 
 > Windows 注意：产出中文的脚本加 `-X utf8`。`.venv` 若因目录搬迁失效，
@@ -181,6 +206,35 @@ python -m pytest packages/curation-eval/tests   # 40 项协议测试
 ```
 
 协议约定、五分钟上手示例与变更记录见 [包内 README](packages/curation-eval/README.md)。
+
+## 跨项目联动：findata 巡检 stage（V2 α 之后的生态延伸）
+
+mm-curation 的清洗是**采样级**质量控制（每条样本进/出）。要回答"清洗后的样本集合，作为整体健康吗？"，需要**仓库级**健康巡检——这是 [FinData-Agent](https://github.com/yourname/findata-agent) 的活。
+
+`scripts/findata_health_stage.py` 把 findata 当作外部模块 import，在本仓库的清洗流水线末尾加一道仓库级健康巡检，并把 mm-curation 的产物摘要写进 findata 报告头部。
+
+```bash
+# 默认用 findata 桌面路径；可设 FINDATA_PATH 覆盖
+python scripts/findata_health_stage.py \\
+    --report data/reports/ablation_eval.json \\
+    --output data/reports/findata_health.md
+```
+
+输出示例：
+```
+## 上下游：本次巡检由 mm-curation-pipeline 触发
+- 上游输入样本数：2106
+- 上游漏斗后样本数：1585
+- 上游 Recall@1：0.575
+- findata 巡检摘要：信号 13 / 告警 8 / 抑制 5 / 健康分 36
+```
+
+**真实互借**：
+- findata 借了 `cohen_kappa`（在它的 LLM vs 规则归因器对比里）
+- mm-curation 借了 findata 的告警路由 + 报告渲染 + 健康分
+- 跑 Airflow DAG 时在 `clean_funnel` 之后追加这个 stage 即可
+
+**为什么是 stage 而非独立包**：findata 还没有 pip 发布；包外引用（`sys.path` bootstrap）既能证明"可被外部 import"，又不强迫 findata 提前做发布决策。
 
 ## 设计文档
 
