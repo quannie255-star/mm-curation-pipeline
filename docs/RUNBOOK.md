@@ -362,6 +362,18 @@ OPS w1 节）：每日定时采集 A 股结构化行情（findata）+ 个股新�
 akshare 已装（系统 Python 实测 1.18.35）。首次联网真跑验收：
 `fetch_finance_news.py --symbols 600519` 落 ≥1 条 → `ops_daily.py --skip-findata` 出首份日报。
 
+**驾驶舱（前端）**：`streamlit run scripts/ops_dashboard.py` —— 五页签：
+今日日报（异常置顶标红）/ 趋势（新增/保留率/磁盘曲线）/ 丢弃审计（dropped_by
+柱状 + 抽样）/ 新闻语料（按股票筛选）/ 手动运行（触发 ops_daily 实时日志 tail，
+judge_studio 同款模式）。零额外采集，只读 ops_daily 落盘产物。
+
+**首跑实录（2026-09-15，完整链路 exit 0，耗时 600.6s）**：findata 采集入库
+（stock_daily 28,477 行 / valuation 28,400 / index 3,420，25 标的）+ 巡检
+信号 9 / 告警 7 / 健康分 72；文本新闻 25 只采集 214 条；漏斗 214 → 163
+（保留率 76.2%）。**第一天 audit 就抓到金融域校准问题**：chinese_ratio 丢弃
+46 条（21.5%），抽样全是数字密集的行情快报——已进 docs/ops_backlog.md 首条；
+磁盘水位告警同步触发（85.3% > 80%）。
+
 ## 2. 演示（10 分钟，面试/展示）
 
 ```bash
