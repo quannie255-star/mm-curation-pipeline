@@ -608,3 +608,80 @@ scripts/text_dedup_benchmark.py / scripts/finetune_gpt2.py: 两个实验入口
 2. 消融表 ε ∈ {0.1, 0.2, 0.3} × budget {1200, 1000, 800} 对照 random/stratified。
 3. SemDeDup 在 ≥1 个 budget 点 ≥ stratified，否则如实阴性。
 4. random/stratified 既有数字逐位复现；测试基线不倒退；ruff 全绿；文档回写。
+
+---
+
+# OPS w1：运维飞轮一期（R0-R4，PRD 见 docs/OPS_PRD.md，2026-09-15）
+
+> PRD 经用户确认开工。宿主仓库决策：mm-curation 内开发（用户确认），抽离触发条件
+> 已写入 PRD。勘误两条：① 股票池对齐 findata UNIVERSE 实际口径 25 只（PRD 写 50）；
+> ② findata 已有 `scripts/daily_pipeline.py`（采集→巡检→推送→归档，含 schtasks
+> 说明与 wecom/钉钉等推送通道）——ops 壳复用它，R1 的告警推送在 findata 侧免费获得，
+> ops 侧只做行数预期带判断。本表落档即动码（用户 2026-09-15 明确指示开工）。
+
+## 决策点 1：ops 壳 = 数据驱动的步骤表 + 产物校验 + 非零即停
+- `scripts/ops_daily.py` 步骤表（序号对应 PRD 六步，①③合并为一步）：
+  1. `findata_daily`：subprocess 调 findata venv python 跑 `scripts/daily_pipeline.py`
+     （cwd=FINDDATA_PATH；覆盖 PRD 的结构化采集 + DQ 巡检两步）
+  2. `fetch_text`：`scripts/fetch_finance_news.py`（增量新闻 → Sample JSONL）
+  3. `funnel`：`run_pipeline.py --config configs/text_funnel_finance.yaml`（全量重跑，
+     text_minhash 全局视角需要全量；30 天 ≈3 万条规模无压力）
+  4. `audit`：dropped.jsonl 按 dropped_by 聚合 + 每类抽 3 条
+  5. `report`：日报渲染 + 磁盘水位 + 台账追加
+- 每步带产物检查（路径 + 最小行数），任一步 returncode≠0 或产物缺失 → 记失败、
+  跳过其余步骤、**仍渲染日报**（顶部「今日异常」），exit 1。
+- 教训对齐：subprocess 显式 PIPE + encoding utf-8 + errors replace（findata
+  daily_pipeline 注释在案：schtasks 无控制台会话捕获句柄可为 None）。
+
+## 决策点 2：findata 调用方式
+- 解释器：`{FINDATA_PATH}/.venv/Scripts/python.exe`（win32）/ `.venv/bin/python`
+  （其余）；FINDATA_PATH 缺省桌面路径（与 findata_health_stage.py 同约定），
+  可环境变量覆盖；venv 缺失 → 该步失败并给可行动信息。
+- 不用 `uv run`（避免调度会话下重新 resolve/sync 的不确定性）；findata DuckDB
+  路径由其自身 settings 管理，ops 不触碰。
+
+## 决策点 3：文本适配器（fetch_finance_news.py）
+- 数据源：`ak.stock_news_em(symbol)`（东财个股新闻，akshare 1.18.35 实装验证）。
+- 幂等：读既有 JSONL 建 url 集，重跑只补增量（沿用 fetch_news_corpus.py 惯例）。
+- 行结构：`{id, text, modality: "text_article", meta:{source, symbol, symbol_name,
+  url, published_at, crawled_at, fetch_run_id}}`；`id = news_{symbol}_{sha1(url)[:12]}`
+  （跨运行稳定）；text = 标题 + 空行 + 正文。
+- 定量：每 symbol 截前 N=20 条；限速 sleep 1s/symbol；单 symbol 失败入失败清单
+  不阻塞整批；全部失败才 exit 1。
+- 股票池：内嵌 25 只（findata UNIVERSE 2026-09-15 快照，注释注明对齐来源），
+  `--symbols` 可覆盖——零 import 耦合，对齐靠注释与周检查。
+- 产物：`data/raw/finance_news/news_corpus.jsonl`（raw 层，git 忽略）。
+
+## 决策点 4：金融漏斗配置（独立 config，防混入维基基线）
+- `configs/text_funnel_finance.yaml`：κ 块教训（独立文件 + 独立 output.dir），算子
+  链与维基版相同；两处调整待真实数据轮校准：doc_length min 30→20（快讯类短文本）、
+  output 指向 `data/processed/finance_news_funnel`。
+
+## 决策点 5：预期带告警 + 台账
+- `data/ops/stats.jsonl` 追加式台账：`{date, text_total, text_new, funnel_in,
+  funnel_kept, disk_used_pct, failures[]}`。
+- 告警规则：历史 ≥3 天且当日 text_new < 0.5 × median(近 7 天) → 日报标红；
+  无历史首周跳过。结构化侧健康由 findata daily_pipeline 退出码 + 其自带告警承担。
+- 磁盘水位：used >80% → 日报标红（R7 前置）。
+
+## 决策点 6：调度安装器（不自动武装）
+- `scripts/ops_install_schedule.py`：包装 schtasks /create（每日 20:00，
+  `python -X utf8 scripts\ops_daily.py >> data\ops\schtasks.log 2>&1`）；
+  默认只打印命令，`--arm` 才真装。R8（环境冻结/电源设置）未完成前不武装——
+  武装是显式动作，留给用户在环境还债后执行。
+
+## 风险
+| 风险 | 对策 |
+|---|---|
+| 东财接口超时/限流（勘测实测超时一次） | 单源失败清单 + 次日增量补齐（幂等）；连续低量触发预期带告警 |
+| 新闻正文含大量模板/广告 | 漏斗现有 boilerplate/pii 算子先跑，误杀模式由 audit 步逐日暴露（飞轮本职） |
+| findata venv 路径漂移 | 步骤前置检查 venv 存在，失败信息给安装指引 |
+| ops 壳自身 bug 吞错 | 每步产物校验 + 日报必渲染（失败也可见）+ --dry-run 冒烟 |
+
+## 验收标准汇总
+1. 单测 ≥6 条全离线：步骤表构建 / 预期带告警（无历史/健康/骤降）/ 日报渲染 /
+   审计聚合 / 幂等去重 / id 稳定性。
+2. `--dry-run` 冒烟：五步命令与产物路径正确。
+3. 质量门：ruff 绿；主仓 pytest 实点 ≥183 不倒退（新增不计回归）；包侧 40 不受影响。
+4. 真跑验收（联网，用户执行）：`fetch_finance_news.py --symbols 600519` 落 ≥1 条；
+   `ops_daily.py --skip-findata` 出首份日报。

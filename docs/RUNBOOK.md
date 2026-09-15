@@ -338,6 +338,30 @@ stratified（0.731 vs 0.706），R@1/MRR 全部不敌且 ε 越大越差。归�
 漏斗清洗后的产物，语义冗余已被去重四件套在上游吃掉——「下游无冗余可剪」
 反向证明上游去重质量。详见 data/reports/sampling_semde_dup.md + 笔记 #66。
 
+## 1.17 OPS 日常运维飞轮（ops-flywheel，2026-09-15 起）
+
+30 天数据飞轮一期（R0-R4，PRD 见 docs/OPS_PRD.md，设计表见 design_tables.md
+OPS w1 节）：每日定时采集 A 股结构化行情（findata）+ 个股新闻文本（akshare），
+双管道加工后出一份日报。ops 壳只编排不实现——findata 侧复用其
+`scripts/daily_pipeline.py`（采集→巡检→推送→归档）。
+
+| 动作 | 命令 | 说明 |
+|---|---|---|
+| 每日运维（单入口） | `python -X utf8 scripts/ops_daily.py` | findata_daily → fetch_text → funnel → audit → report；非零即停但日报必出 |
+| 调试（不跑 findata） | `python -X utf8 scripts/ops_daily.py --skip-findata` | 未配 findata / 只验证文本链路 |
+| 冒烟 | `python -X utf8 scripts/ops_daily.py --dry-run` | 只打印步骤与产物检查，零副作用 |
+| 手动采新闻 | `python -X utf8 scripts/fetch_finance_news.py --symbols 600519` | 幂等增量；全部 symbol 失败才 exit 1 |
+| 漏斗（金融新闻） | `python -X utf8 scripts/run_pipeline.py --config configs/text_funnel_finance.yaml` | 全量重跑（全局去重视角）；阈值待真实数据轮校准 |
+| 定时任务 | `python -X utf8 scripts/ops_install_schedule.py`（预览）→ `--arm`（注册） | 每日 20:00；**R8 环境冻结完成前不要 --arm**；`--disarm` 删除 |
+| 单测 | `python -X utf8 -m pytest tests/test_ops_daily.py -q` | 8 条全离线 |
+
+产物与路径：日报 `data/reports/daily/YYYY-MM-DD.md`（顶部「今日异常」三行置顶）；
+台账 `data/ops/stats.jsonl`（追加式，预期带告警 = 当日新增 < 近 7 天中位数 50%）；
+逐步日志 `data/ops/logs/`；新闻语料 `data/raw/finance_news/news_corpus.jsonl`。
+前置：findata 仓库在 `FINDATA_PATH`（缺省桌面 `FinData-Agent`，需已建 .venv）；
+akshare 已装（系统 Python 实测 1.18.35）。首次联网真跑验收：
+`fetch_finance_news.py --symbols 600519` 落 ≥1 条 → `ops_daily.py --skip-findata` 出首份日报。
+
 ## 2. 演示（10 分钟，面试/展示）
 
 ```bash

@@ -1,0 +1,40 @@
+# 金融新闻文本清洗漏斗（OPS w1，text_article 模态）——ζ 配方金融域第二实例。
+# 独立 config + 独立 output.dir：κ 块教训（--out 防混入维基基线）。
+# 约定：score 语义统一为「越高越好」；min/max 为保留阈值；算子按成本递增排序。
+# 语料：akshare 个股新闻（data/raw/finance_news/news_corpus.jsonl），每日增量追加，
+#   漏斗全量重跑（text_minhash 全局视角需要全量；30 天 ≈3 万条规模无压力）。
+# 阈值现状：算子链沿用维基版；doc_length 下限 30→20（快讯类短文本）。
+#   其余阈值按维基/新闻校准——金融域误杀模式由 ops_daily 的 audit 步逐日暴露后校准
+#   （OPS PRD：真实数据轮制度化；chinese_ratio 先例：首轮大概率有「结果碰巧对、机制错」）。
+name: zh_finance_news_curation
+description: >
+  金融新闻文本漏斗：L1 规则（长度/中文占比/字符重复/行重复/模板句/PII）
+  -> 近似去重（向量化 MinHash）-> L2 模型算子（GPT-2 zh 困惑度）。
+  与维基 text_funnel 同一注册表与执行器，零框架特例；阈值待金融域真实数据轮校准。
+
+dataset:
+  raw_jsonl: data/raw/finance_news/news_corpus.jsonl
+
+output:
+  dir: data/processed/finance_news_funnel
+
+operators:
+  # --- L1 规则（毫秒级） ---
+  - op: doc_length
+    params: {min: 20, max: 20000}
+  - op: chinese_ratio
+    params: {min: 0.3}
+  - op: char_repetition
+    params: {min: 0.8}
+  - op: line_repetition
+    params: {min: 0.8}
+  - op: boilerplate   # 广告/导流模板句；金融公告类误杀模式待 audit 步暴露
+    params: {min: 0.8}
+  - op: pii_detect    # 手机号/邮箱/证件号，命中即滤（生产建议改脱敏）
+    params: {min: 0.9}
+  # --- 去重（批量算子，全量视角） ---
+  - op: text_minhash
+    params: {threshold: 0.7}   # 转载洗稿重灾区，阈值沿用维基基准点
+  # --- L2 模型算子（最贵，放最后；GPU 批量推理） ---
+  - op: perplexity
+    params: {min: 0.2, batch_size: 64}
