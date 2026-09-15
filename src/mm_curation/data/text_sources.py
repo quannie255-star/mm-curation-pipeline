@@ -17,9 +17,13 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 MIRROR = "https://hf-mirror.com"
-SHARDS = [  # 按体积升序：先小后大
+SHARDS = [  # 按体积升序：先小后大（κ 块扩到全 6 片，支撑 100 万档规模实验）
     "20231101.zh/train-00002-of-00006.parquet",
     "20231101.zh/train-00001-of-00006.parquet",
+    "20231101.zh/train-00000-of-00006.parquet",
+    "20231101.zh/train-00003-of-00006.parquet",
+    "20231101.zh/train-00004-of-00006.parquet",
+    "20231101.zh/train-00005-of-00006.parquet",
 ]
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) mm-curation/0.2"
 

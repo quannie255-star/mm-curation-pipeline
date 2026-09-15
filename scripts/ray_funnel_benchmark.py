@@ -1,4 +1,4 @@
-"""γ3 验收：本地 vs Ray 双运行时漏斗基准（10 万档）。
+"""γ3 验收 + κ 规模拐点：本地 vs Ray 双运行时漏斗基准。
 
 同一份 config（configs/text_funnel.yaml，剔除 perplexity——GPU 算子的 Ray
 分发属后续），分别在 LocalSequentialExecutor 与 RayDistributedExecutor 上跑：
@@ -7,8 +7,13 @@
 - 行序不承诺（ray 不保序）；去重簇代表选择依赖输入序，若集合出现差异会在
   报告中如实呈现
 
-用法：python -X utf8 scripts/ray_funnel_benchmark.py [--n 100000]
-产物：data/reports/ray_funnel_benchmark.{json,md}
+κ 扩展（2026-09-15）：--corpus 指定独立语料（扩量语料勿混入 β 基线文件）、
+--tile 语料平铺膨胀（副本 id 加 -r{k} 后缀 + 相邻句交换扰动，测吞吐不测质量）、
+--out 报告名（默认保持 γ3 路径兼容）。规模梯次每档一次调用，报告按档落盘。
+
+用法：python -X utf8 scripts/ray_funnel_benchmark.py [--n 100000] [--tile 1]
+      [--corpus data/raw/text_corpus_1m.jsonl] [--out scale_crossover/n100k]
+产物：data/reports/<out>.{json,md}
 """
 
 from __future__ import annotations
@@ -16,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import re
 import sys
 import time
 from pathlib import Path
@@ -31,19 +37,44 @@ CONFIG = Path("configs/text_funnel.yaml")
 REPORT = Path("data/reports/ray_funnel_benchmark")
 GPU_OPS = {"perplexity"}  # 本期不进 Ray（GPU worker 调度属后续）
 
+_SENT_SPLIT = re.compile(r"(?<=[。！？；])")
 
-def load_samples(n: int) -> list[Sample]:
-    rows = CONFIG and Path(
+
+def _mutate(text: str) -> str:
+    """平铺副本扰动：交换前两个句子，避免全量精确重复使去重行为退化。"""
+    parts = _SENT_SPLIT.split(text, maxsplit=2)
+    if len(parts) >= 2:
+        parts[0], parts[1] = parts[1], parts[0]
+    return "".join(parts)
+
+
+def iter_corpus_lines(corpus: Path | None):
+    """流式读语料行（1M 档 read_text 全量会撑内存），缺省回落 config。"""
+    if corpus is not None:
+        with open(corpus, encoding="utf-8") as f:
+            yield from f
+        return
+    rows = Path(
         yaml.safe_load(CONFIG.read_text(encoding="utf-8"))["dataset"]["raw_jsonl"]
     )
-    lines = rows.read_text(encoding="utf-8").split("\n")
-    out, i = [], 0
-    for ln in lines:
-        if len(out) >= n:
+    with open(rows, encoding="utf-8") as f:
+        yield from f
+
+
+def load_samples(n: int, tile: int, corpus: Path | None) -> list[Sample]:
+    out: list[Sample] = []
+    i = 0
+    for ln in iter_corpus_lines(corpus):
+        if len(out) >= n * tile:
             break
         if not ln.strip():
             continue
-        out.append(Sample(id=f"doc{i:06d}", text=json.loads(ln)["text"]))
+        text = json.loads(ln)["text"]
+        for k in range(tile):
+            if len(out) >= n * tile:
+                break
+            doc_id = f"doc{i:06d}" if k == 0 else f"doc{i:06d}-r{k}"
+            out.append(Sample(id=doc_id, text=text if k == 0 else _mutate(text)))
         i += 1
     return out
 
@@ -63,30 +94,44 @@ def stage_diff(a: list, b: list) -> list[str]:
     ]
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--n", type=int, default=100000)
-    args = parser.parse_args()
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-
-    samples = load_samples(args.n)
-    cfg = cpu_config()
-    ops = [spec.build() for spec in cfg.operators]
-    logging.info("语料 %s 篇，%s 级 CPU 算子（%s）", len(samples), len(ops), [o.name for o in ops])
-
+def run_local(ops, samples):
     t = time.perf_counter()
-    local = LocalSequentialExecutor().run(ops, samples)
-    t_local = time.perf_counter() - t
-    logging.info("local %.1fs，kept %s", t_local, len(local.kept))
+    res = LocalSequentialExecutor().run(ops, samples)
+    return res, time.perf_counter() - t, 0.0
 
+
+def run_ray(ops, samples):
     from curation_eval import RayDistributedExecutor
 
     t = time.perf_counter()
     ray_exe = RayDistributedExecutor(num_cpus=8, object_store_memory=2_000_000_000)
     t_init = time.perf_counter() - t
     t = time.perf_counter()
-    ray_res = ray_exe.run(ops, samples)
-    t_ray = time.perf_counter() - t
+    res = ray_exe.run(ops, samples)
+    return res, time.perf_counter() - t, t_init
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--n", type=int, default=100000)
+    parser.add_argument("--tile", type=int, default=1, help="语料平铺倍数（κ 规模实验）")
+    parser.add_argument("--corpus", default=None, help="语料 jsonl 路径（缺省读 config）")
+    parser.add_argument("--out", default=None, help="报告名（默认 ray_funnel_benchmark，γ3 兼容）")
+    args = parser.parse_args()
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+
+    corpus = Path(args.corpus) if args.corpus else None
+    report = Path("data/reports") / (args.out or REPORT.name)
+    samples = load_samples(args.n, args.tile, corpus)
+    cfg = cpu_config()
+    ops = [spec.build() for spec in cfg.operators]
+    logging.info("语料 %s 篇（tile=%s，corpus=%s），%s 级 CPU 算子（%s）",
+                 len(samples), args.tile, corpus or "config", len(ops), [o.name for o in ops])
+
+    local, t_local, _ = run_local(ops, samples)
+    logging.info("local %.1fs，kept %s", t_local, len(local.kept))
+
+    ray_res, t_ray, t_init = run_ray(ops, samples)
     logging.info("ray %.1fs（init %.1fs），kept %s", t_ray, t_init, len(ray_res.kept))
 
     local_ids = {s.id for s in local.kept}
@@ -111,19 +156,22 @@ def main() -> None:
         "seconds_ray": round(t_ray, 2),
         "seconds_ray_init": round(t_init, 2),
         "n": len(samples),
+        "tile": args.tile,
+        "corpus": str(corpus) if corpus else "config",
+        "ops": [o.name for o in ops],
     }
-    logging.info("等价性: %s", verdict)
+    logging.info("等价性: %s", {k: v for k, v in verdict.items() if k != "stats_diff"})
 
-    REPORT.parent.mkdir(parents=True, exist_ok=True)
-    REPORT.with_suffix(".json").write_text(
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.with_suffix(".json").write_text(
         json.dumps(verdict, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     ok = verdict["kept_ids_equal"] and verdict["stats_equal"] and score_bad == 0
     md = [
-        "# γ3 验收：本地 vs Ray 双运行时漏斗基准",
+        "# 双运行时漏斗基准（local vs Ray）",
         "",
-        f"- 语料 {len(samples):,} 篇（维基 zh），CPU 算子 {len(ops)} 级"
-        f"（{' → '.join(o.name for o in ops)}）；perplexity（GPU）本期不进 Ray",
+        f"- 语料 {len(samples):,} 篇（tile={args.tile}，corpus={corpus or 'config'}），"
+        f"CPU 算子 {len(ops)} 级（{' → '.join(o.name for o in ops)}）；perplexity（GPU）不进 Ray",
         "",
         "| 运行时 | 耗时 | kept |",
         "|---|---|---|",
@@ -138,8 +186,8 @@ def main() -> None:
         "- 单机小规模下 Ray 不追求快于本地（调度/序列化开销换横向扩展能力），"
         "价值在多机水平扩展与算子图复用",
     ]
-    REPORT.with_suffix(".md").write_text("\n".join(md) + "\n", encoding="utf-8")
-    logging.info("报告: %s.{json,md}", REPORT)
+    report.with_suffix(".md").write_text("\n".join(md) + "\n", encoding="utf-8")
+    logging.info("报告: %s.{json,md}", report)
 
 
 if __name__ == "__main__":
