@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mm-curation-pipeline · 求职作品集（大模型数据方向）</title>
+<style>
+:root{
+  --ink:#1f2328; --ink2:#44484d; --ink3:#6b7280;
+  --line:#e3e6ea; --bg:#ffffff; --soft:#f7f8fa;
+  --blue:#185fa5; --blue-soft:#e6f1fb;
+  --green:#0f6e56; --green-soft:#e1f5ee;
+  --amber:#854f0b; --amber-soft:#faeeda;
+  --red:#a32d2d; --red-soft:#fcebeb;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+  font-size:14px; line-height:1.7;
+}
+.page{max-width:920px; margin:0 auto; padding:48px 40px 72px}
+h1{font-size:26px; font-weight:600; margin:0 0 6px; letter-spacing:-.01em}
+h2{font-size:17px; font-weight:600; margin:44px 0 14px; padding-bottom:8px; border-bottom:2px solid var(--ink); letter-spacing:-.01em}
+h3{font-size:15px; font-weight:600; margin:24px 0 8px}
+p{margin:8px 0}
+a{color:var(--blue)}
+.sub{color:var(--ink3); font-size:13px}
+.lead{font-size:15px; color:var(--ink2); margin:10px 0 4px}
+.meta{display:flex; flex-wrap:wrap; gap:8px; margin:16px 0 0}
+.tag{background:var(--soft); border:1px solid var(--line); border-radius:999px; padding:3px 11px; font-size:12px; color:var(--ink2)}
+.tag.on{background:var(--blue-soft); border-color:#b5d4f4; color:var(--blue)}
+table{width:100%; border-collapse:collapse; margin:12px 0; font-size:13px}
+th{text-align:left; font-weight:600; background:var(--soft); border:1px solid var(--line); padding:8px 10px}
+td{border:1px solid var(--line); padding:8px 10px; vertical-align:top}
+td.num{font-variant-numeric:tabular-nums; white-space:nowrap; font-weight:600}
+.grid5{display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin:16px 0}
+.card{border:1px solid var(--line); border-radius:10px; padding:14px 12px; background:var(--soft)}
+.card .k{font-size:22px; font-weight:600; color:var(--blue); font-variant-numeric:tabular-nums; line-height:1.2}
+.card .l{font-size:12px; color:var(--ink3); margin-top:6px; line-height:1.5}
+.card .q{font-size:11px; color:var(--ink3); margin-top:8px; padding-top:8px; border-top:1px dashed var(--line)}
+.box{border:1px solid var(--line); border-left:3px solid var(--blue); border-radius:8px; padding:14px 16px; margin:14px 0; background:var(--soft)}
+.box.g{border-left-color:var(--green); background:var(--green-soft)}
+.box.a{border-left-color:var(--amber); background:var(--amber-soft)}
+.box.r{border-left-color:var(--red); background:var(--red-soft)}
+.box h4{margin:0 0 6px; font-size:14px; font-weight:600}
+.box p{margin:4px 0; font-size:13px}
+.hl{font-weight:600; color:var(--ink)}
+.good{color:var(--green); font-weight:600}
+.bad{color:var(--red); font-weight:600}
+ul{margin:8px 0; padding-left:20px}
+li{margin:5px 0}
+pre{background:var(--soft); border:1px solid var(--line); border-radius:8px; padding:12px 14px; overflow-x:auto; font-size:12.5px; line-height:1.6; font-family:ui-monospace,Consolas,monospace}
+code{font-family:ui-monospace,Consolas,monospace; background:var(--soft); padding:1px 5px; border-radius:4px; font-size:12.5px}
+.two{display:grid; grid-template-columns:1fr 1fr; gap:18px}
+.qa{border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin:10px 0}
+.qa .q{font-weight:600; color:var(--ink)}
+.qa .a{color:var(--ink2); font-size:13px; margin-top:4px}
+footer{margin-top:48px; padding-top:16px; border-top:1px solid var(--line); font-size:12px; color:var(--ink3)}
+@media print{
+  body{font-size:11.5px}
+  .page{padding:0}
+  h2{page-break-after:avoid; margin-top:24px}
+  .box,.qa,.card,table{page-break-inside:avoid}
+}
+@media (max-width:720px){
+  .grid5{grid-template-columns:repeat(2,1fr)}
+  .two{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>mm-curation-pipeline</h1>
+<div style="font-size:16px; color:var(--ink2); font-weight:500">多模态数据质量平台：清洗管道 → 向量检索 → 个人微调</div>
+<p class="lead">面向中文多模态大模型训练数据的端到端平台。核心命题是：<span class="hl">真实脏数据没有 ground truth，清洗效果就无法量化</span>——所以先造 ground truth，再谈优化。</p>
+<div class="meta">
+  <span class="tag on">投递方向：大模型数据 / 数据质量 / 数据工程</span>
+  <span class="tag">Python · Airflow · FAISS · CLIP · Ray · LoRA/DPO</span>
+  <span class="tag">175 + 35 测试</span>
+  <span class="tag">双 CI（代码 + 数据）</span>
+  <span class="tag">MIT</span>
+</div>
+
+<h2>一、五个数字，和它们各自回答的质疑</h2>
+<div class="grid5">
+  <div class="card"><div class="k">+21%</div><div class="l">清洗使检索 R@1<br>0.459 → <b>0.556</b></div><div class="q">清洗效果怎么证明？</div></div>
+  <div class="card"><div class="k">5.2pp</div><div class="l">CLIP 干净集 vs 脏集<br>微调 R@1 0.688 / 0.636</div><div class="q">只是检索指标好看吧？</div></div>
+  <div class="card"><div class="k">30.2万</div><div class="l">第二模态零特例接入<br>保留 60.3%</div><div class="q">换数据是不是要重写？</div></div>
+  <div class="card"><div class="k">+0.560</div><div class="l">域判官 κ<br>-0.024 → <b>+0.560</b></div><div class="q">LLM 打分不就行了？</div></div>
+  <div class="card"><div class="k">0.5s</div><div class="l">数据 CI 门禁<br>劣化注入实测 exit 1</div><div class="q">质量会不会悄悄退化？</div></div>
+</div>
+
+<h2>二、岗位匹配：项目模块 → 数据岗 JD 要求</h2>
+<table>
+<tr><th style="width:46%">项目模块</th><th>对应的 JD 要求</th></tr>
+<tr><td>算子化清洗框架（YAML 配置驱动、可组合）</td><td>数据清洗 / 质检 / 去重算法开发</td></tr>
+<tr><td>去重四件套：md5 / pHash / MinHash-LSH / 语义 embedding</td><td>数据去重；MinHash-LSH 是数据生态标配技术词</td></tr>
+<tr><td>三层漏斗：L1 规则 → L2 感知模型 → L3 LLM-judge</td><td>「规则过滤 + 模型评估」「基于 LLM 的语义级质量筛选」</td></tr>
+<tr><td>漏斗式质量报告：每级通过率 + 阈值敏感性曲线</td><td>数据质量评估体系</td></tr>
+<tr><td>清洗前后 Recall@K / MRR 对比 + 配比采样消融</td><td>「清洗规则驱动模型效果迭代」、数据策略与配比</td></tr>
+<tr><td>算子无状态 + 批量接口，单机跑通可平移 Ray / Spark</td><td>大规模数据处理链路</td></tr>
+<tr><td>成本意识：CPU / GPU 分级、LLM 只抽样打分</td><td>业务思考（软区分点）</td></tr>
+</table>
+
+<h2>三、数据岗最该讲的三张牌</h2>
+
+<h3>第 1 张 · 程序化污染器：把「清洗好不好」变成可计算问题</h3>
+<div class="box">
+<p><b>问题</b>：真实爬取的脏数据没有标签，算不出 precision / recall，清洗只能是玄学。</p>
+<p><b>做法</b>：向干净种子集（COCO-CN 1,620 对）注入 <b>10 类可控脏数据</b>（精确/近似重复、模糊、低分辨率、图文错配、低质文本、水印、NSFW 占位…）共 486 条，每条带 <code>labels.dirty</code> 标注。</p>
+<p><b>关键细节</b>：污染强度必须与算子阈值<span class="hl">联合校准</span>。pHash 的裁剪强度从 &gt;10% 收紧到 4~10%——剪太狠会和自然相似照片不可区分，校准就失真了。</p>
+<p><b>产出</b>：脏数据召回 <span class="good">99.8%（485/486）</span>，干净误杀 <span class="good">2.16%</span>；每个算子都有独立 P/R（phash_near 84% / 0.24%，clip_alignment 96% / 0.19%）。</p>
+</div>
+
+<h3>第 2 张 · 阈值不是拍脑袋：联合校准 + 敏感性扫描</h3>
+<div class="box">
+<p>每个有阈值的算子都扫 8 个点，画「召回-误杀」曲线，<b>选拐点</b>而不是选最好看的点：</p>
+<table style="margin:8px 0">
+<tr><th>算子</th><th>阈值</th><th class="num">召回</th><th class="num">误杀</th><th>结论</th></tr>
+<tr><td>phash_near</td><td>10</td><td class="num">65%</td><td class="num">0</td><td>太紧</td></tr>
+<tr><td>phash_near</td><td><b>12（默认）</b></td><td class="num">84%</td><td class="num">0.3%</td><td class="good">拐点</td></tr>
+<tr><td>phash_near</td><td>14</td><td class="num">90%</td><td class="num">2.7%</td><td class="bad">误杀悬崖</td></tr>
+<tr><td>minhash_lsh</td><td><b>0.65（默认）</b></td><td class="num">94%</td><td class="num">0.7%</td><td class="good">拐点</td></tr>
+</table>
+<p>到 ε 阶段更进一步：把<b>整条阈值曲线</b>冻结进基线做回归门禁（recall 偏移 &gt;0.05 或误杀 &gt;0.02 即红）——防的是换库版本（imagehash / datasketch 升级）时单测仍绿、但曲线拐点先漂的那类静默退化。</p>
+</div>
+
+<h3>第 3 张 · 数据 CI：给数据质量本身上锁</h3>
+<div class="box g">
+<p>代码 CI 证明「逻辑对」，数据 CI 证明「数字达标」。两者失败模式完全不同：<b>代码错了会 crash，数据烂了只会让下游模型静默变差，而没有人收到警报。</b></p>
+<ul style="margin:6px 0">
+<li>合成带标注语料真跑去重：exact <b>1.0</b> / near <b>0.954</b> / 误杀 <b>0</b>，<b>0.5s</b> 跑完（轻依赖，push/PR/每周定时都跑得起）</li>
+<li>图像侧同款门禁：exact <b>1.0</b> / near <b>0.994</b> / 误杀 <b>0</b></li>
+<li><b>关键一步是证明门禁会红</b>：注入劣化后实测 exit 1（near 跌到 0.152）。一个从来没红过的门禁只是装饰品</li>
+<li>方法论：先标定生成器再定门限——损伤强度不可控，门限数字就毫无意义</li>
+</ul>
+</div>
+
+<h2>四、闭环：从代理指标到训练证据</h2>
+<p>光有检索指标会被追问「下游模型真的变好了吗」，所以做了训练级验证，且<b>在两个模态上各自独立成立</b>：</p>
+<table>
+<tr><th>证据层级</th><th>图像模态</th><th>文本模态</th></tr>
+<tr><td>代理指标</td><td class="num">R@1 +21%（0.459→0.556）</td><td class="num">去重 near 召回 0.9714</td></tr>
+<tr><td>训练级证据</td><td class="num">CLIP 微调 0.688 vs 0.636（<span class="bad">脏集 -5.2pp</span>）</td><td class="num">GPT-2 zh 困惑度 7.16 vs 7.70（<span class="bad">脏语料 +7.5%</span>）</td></tr>
+<tr><td>规模</td><td class="num">2,106 对</td><td class="num">302,002 篇（187×）</td></tr>
+<tr><td>归因</td><td colspan="2">分组消融：去重组是唯一显著组（移除后 R@1 −0.017，246 条重复回流）；单算子 Δ 均为 0 → 清洗是系统性工程，没有银弹算子</td></tr>
+</table>
+<p class="sub">同一个「脏数据伤模型」的结论在两个模态、两个模型家族、两种指标上独立复现——这才是它作为规律而非偶然的依据。</p>
+
+<h2>五、三级演进：抽象层级一步步抬高</h2>
+<table>
+<tr><th style="width:14%">阶段</th><th style="width:30%">定位</th><th>关键证据</th></tr>
+<tr><td><b>V1</b></td><td>一条清洗管道<br>脏数据进 → 收益可证明</td><td>11 级漏斗 2106→1586；脏索引 vs 净索引 R@1 +21%；分层采样再 +18~24%</td></tr>
+<tr><td><b>V2</b></td><td>一个数据质量框架<br>协议即产品，模态可插拔</td><td>协议收口成 pip 包 <code>curation-eval</code>，主仓库反向消费（吃狗粮）；30.2 万篇维基<b>零特例</b>接入；local/Ray 双运行时<b>四口径等价</b>（kept 集 / StageStat / 逐 id 分数 / dedup 标记全等）</td></tr>
+<tr><td><b>V3</b></td><td>一个个人微调平台<br>自己的数据 → benchmark → 模型</td><td>域专属判官 κ −0.024 → <b>+0.560</b>；偏好判官命中率 <b>0.933 / 0.867</b>（分歧率 0.783）；工坊判官 <b>0.532 → 0.839</b></td></tr>
+</table>
+<div class="box g">
+<h4>V3 是被 V2 的阴性结果逼出来的（顺序很重要）</h4>
+<p>V2 阶段实装了 L3 LLM-judge，但用 Cohen's κ 一测：通用 Qwen2.5-0.5B 判官的 κ 在 0.30~0.95 十个阈值点<b>全平坦在 ±0.015</b>——判分与脏净零相关，而同一数据上 L1 规则的 κ=0.565。<b>结论：通用模型不认识你的数据域。</b>这不是失败，是一个发现，它直接定义了 V3 要解决的问题。</p>
+</div>
+
+<h2>六、诚实边界：三处阴性结果原样公开</h2>
+<p>这是本项目区别于「刷数字型作品集」的地方——所有数字都来自真实实验，不达标的照写：</p>
+<div class="box r">
+<h4>① δ：0.5B 判官不合格</h4>
+<p>κ(t) 全阈值域 ≈0，judge vs L1 仅 0.056。判定不合格，未上线。κ 协议的全部价值，恰恰体现在它把这个 judge 筛掉了——否则它就是个<span class="hl">看起来能用的随机数生成器</span>。</p>
+</div>
+<div class="box r">
+<h4>② η-b：抽取忠实性判官首轮未达标</h4>
+<p>0.53 / 0.50 / 0.41 ≈ 通用基线。归因：阅读对齐超出 0.5B 能力下限。转化为「判官能力矩阵」产品概念（哪个能力需要多大的模型），而不是粉饰成达标。</p>
+</div>
+<div class="box r">
+<h4>③ η-c：域外泛化衰减如实报</h4>
+<p>域内 κ 0.560 → 域外 <b>0.178</b>（召回跨域保持 0.969，精确率腰斩到 0.546）。结论写成「换域需重训、骨架可复用」。</p>
+</div>
+<p class="sub">配套：59 条工程笔记（现象 → 根因 → 决策 → 数字 → 话术），重点是那些「结果对但语义错」的隐蔽 bug。</p>
+
+<h2>七、简历 bullet（可直接复制）</h2>
+<pre>- 设计并实现面向中文多模态大模型训练数据的端到端清洗管道（Python/Airflow/FAISS），
+  用程序化污染器构造 ground truth，使每个清洗算子可量化 precision/recall
+
+- 搭建 11 级清洗漏斗（L1 规则 → 去重四件套 md5/pHash/MinHash-LSH/语义 embedding
+  → L2 Chinese-CLIP），脏数据召回 99.8%/误杀 2.16%，阈值经真实数据拐点校准
+
+- 构建 Chinese-CLIP + FAISS 双索引与 FastAPI 检索服务，对比实验证明清洗使
+  Recall@1 提升 21%（0.459→0.556）；发现"头部挤压"效应（R@1 退化 9.7pp vs R@10 2.7pp）
+
+- 实现分层采样器（质量×类目交叉分层 + 高质量过采样），固定预算下检索 R@1
+  比随机采样提升 18~24%；分组消融定位去重组为检索质量最大贡献者
+
+- CLIP 干净/脏集等步数微调对比，证明脏数据使模型 R@1 低 5.2pp，清洗价值从
+  代理指标升级为训练级直接证据；实现在线质量门（POST /api/ingest）与增量去重
+
+- 将协议与算子 SDK 抽炼为可 pip 安装的独立包（Sample/modality/注册表元数据/
+  Executor 四抽象），原管道反向消费该包；零特例接入第二模态（30.2 万篇中文维基）
+
+- 自研向量化 MinHash-LSH 将 30 万文档签名从小时级压至 60s；跨模态复现核心结论
+  ——GPT-2 zh 在脏语料上微调困惑度比干净语料差 7.5%
+
+- 实现 L3 LLM-judge 算子并以 Cohen's κ 建立判官准入门槛，实测通用 0.5B 模型
+  κ≈0 判定不合格并如实落文档；搭建数据 CI 门禁并用劣化注入证明其会变红
+
+- 立项个人微调平台：自研域 benchmark 构建器（版本冻结 + 双重防污染），通用判官
+  κ=-0.024 经 LoRA 微调提至 +0.560；偏好闭环 DPO 训出双 persona 判官
+  （命中率 0.933/0.867、分歧率 0.783），并做成非开发者五步向导（0.532→0.839）
+
+- 工程化：175 + 35 单元测试、双 CI（代码 + 数据）、Airflow DAG 一键复现、
+  Streamlit 四 tab Demo、算力分级（CPU 规则/GPU 推理）体现成本意识</pre>
+
+<h2>八、高频追问预案</h2>
+<div class="qa"><div class="q">Q：你的 ground truth 是构造的，真实场景没有，怎么办？</div><div class="a">构造是为了<b>量化验证管道设计</b>——证明每个算子能抓到靶子、阈值在拐点上。真实部署去掉污染器，漏斗本身不变，质量报告（各级通过率 + 分数分布）仍提供可观测性。而且构造的 ground truth 也有局限：误杀的「干净」样本里有 COCO 自然存在的近重复（同场景连拍），真实业务中这恰是该去重的——「ground truth 也有局限」本身就是好案例。</div></div>
+<div class="qa"><div class="q">Q：单个算子消融 Δ 都是 0，是不是说明算子没用？</div><div class="a">单个算子只丢 4~17 条样本，撼动不了 top-1。但<b>分组消融</b>显示去重组移除后 R@1 −0.017（246 条重复回流）。漏斗是 ensemble，整体清洗才驱动 +21% 的灵魂收益。</div></div>
+<div class="qa"><div class="q">Q：数据规模才 1.6k，能说明问题吗？</div><div class="a">规模确实偏小，但重点是方法论可验证。工程上扩展路径已文档化：算子无状态 + 批量接口可平移 Ray/Spark；FAISS 可换 IVF/HNSW 支撑百万级。而且 β 阶段已经把规模推到 30.2 万篇（187×），去重从小时级压到 60s。</div></div>
+<div class="qa"><div class="q">Q：数据 CI 和代码 CI 有什么本质区别，值得单独做吗？</div><div class="a">代码 CI 防「改坏了逻辑」，数据 CI 防「换了一批数据，质量悄悄漂了」——后者才是数据管道的真实风险。失败模式完全不同：代码错了会 crash，数据烂了只会让下游模型静默变差。</div></div>
+<div class="qa"><div class="q">Q：Ray 实测比本地还慢，这不白做了吗？</div><div class="a">20k 单样本算子在 Ray 上慢 35 倍，10 万档 local 24.0s vs ray 89.6s——这个数字我主动写进文档。γ 的目标从来不是性能，是<b>可替换性</b>：证明算子图与执行器解耦，换运行时不动任何算子。暴露边界比藏起来更可信。</div></div>
+
+<h2>九、复现方式</h2>
+<pre># 一键产出带标注的脏数据集 + 跑通漏斗
+make data && make funnel
+
+# 灵魂实验：清洗前后检索对比 / 采样对比 / 消融 / 算子 P/R
+make eval-sampling && make eval-ablation && make eval-op
+
+# 数据 CI 门禁（0.5s，劣化注入实测会红）
+python -X utf8 scripts/data_ci_benchmark.py
+
+# V3 个人微调平台：数据 → benchmark → 判官
+make fetch-news && make build-benchmark && make finetune-judge && make eval-judge</pre>
+<p class="sub">完整命令与验收数字见仓库 <code>docs/RUNBOOK.md</code>；面试叙事与 41 题自测题库见 <code>docs/INTERVIEW.md</code> / <code>docs/INTERVIEW_SELFTEST.md</code>。</p>
+
+<footer>
+mm-curation-pipeline · 求职作品集（大模型数据方向）· 本页所有数字均来自真实实验，可一键复现<br>
+生成于 2026-09-07 · 测试基线 175 + 35（主仓库 + curation-eval 包；另 5 条 Ray 测试需 <code>pip install ray</code> 后才收集）
+</footer>
+
+</div>
+</body>
+</html>
