@@ -4,7 +4,7 @@ D5 收官：全部阶段从 SCAFFOLD 占位换成真实 make 命令，一键复�
 LocalExecutor 单机跑通，重计算（CLIP 批量推理）在宿主机 GPU venv 完成；
 容器负责 DAG 编排与 CPU 可承受的规则算子（算力分级，见 docs/ROADMAP.md）。
 
-各阶段产物落 data/ 对应子目录（git 忽略，DVC 管理）：
+各阶段产物落 data/ 对应子目录（git 忽略不入库；全量可由脚本重生成）：
   raw/ → interim/ → processed/ → indexes/ + reports/
 """
 

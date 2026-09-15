@@ -187,7 +187,7 @@ src/mm_curation/  # 核心包
 benchmarks/       # V3 产物：冻结评测集（items.jsonl + manifest，入库资产）
 runs/             # V3：实验 ledger（配置/loss/评测数字追加式）
 tests/            # pytest
-data/             # raw / interim / processed / reports（git 忽略，DVC 管理）
+data/             # raw / interim / processed / reports（git 忽略不入库；全量可由脚本重生成）
 ```
 
 ## 独立评测包：curation-eval（V2 起是协议与 SDK 的单一来源）
@@ -209,7 +209,7 @@ python -m pytest packages/curation-eval/tests   # 40 项协议测试
 
 ## 跨项目联动：findata 巡检 stage（V2 α 之后的生态延伸）
 
-mm-curation 的清洗是**采样级**质量控制（每条样本进/出）。要回答"清洗后的样本集合，作为整体健康吗？"，需要**仓库级**健康巡检——这是 [FinData-Agent](https://github.com/yourname/findata-agent) 的活。
+mm-curation 的清洗是**采样级**质量控制（每条样本进/出）。要回答"清洗后的样本集合，作为整体健康吗？"，需要**仓库级**健康巡检——这是 [FinData-Agent](https://github.com/quannie255-star/findata-agent) 的活。
 
 `scripts/findata_health_stage.py` 把 findata 当作外部模块 import，在本仓库的清洗流水线末尾加一道仓库级健康巡检，并把 mm-curation 的产物摘要写进 findata 报告头部。
 

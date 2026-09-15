@@ -8,10 +8,11 @@ dist/
 .venv/
 venv/
 
-# 数据与产物（由 DVC 管理，不入 git）
+# 数据与产物（不入库；全量可由脚本重生成）
 # 注意：gitignore 的 # 注释只能独占一行，行内注释会让模式失效
 # ingest 去重 journal 等运行时状态
 data/state/
+data/annot/
 data/raw/images/
 data/raw/*.jsonl
 data/raw/manifest.json
@@ -44,6 +45,12 @@ Thumbs.db
 
 # 环境
 .env
+
+# uv 空壳锁（依赖声明在 requirements.txt / pyproject，未采用 uv 工作流）
+uv.lock
+
+# θ 阶段 oracle 模拟用户产物（seed 53/57 可复现，真人账另立 benchmark 名入库）
+benchmarks/pref_user_v1/
 
 # 助手记忆目录（不参与项目版本控制）
 .workbuddy/

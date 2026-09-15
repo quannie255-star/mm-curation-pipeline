@@ -120,7 +120,9 @@
 
 ### 决策 8：产物血缘——轻量 ledger，不上数据库
 每个 stage 追加一条 `{stage, input_hash, config_hash, output, stats, ts}` 到
-`runs/ledger.jsonl`；dataset card 由 ledger join 自动渲染。DVC 只管大文件指针。
+`runs/ledger.jsonl`；dataset card 由 ledger join 自动渲染。数据版本管理评估过
+DVC，最终未启用——本仓库数据不入库、全量可由脚本重生成，没有「需要回滚的版本」；
+变更追溯由 ledger 的 input_hash/config_hash 承担。
 
 ## 五、反目标（明确不做，防架构过度设计）
 
