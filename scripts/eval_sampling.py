@@ -35,6 +35,7 @@ from mm_curation.operators.base import Sample  # noqa: E402
 from mm_curation.sampling import (  # noqa: E402
     RandomSampler,
     SamplingConfig,
+    SemanticPruneSampler,
     StratifiedSampler,
 )
 
@@ -84,6 +85,11 @@ def main() -> None:
     parser.add_argument("--indexes", default=INDEXES_ROOT)
     parser.add_argument("--clean-source", default=CLEAN_SOURCE)
     parser.add_argument("--budgets", nargs="+", type=int, default=[1200, 1000, 800])
+    parser.add_argument(
+        "--prune-fracs", nargs="+", type=float, default=[0.2],
+        help="semde_dup 的簇内剪枝比例 ε（V3 λ 消融：0.1 0.2 0.3）",
+    )
+    parser.add_argument("--semde-clusters", type=int, default=64)
     parser.add_argument("--out", default="data/reports/sampling_eval.json")
     args = parser.parse_args()
 
@@ -103,7 +109,21 @@ def main() -> None:
     )
 
     vecs = clip_encoder.get_encoder().encode_texts([q.text for q in held_out])
-    samplers = [("random", RandomSampler()), ("stratified", StratifiedSampler())]
+    # semde_dup 的池向量直接从索引 reconstruct：clean_v2 存的是图像塔嵌入，
+    # 在检索指标自己的空间里做语义剪枝（索引行与 store 行对齐）
+    pool_vecs = {
+        row_meta["id"]: searcher.index.reconstruct(row)
+        for row, row_meta in enumerate(searcher.store)
+    }
+    samplers: list[tuple[str, object]] = [
+        ("random", RandomSampler()),
+        ("stratified", StratifiedSampler()),
+    ]
+    for frac in args.prune_fracs:
+        samplers.append(
+            (f"semde_dup(e={frac:g})",
+             SemanticPruneSampler(pool_vecs, n_clusters=args.semde_clusters, prune_frac=frac))
+        )
 
     results: list[BudgetResult] = []
     for budget in args.budgets:

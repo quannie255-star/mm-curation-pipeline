@@ -37,6 +37,7 @@ class SamplingRecipe:
     n_sampled: int
     sampled_ids: list[str] = field(default_factory=list)
     strata_summary: dict[str, int] = field(default_factory=dict)
+    extra: dict[str, int] = field(default_factory=dict)  # 语义剪枝等附加统计
 
     def to_dict(self) -> dict:
         return {
@@ -44,6 +45,7 @@ class SamplingRecipe:
             "n_total": self.n_total,
             "n_sampled": self.n_sampled,
             "strata_summary": dict(self.strata_summary),
+            "extra": dict(self.extra),
         }
 
 
@@ -187,4 +189,89 @@ class StratifiedSampler(Sampler):
             n_sampled=len(picked),
             sampled_ids=[s.id for s in picked],
             strata_summary={k: len(v) for k, v in sorted(picked_strata.items())},
+        )
+
+
+class SemanticPruneSampler(Sampler):
+    """SemDeDup 式语义剪枝采样（V3 λ）：embedding 聚类 → 簇内冗余剔除 → 分层补足。
+
+    三步：① 池向量 L2 归一化后 spherical k-means 聚成 n_clusters 簇；
+    ② 每簇内按「到质心相似度」降序保留 (1 - prune_frac) 比例——离质心最远的
+    ε 是语义冗余/离群部分，剔除（同簇最近邻是彼此的近似重复，SemDeDup 的
+    核心洞察）；③ 存活池沿用 (质量桶 × 类目) 分层配比补足 budget。
+    向量缺失的样本不参与聚类、直接视为存活（无法评估冗余时保守保留）。
+    """
+
+    name = "semde_dup"
+
+    def __init__(
+        self,
+        vectors: dict,
+        n_clusters: int = 64,
+        prune_frac: float = 0.2,
+    ):
+        self.vectors = vectors  # id -> 向量（list/ndarray，内部归一化）
+        self.n_clusters = n_clusters
+        self.prune_frac = prune_frac
+
+    def semantic_survivors(
+        self, samples: list[Sample], seed: int
+    ) -> tuple[list[Sample], dict[str, int]]:
+        """返回 (存活样本, 统计)。剔除判据只依赖向量几何，与质量分无关。"""
+        import faiss
+        import numpy as np
+
+        clustered = [s for s in samples if s.id in self.vectors]
+        no_vec = [s for s in samples if s.id not in self.vectors]
+        stats: dict[str, int] = {
+            "n_pool": len(samples),
+            "n_no_vector": len(no_vec),
+        }
+        if len(clustered) < 3 or self.prune_frac <= 0:
+            stats["n_pruned"] = 0
+            return list(samples), stats
+
+        mat = np.stack(
+            [np.asarray(self.vectors[s.id], dtype="float32") for s in clustered]
+        )
+        faiss.normalize_L2(mat)
+        k = min(self.n_clusters, len(clustered))
+        km = faiss.Kmeans(mat.shape[1], k, niter=20, seed=seed % (2**31), spherical=True)
+        km.train(mat)
+        sim, assign = km.index.search(mat, 1)  # 球面 k-means：相似度越高越靠质心
+        sim = sim[:, 0]
+        assign = assign[:, 0]
+
+        drop_ids: set[str] = set()
+        for c in range(k):
+            members = [i for i in range(len(clustered)) if assign[i] == c]
+            n_keep = max(1, int(len(members) * (1 - self.prune_frac)))
+            # 相似度降序；并列按 id 字典序，保证跨运行确定
+            order = sorted(members, key=lambda i: (-float(sim[i]), clustered[i].id))
+            drop_ids.update(clustered[i].id for i in order[n_keep:])
+
+        survivors = no_vec + [s for s in clustered if s.id not in drop_ids]
+        stats["n_pruned"] = len(drop_ids)
+        return survivors, stats
+
+    def sample(self, samples: list[Sample], config: SamplingConfig) -> SamplingRecipe:
+        survivors, stats = self.semantic_survivors(samples, config.seed)
+        budget = config.budget if config.budget is not None else len(survivors)
+        inner = StratifiedSampler().sample(
+            survivors,
+            SamplingConfig(
+                budget=min(budget, len(survivors)),
+                seed=config.seed,
+                quality_key=config.quality_key,
+                buckets=config.buckets,
+                oversample_high=config.oversample_high,
+            ),
+        )
+        return SamplingRecipe(
+            name=self.name,
+            n_total=len(samples),
+            n_sampled=inner.n_sampled,
+            sampled_ids=inner.sampled_ids,
+            strata_summary=inner.strata_summary,
+            extra=stats,
         )

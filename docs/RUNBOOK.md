@@ -148,8 +148,9 @@ worker 的 PYTHONPATH（`ray.init(runtime_env={"env_vars": {"PYTHONPATH": ...}})
 
 | 步骤 | 命令 | 耗时 | 验收 |
 |---|---|---|---|
-| 启动判官服务 | `python -X utf8 scripts/serve_judge.py` | 首次 +1GB 下载 | 监听 127.0.0.1:8100（Qwen2.5-0.5B-Instruct） |
+| 启动判官服务 | `python -X utf8 scripts/serve_judge.py` | 首次 +1GB 下载 | 监听 127.0.0.1:8100（Qwen2.5-0.5B-Instruct；`--model Qwen/Qwen2.5-1.5B-Instruct` 换底座，8GB 显存实测可用） |
 | kappa 实验 | `python -X utf8 scripts/eval_judge.py --n 400` | ~10 分钟 | data/reports/judge_kappa.md：judge vs 脏标签 / judge vs L1 / L1 vs 标签 三 κ + 分歧样本 |
+| kappa 实验（1.5B 判官） | `python -X utf8 scripts/eval_judge.py --base-url http://127.0.0.1:8100/v1 --workers 2 --timeout 120` | ~45 分钟 | 1.5B 单次判分 6-24s，4 并发会撞 30s 默认超时——降并发 + 加超时；κ 0.5B ≈0 → 1.5B 0.247（V3 ι，报告跑前备份为 judge_kappa_0p5b.json） |
 | L3 漏斗 | `python -X utf8 scripts/run_pipeline.py --config configs/text_funnel_llm.yaml` | 同漏斗 + 抽样调用 | L1+去重+困惑度后 judge 抽 10% 终审；on_error: skip 服务挂不死漏斗 |
 
 设计要点：确定性抽样（同 config 重跑抽同一批）；解析失败/服务异常 → 保留
@@ -304,6 +305,38 @@ python -X utf8 scripts/build_user_pref_data.py --labels <v2/oracle>   --limit 50
 追加标注不换考卷：`build_user_pref_data.py --freeze-eval-from
 benchmarks/pref_user_v1/items.jsonl`（冻结 main 题 source_id 强制留评测，
 其余全进训练）。
+
+## 1.15 规模拐点：local vs Ray 交叉曲线（V3 κ，2026-09-15）
+
+回答「多大才该开 Ray」：语料 10 万 → 100 万档梯度，双运行时各一遍，
+每档等价性三口径（kept 集 / StageStat / 逐 id 分数）全等。
+
+| 步骤 | 命令 | 耗时 | 验收 |
+|---|---|---|---|
+| 扩量语料（独立文件，勿混入 β 基线） | `python -X utf8 scripts/download_text_corpus.py --out data/raw/text_corpus_1m.jsonl --docs 1000000` | ~10 分钟 | 1,001,764 篇；text_sources.SHARDS 已扩到全 6 分片 |
+| 梯度双跑（每档一条，串行执行） | `python -X utf8 scripts/ray_funnel_benchmark.py --n 300000 --corpus data/raw/text_corpus_1m.jsonl --out scale_crossover/n300k`（另 `--n 100000` 默认落 γ3 路径；`--n 1000000`） | 100k ~6 分钟 / 300k ~14 分钟 / 1M ~90 分钟 | data/reports/scale_crossover/n*.json |
+| 汇总曲线 | `python -X utf8 scripts/scale_crossover_report.py` | 秒级 | data/reports/scale_crossover.{md,png} |
+
+**实测结论（单机 8 逻辑核）**：local 全区间胜——100k 113.6s/251.6s（2.21×）、
+300k 355.8s/490.5s（1.38×）、1M 1605.5s/3749.8s（2.34×）；Ray 无回本点，
+1M 档反升源于内存压力。**Ray 的回本条件是多机横向扩展，不在单机加大 n。**
+测量纪律：梯子各档串行、与 GPU 任务分时——计时实验与任何后台负载并跑
+即作废（本会话实测：同机有 judge 评测并行时 100k local 从 24s 膨胀到 114s）。
+
+## 1.16 SemDeDup 语义剪枝采样（V3 λ，2026-09-15）
+
+池向量聚类 → 簇内冗余剔除 → 分层补足（`SemanticPruneSampler`，faiss 单依赖）。
+向量直接从 clean_v2 索引 reconstruct（图像塔嵌入 = 检索指标自己的空间）。
+
+| 步骤 | 命令 | 耗时 | 验收 |
+|---|---|---|---|
+| 消融评测 | `python -X utf8 scripts/eval_sampling.py --budgets 1200 1000 800 --prune-fracs 0.1 0.2 0.3 --out data/reports/sampling_semde_dup.json` | ~2 分钟 | 报告 + 对照表；ε=0.3 剪穿池子时 n_indexed < budget 属预期，如实呈现 |
+| 单测 | `python -X utf8 -m pytest tests/test_sampling.py -q` | 秒级 | 16 条全绿（含离群剔除/预算守恒/可复现/无向量保守保留） |
+
+**实测结论（诚实阴性）**：semde_dup 在 9 个组合中仅 1200 档 ε=0.1 R@10 微胜
+stratified（0.731 vs 0.706），R@1/MRR 全部不敌且 ε 越大越差。归因：本池是
+漏斗清洗后的产物，语义冗余已被去重四件套在上游吃掉——「下游无冗余可剪」
+反向证明上游去重质量。详见 data/reports/sampling_semde_dup.md + 笔记 #66。
 
 ## 2. 演示（10 分钟，面试/展示）
 

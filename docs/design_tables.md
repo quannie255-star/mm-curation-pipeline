@@ -523,3 +523,88 @@ scripts/text_dedup_benchmark.py / scripts/finetune_gpt2.py: 两个实验入口
 3. 对照题（损伤否决）单独出数不设线
 4. 测试基线不倒退（当前 162+40），新增单测覆盖 v2 schema 解析 / 按对 holdout / 最小对构造 / REJECT 剔除
 5. ruff 全绿；RUNBOOK θ 段 + DEV_PLAN / ROADMAP / 笔记回写
+
+# ι 设计表：判官能力阶梯——通用 1.5B 补档 + ζ 任务 1.5B LoRA（2026-09-15）
+
+> 动机：对标调研确认 Data-Juicer 2026-08 发布 Juicer 模型（NL 指令数据精炼）正面进入
+> 域判官方向；本仓能力矩阵（benchmarks/capability_matrix.json）现状是「悬崖在 1.5B 之后」
+> 的结论只有 η-b 单任务支撑，且「通用 1.5B」整档缺失、「换大模型只改 base_url」从未实测。
+> 本表经用户批准（2026-09-15 会话计划），落表即动码。
+
+## 决策点 1：范围收缩——η-b 1.5B 重训不重做
+- 已在案：DPO 1.5B 在 8GB 不可行（258s/step，2026-09-05 实测）；1.5B SFT 退化路径
+  0.591/0.515/0.48 ≈ 随机（矩阵第二行，judge_ext_1p5b 适配器）。
+- 协作方在途迭代 extraction.py（η-b' 分解式重设计），避让不碰。
+
+## 决策点 2：δ 任务走真实漏斗路径
+- `serve_judge.py --model Qwen/Qwen2.5-1.5B-Instruct` 起 OpenAI 兼容服务 →
+  `eval_judge.py --base-url` 走 LlmJudgeOp 全链路（确定性抽样 + rubric 解析 + κ）。
+- 同时实测 δ 阶段「换大模型只改 base_url」的架构声明。
+
+## 决策点 3：ζ 任务 1.5B LoRA SFT 零改动
+- `finetune_judge_lora.py --model Qwen/Qwen2.5-1.5B-Instruct --out models/judge_lora_1p5b`
+  （脚本原生支持 --model；SFT 数据 judge_sft.jsonl 现成）。
+- 评测 `run_judge_benchmark.py --model ... --adapter models/judge_lora_1p5b --tag tuned_1p5b`。
+
+## 决策点 4：7B 云端档
+- 默认无 API key → 矩阵 note 记「待租卡」，不阻塞。
+
+## 数据结构表
+| 产物 | 变更 |
+|---|---|
+| benchmarks/capability_matrix.json | models 增 2 行：通用基线（不微调 1.5B）全任务；Qwen2.5-1.5B LoRA（ζ 列） |
+| runs/experiments.jsonl | 追加式，零改动 |
+| data/reports/judge_kappa_0p5b.json | 旧 δ 报告备份（评测脚本报告名固定，跑前备份） |
+| data/reports/pref_answers_generic_0p5b.json | 旧通用答案备份（同上） |
+
+## 风险
+| 风险 | 对策 |
+|---|---|
+| 1.5B 训练 OOM（8GB） | batch 8 首跑，OOM 降 batch 4 并记录；fp16 |
+| GPU 串行争用 | 先评测（server→基准→偏好）后训练，全程单 GPU 任务 |
+| ζ 1.5B 训练 2-3h | 后台跑，与 κ 块（CPU/网络）并行 |
+| 覆盖旧报告 | 跑前备份 judge_kappa / pref_answers_generic |
+
+## 验收标准汇总
+1. 矩阵出「3 任务 × ≥4 模型档」（通用 0.5B / 通用 1.5B / 微调 1.5B / 微调 0.5B），
+   每格数字可回溯 ledger。
+2. 「能力悬崖在 1.5B之后」被多任务证实或证伪，如实记录。
+3. 「只改 base_url」声明实测结论落笔记。
+4. 测试基线不倒退；ruff 全绿；DEV_PLAN/ROADMAP/INTERVIEW/笔记回写。
+
+# λ 设计表：SemDeDup 语义剪枝采样（2026-09-15）
+
+> 动机：对标调研确认语义去重/剪枝（NeMo Curator SemDeDup 内置实现）已是头部
+> 系统标配，而本仓采样器只有质量×类目分层。池向量（clean_v2 图像塔嵌入）现成，
+> 接入成本低，且剪枝发生在检索指标自己的空间——「语义冗余」与「检索」同度量。
+> 本表经用户批准（2026-09-15 会话计划），落表即动码。
+
+## 决策点 1：剪枝空间 = 索引空间
+- 向量直接 `searcher.index.reconstruct(row)` 取回（零重编码）：clean_v2 索引存
+  图像塔嵌入（文搜图），在此空间聚类 = 剪掉「检索视角下的语义冗余」。
+
+## 决策点 2：算法三步（faiss 单依赖，不引 sklearn）
+- ① L2 归一化 → `faiss.Kmeans(spherical=True)` 聚 k=64 簇（1586 池，均值 25/簇）；
+- ② 每簇按到质心相似度降序保留 (1-ε)，ε 默认 0.2（SemDeDup 论文量级）；
+- ③ 存活池沿用 StratifiedSampler 配比补足 budget——与 stratified 的差异被
+  隔离在「池子缩小」这一步，消融可归因。
+- 向量缺失样本不聚类、视为存活（保守保留）。并列相似度按 id 字典序破平，跨运行确定。
+
+## 决策点 3：接口与回归红线
+- `SemanticPruneSampler(vectors, n_clusters=64, prune_frac=0.2)` 进注册导出；
+  SamplingRecipe 增 `extra` 字段（n_pruned 等统计，默认空，旧调用零破坏）。
+- eval_sampling.py 加 `--prune-fracs`（消融 0.1/0.2/0.3）；**random/stratified
+  两条既有数字必须逐位复现**（新增采样器不改它们任何计算路径）。
+
+## 风险
+| 风险 | 对策 |
+|---|---|
+| 1586 小池子上语义冗余本就少，剪枝无增益 | 如实阴性 + 归因（方法-规模匹配话题，本身是面试素材） |
+| 球面 k-means 把反义向量分给对面簇（余弦 -1 < 0） | 实现层面无影响（真实 embedding 无反义簇）；单测夹具已按此设计 |
+| 剪枝后存活池 < budget | 全出存活池，n_sampled < budget 如实呈现 |
+
+## 验收标准汇总
+1. 单测 ≥5 条：离群点剔除 / 预算守恒 / 存活不足 / 可复现 / 无向量保守保留。
+2. 消融表 ε ∈ {0.1, 0.2, 0.3} × budget {1200, 1000, 800} 对照 random/stratified。
+3. SemDeDup 在 ≥1 个 budget 点 ≥ stratified，否则如实阴性。
+4. random/stratified 既有数字逐位复现；测试基线不倒退；ruff 全绿；文档回写。

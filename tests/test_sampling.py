@@ -11,9 +11,10 @@ from mm_curation.operators.base import Sample
 from mm_curation.sampling import (
     RandomSampler,
     SamplingConfig,
+    SemanticPruneSampler,
     StratifiedSampler,
 )
-from mm_curation.sampling.sampler import _category, _quality_bucket
+from mm_curation.sampling.sampler import _category, _quality_bucket  # noqa: E402
 
 
 def _sample(sid: str, score: float | None, tags: list[str] | None = None) -> Sample:
@@ -139,3 +140,104 @@ def test_real_data_sampling_smoke():
     assert recipe_s.n_sampled == 1000
     # 分层采样应产生多个分层（不坍缩成单层）
     assert len(recipe_s.strata_summary) > 1
+
+
+# ---------- SemDeDup 语义剪枝采样（V3 λ） ----------
+
+
+def _vec_samples(prefix: str, n: int, score: float = 0.5) -> list[Sample]:
+    return [_sample(f"{prefix}{i}", score, ["猫"]) for i in range(n)]
+
+
+def test_semde_dup_prunes_farthest_per_cluster():
+    """两簇各 6 紧致成员 + 1 离群点，ε=0.1 → 每簇剔 1，被剔的恰是离质心最远者。
+
+    夹具注意：离群点取「同向大偏移」（e0+2e2 方向）而非反向量——反义向量的
+    余弦相似是负值，球面 k-means 会把它分给对面簇（对面相似度 0 > -1），
+    破坏「离群点归自己簇」的断言前提。
+    """
+    import numpy as np
+
+    rng = np.random.default_rng(7)
+    base_a = np.zeros(8, dtype="float32")
+    base_a[0] = 1.0
+    base_b = np.zeros(8, dtype="float32")
+    base_b[1] = 1.0
+    tilt = np.zeros(8, dtype="float32")
+    tilt[2] = 2.0
+
+    pool: list[Sample] = []
+    vectors: dict[str, list] = {}
+    for base, prefix in ((base_a, "a"), (base_b, "b")):
+        for j in range(6):  # 簇内紧致成员
+            sid = f"{prefix}{j}"
+            pool.append(_sample(sid, 0.5, ["猫"]))
+            vectors[sid] = (base + rng.normal(0, 0.01, 8).astype("float32")).tolist()
+        sid_out = f"{prefix}out"  # 离群点：同向大偏移，离质心最远
+        pool.append(_sample(sid_out, 0.5, ["猫"]))
+        vectors[sid_out] = (base + tilt).tolist()
+
+    recipe = SemanticPruneSampler(vectors, n_clusters=2, prune_frac=0.1).sample(
+        pool, SamplingConfig(budget=12)
+    )
+    assert recipe.n_sampled == 12
+    assert "aout" not in recipe.sampled_ids
+    assert "bout" not in recipe.sampled_ids
+    assert recipe.extra["n_pruned"] == 2
+
+
+def test_semde_dup_budget_conserved_and_unique():
+    import numpy as np
+
+    rng = np.random.default_rng(11)
+    pool = _vec_samples("s", 40)
+    vectors = {
+        s.id: rng.normal(0, 1, 8).astype("float32").tolist() for s in pool
+    }
+    recipe = SemanticPruneSampler(vectors, n_clusters=8, prune_frac=0.2).sample(
+        pool, SamplingConfig(budget=10)
+    )
+    assert recipe.n_sampled == 10
+    assert len(set(recipe.sampled_ids)) == 10
+
+
+def test_semde_dup_all_identical_survivors_below_budget():
+    """全同向量强冗余：10 条剔一半剩 5，budget=20 时只出 5（不凭空补）。"""
+    import numpy as np
+
+    pool = _vec_samples("s", 10)
+    vec = np.ones(8, dtype="float32").tolist()
+    recipe = SemanticPruneSampler(
+        {s.id: vec for s in pool}, n_clusters=4, prune_frac=0.5
+    ).sample(pool, SamplingConfig(budget=20))
+    assert recipe.n_sampled == 5
+    assert recipe.extra["n_pruned"] == 5
+
+
+def test_semde_dup_reproducible_with_seed():
+    import numpy as np
+
+    rng = np.random.default_rng(3)
+    pool = _vec_samples("s", 30)
+    vectors = {s.id: rng.normal(0, 1, 8).astype("float32").tolist() for s in pool}
+    sampler = SemanticPruneSampler(vectors, n_clusters=5, prune_frac=0.2)
+    r1 = sampler.sample(pool, SamplingConfig(budget=12, seed=42))
+    r2 = sampler.sample(pool, SamplingConfig(budget=12, seed=42))
+    assert r1.sampled_ids == r2.sampled_ids
+
+
+def test_semde_dup_missing_vector_sample_kept():
+    """无向量样本不参与聚类、视为存活：budget 足够时必须出现。"""
+    import numpy as np
+
+    rng = np.random.default_rng(5)
+    pool = _vec_samples("s", 10)
+    no_vec = _sample("blind", 0.5, ["猫"])
+    pool.append(no_vec)
+    vectors = {
+        s.id: rng.normal(0, 1, 8).astype("float32").tolist() for s in pool if s.id != "blind"
+    }
+    recipe = SemanticPruneSampler(vectors, n_clusters=3, prune_frac=0.2).sample(
+        pool, SamplingConfig(budget=9)
+    )
+    assert "blind" in recipe.sampled_ids

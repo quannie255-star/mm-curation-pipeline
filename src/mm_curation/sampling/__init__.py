@@ -6,6 +6,7 @@ from .sampler import (
     Sampler,
     SamplingConfig,
     SamplingRecipe,
+    SemanticPruneSampler,
     StratifiedSampler,
 )
 
@@ -15,5 +16,6 @@ __all__ = [
     "Sampler",
     "SamplingConfig",
     "SamplingRecipe",
+    "SemanticPruneSampler",
     "StratifiedSampler",
 ]
