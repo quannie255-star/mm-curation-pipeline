@@ -6,6 +6,7 @@ from . import (  # noqa: F401
     detector_quality,
     fhir_quality,
     image_quality,
+    industrial_quality,
     llm_judge,
     text_corpus,
     text_quality,

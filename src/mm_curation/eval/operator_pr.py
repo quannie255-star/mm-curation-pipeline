@@ -55,6 +55,12 @@ OPERATOR_TARGETS: dict[str, list[str]] = {
     "unit_normalization": ["fhir_unit_off"],
     "temporal_consistency": ["fhir_time_inverted"],
     "referential_integrity_fhir": ["fhir_ref_broken"],
+    # V5 α：工业传感器算子，靶子为 sensor_contamination 的合规脏数据类型
+    "sensor_stuck": ["sensor_flatline"],
+    "sensor_range": ["sensor_out_of_range"],
+    "sensor_drift": ["sensor_cal_offset"],
+    "unit_consistency": ["sensor_unit_swap"],
+    "fault_vs_maintenance": ["sensor_unplanned_silence"],
 }
 
 

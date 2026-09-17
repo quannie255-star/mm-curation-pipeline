@@ -32,12 +32,21 @@ from .sdk import (
     Operator,
     StageStat,
 )
+from .sensor import SensorSample
+from .sensor_contamination import (  # noqa: F401  导入以触发 @register 注册
+    SensorCalOffset,
+    SensorFlatline,
+    SensorOutOfRange,
+    SensorUnitSwap,
+    SensorUnplannedSilence,
+)
 
 __all__ = [
     # 协议核心（V2 α）
     "MODALITY_FIELDS",
     "Sample",
     "FHIRSample",
+    "SensorSample",
     "CostClass",
     "OperatorMeta",
     "register_operator",
@@ -61,4 +70,4 @@ __all__ = [
     "mrr",
     "cohen_kappa",
 ]
-__version__ = "0.3.0"
+__version__ = "0.4.0"

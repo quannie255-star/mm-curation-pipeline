@@ -1,4 +1,4 @@
-"""医疗污染器测试：确定性、原始样本不可变、五类注入靶向命中对应算子、干净侧零误杀。"""
+"""工业污染器测试：确定性、原始样本不可变、五类注入靶向命中对应算子、干净侧零误杀。"""
 
 from __future__ import annotations
 
@@ -6,37 +6,37 @@ from pathlib import Path
 
 from curation_eval import ContaminationPlan, Sample
 
-from mm_curation.data.fhir_synth import generate_corpus
-from mm_curation.operators.fhir_quality import (
-    CodeValidityOp,
-    PhiResidualOp,
-    ReferentialIntegrityFhirOp,
-    TemporalConsistencyOp,
-    UnitNormalizationOp,
+from mm_curation.data.sensor_synth import generate_corpus
+from mm_curation.operators.industrial_quality import (
+    FaultVsMaintenanceOp,
+    SensorDriftOp,
+    SensorRangeOp,
+    SensorStuckOp,
+    UnitConsistencyOp,
 )
 
 KINDS = {
-    "fhir_phi_leak": 1.0,
-    "fhir_code_invalid": 1.0,
-    "fhir_time_inverted": 1.0,
-    "fhir_ref_broken": 1.0,
-    "fhir_unit_off": 1.0,
+    "sensor_cal_offset": 1.0,
+    "sensor_flatline": 1.0,
+    "sensor_out_of_range": 1.0,
+    "sensor_unit_swap": 1.0,
+    "sensor_unplanned_silence": 1.0,
 }
 SINGLE_OPS = {
-    "fhir_phi_leak": PhiResidualOp(min=1.0),
-    "fhir_code_invalid": CodeValidityOp(min=1.0),
-    "fhir_unit_off": UnitNormalizationOp(min=1.0),
+    "sensor_flatline": SensorStuckOp(min=1.0),
+    "sensor_out_of_range": SensorRangeOp(min=1.0),
 }
 BATCH_OPS = {
-    "fhir_time_inverted": TemporalConsistencyOp(min=1.0),
-    "fhir_ref_broken": ReferentialIntegrityFhirOp(min=1.0),
+    "sensor_cal_offset": SensorDriftOp(min=1.0),
+    "sensor_unit_swap": UnitConsistencyOp(min=1.0),
+    "sensor_unplanned_silence": FaultVsMaintenanceOp(min=1.0),
 }
 CORPUS = generate_corpus(seed=42, scale=0.1)
 
 
 def _contaminate(seed: int):
     plan = ContaminationPlan(inject_rate=0.6, seed=seed, kinds=dict(KINDS))
-    mixed, manifest = plan.run(CORPUS, Path("data/tmp_fhir_images"))
+    mixed, manifest = plan.run(CORPUS, Path("data/tmp_sensor_images"))
     return mixed, manifest
 
 
@@ -74,7 +74,7 @@ def test_five_kinds_present_and_hit_primary_operator():
 
 
 def test_clean_corpus_zero_false_kill_all_ops():
-    """干净语料在全部五个算子上零误杀（注入不改动原始样本的前提下可归因）。"""
+    """干净语料在全部五个算子上零误杀（含时序平稳性与同工况比较的前提）。"""
     for op in SINGLE_OPS.values():
         assert all(op(Sample.from_dict(s.to_dict())) is not None for s in CORPUS)
     for op in BATCH_OPS.values():

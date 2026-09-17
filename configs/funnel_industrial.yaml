@@ -1,0 +1,31 @@
+# 工业传感器清洗漏斗（V5 α，industrial_sensor 模态）——与图文/文本/FHIR 漏斗同一框架、同一约定。
+# 约定：score 语义统一为「越高越好」；min/max 为保留阈值；单样本算子在前、批量在后。
+# 语料：合成工业传感器流（scripts/eval_industrial.py 按 --seed 生成，1200+ 窗/全量档），阈值依据：
+#   - 卡死/量程为「形态即违规」；漂移阈 4σ（窗均值有效 σ，lag-1 自适应）——平稳语料零误杀前提
+#   - fault_vs_maintenance 依赖样本流内的 maintenance_event 建计划索引（业务事件源不外置）
+name: industrial_sensor_quality
+description: >
+  工业模态完整漏斗：单样本（卡死/量程）-> 批量跨窗（漂移/单位一致性）
+  -> 批量归因（故障 vs 计划维护判别）。
+  与 cn_flickr_curation_v2 / zh_wiki_text_curation / fhir_r4_quality 共享注册表与执行器，
+  零框架特例——第四模态。
+
+dataset:
+  raw_jsonl: data/raw/sensor_synth/corpus.jsonl
+
+output:
+  dir: data/processed/industrial_funnel
+
+operators:
+  # --- 单样本算子（毫秒级） ---
+  - op: sensor_stuck        # 卡死：平坦窗且非 idle 工况
+    params: {min: 1.0}
+  - op: sensor_range        # 量程：超量程/物理不可能值
+    params: {min: 1.0}
+  # --- 批量算子（全量视角，shardable=False） ---
+  - op: sensor_drift        # 校准漂移：同工况基线后窗口均值偏移 > 4σ
+    params: {min: 1.0}
+  - op: unit_consistency    # 单位一致性：同测点单位众数偏离（MPa vs bar 混源）
+    params: {min: 1.0}
+  - op: fault_vs_maintenance  # 计划内静默=合法放行，计划外哨兵窗=链路故障
+    params: {min: 1.0}

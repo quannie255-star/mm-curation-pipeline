@@ -19,10 +19,13 @@ from typing import Any
 # 模态 → 该模态样本必然可用的字段。开放扩展：新模态在此登记。
 # fhir_resource：text 承载资源的 canonical JSON（FHIRSample 适配器约定），
 # 结构化内容由算子按需解析——执行器与评测器因此对医疗模态零特例。
+# industrial_sensor：text 承载窗口 payload canonical JSON（SensorSample 约定），
+# 一窗一样本（通道×时间窗），检修计划事件作为特殊 record_type 进同模态样本流。
 MODALITY_FIELDS: dict[str, frozenset[str]] = {
     "image_caption": frozenset({"text", "image_path"}),
     "text_article": frozenset({"text"}),
     "fhir_resource": frozenset({"text"}),
+    "industrial_sensor": frozenset({"text"}),
 }
 
 

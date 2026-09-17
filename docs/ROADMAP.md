@@ -410,3 +410,19 @@ benchmark 产物不入库）。工程发现：泄漏检查在中文上的两层�
 | 评测入口 | `eval_fhir.py` 算子级 P/R（operator_pr 同格式）+ 漏斗串联门禁（召回 ≥90%/误杀 ≤5% exit code） | 500+150 实跑：漏斗召回 100%/误杀 0% **PASSED**；报告 operator_pr_fhir.{json,md}；Makefile eval-fhir |
 
 测试基线 229+47（+35/+7 零倒退）；笔记 #67（协议对数字错的三个坑）。
+
+
+## V5 α：基座 + 领域增强包——工业传感器包（2026-09-17）
+
+> 定位升级：多模态数据清洗与预处理平台 = curation-eval 基座 + 领域增强包（六件套：
+> 适配器/算子/污染器/合成语料/漏斗 config/评测门禁）。规范见 docs/DOMAIN_PACKS.md；
+> 设计表 design_tables.md V5 节。第四模态 industrial_sensor 零框架特例接入（包 v0.4.0）。
+
+| 件 | 内容 | 结果 |
+|---|---|---|
+| 协议层 | SensorSample 适配器（一窗一 Sample=通道×256 读数 canonical JSON；maintenance_event 检修事件进同模态样本流，业务事件源不外置） | 「计划检修静默=合法 vs 采集故障=异常」判别落地为 fault_vs_maintenance 算子——金融「停牌 vs 采集失败」的工业映射 |
+| 工业算子 | sensor_stuck/sensor_range（单样本）+ sensor_drift/unit_consistency/fault_vs_maintenance（批量 shardable=False）；drift 基线中位数稳健化 + lag-1 自适应 σ，同工况比较防合法 changeover 误杀 | 五算子主靶 recall 全 100% |
+| 语料 | 3 类设备 6 台 12 通道 = 1008 读数窗 + 48 检修事件；AR(1) 走 seed；检修窗真实缺席；工况切换重置稳态（合成不含启停瞬态，归 V5 β 真实轨） | 同 seed 逐字节一致；干净侧零哨兵 |
+| 评测 | eval_industrial 门禁（召回 ≥90%/误杀 ≤5% exit code） | 1056+317 实跑：漏斗召回 100%/误杀 1.04% **PASSED**；报告 operator_pr_industrial.{json,md}；Makefile eval-industrial |
+
+笔记 #68（批量算子独立评测的统计污染口径陷阱）；基线 263+54。

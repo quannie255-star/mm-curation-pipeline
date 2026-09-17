@@ -393,6 +393,24 @@ judge_studio 同款模式）。零额外采集，只读 ops_daily 落盘产物�
 - 诚实边界：语料全部程序生成，无任何真实患者数据；姓名池为通用常见姓名样式。
 - `make eval-fhir` 等价于第一条命令。
 
+## 1.19 工业传感器模态评测（V5 α，2026-09-17）
+
+第四模态 `industrial_sensor` 零框架特例接入：一窗一 Sample（通道×256 读数），
+SensorSample 适配器（包 v0.4.0），5 个工业算子 + 5 类污染器 + 确定性合成语料。
+领域增强包规范（六件套/扩展步骤/红线）见 docs/DOMAIN_PACKS.md。
+
+| 步骤 | 命令（make-free） | 耗时 | 验收 |
+|---|---|---|---|
+| 评测+门禁 | `python -X utf8 scripts/eval_industrial.py` | ~6 秒 | 1056 窗 + 317 注入；五算子主靶 recall 100%；漏斗召回 100% ≥90%、误杀 1.04% ≤5% → **PASSED exit 0** |
+| 冒烟档 | `python -X utf8 scripts/eval_industrial.py --scale 0.1 --seed 7` | ~2 秒 | 报告落盘门禁绿 |
+| 漏斗串联 | `python -X utf8 scripts/run_pipeline.py --config configs/funnel_industrial.yaml --input data/raw/sensor_synth/corpus.jsonl` | ~2 秒 | data/processed/industrial_funnel |
+
+- 报告：`data/reports/operator_pr_industrial.{json,md}`。
+- 核心算子故事：「计划检修静默（合法）vs 采集链路故障（异常）」判别——检修计划事件
+  进样本流建索引，业务事件源不外置（金融「停牌 vs 采集失败」的工业映射）。
+- 口径提醒：独立评测下批量算子（drift）的误杀会被其他类型灾难注入污染（报告有注），
+  漏斗串联门禁才是端到端承诺口径。
+
 ## 2. 演示（10 分钟，面试/展示）
 
 ```bash

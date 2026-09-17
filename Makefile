@@ -32,6 +32,9 @@ eval-op: ## 算子级 P/R 独立评测（全量脏集，独立运行每个算子
 eval-fhir: ## 医疗 FHIR 模态 P/R + 漏斗门禁（合成语料，确定性 seed）
 	python -X utf8 scripts/eval_fhir.py
 
+eval-industrial: ## 工业传感器模态 P/R + 漏斗门禁（合成语料，确定性 seed）
+	python -X utf8 scripts/eval_industrial.py
+
 threshold-scan: ## 阈值敏感性扫描（含 matplotlib 图表）
 	python scripts/threshold_scan.py
 
