@@ -426,3 +426,5 @@ benchmark 产物不入库）。工程发现：泄漏检查在中文上的两层�
 | 评测 | eval_industrial 门禁（召回 ≥90%/误杀 ≤5% exit code） | 1056+317 实跑：漏斗召回 100%/误杀 1.04% **PASSED**；报告 operator_pr_industrial.{json,md}；Makefile eval-industrial |
 
 笔记 #68（批量算子独立评测的统计污染口径陷阱）；基线 263+54。
+
+**V5 β 演示门户（同日）**：`showcase_app.py` 六页签统一入口（平台总览/图文/文本/医疗/工业/证据链），医疗+工业支持现场重跑门禁（~6 秒），报告缺失自动降级为生成命令。红线「不做真前端」维持，Streamlit 演示先例第 5 例；headless 200 + AppTest 真渲染（6 页签/7 表/10 指标卡）。

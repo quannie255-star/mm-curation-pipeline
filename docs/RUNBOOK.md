@@ -413,6 +413,15 @@ SensorSample 适配器（包 v0.4.0），5 个工业算子 + 5 类污染器 + �
 
 ## 2. 演示（10 分钟，面试/展示）
 
+**统一入口（V5 β）**：`streamlit run scripts/showcase_app.py`——六页签门户：
+平台总览（四模态门禁卡 + 基座六件套）/ 图文 / 文本 / 医疗 FHIR / 工业传感器
+（后两个支持**现场重跑门禁**，~6 秒）/ 证据链（R@1、ppl、消融、采样）。
+报告缺失时页面直接给生成命令与耗时。
+
+专题深潜（存量应用，门户侧边栏有指引）：
+
+```bash
+
 ```bash
 # 终端 1：检索服务
 python -m uvicorn mm_curation.serving.api:app --app-dir src --host 127.0.0.1 --port 8000
