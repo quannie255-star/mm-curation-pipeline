@@ -881,3 +881,85 @@ CLI 薄壳进 `scripts/`（eval_operators/eval_ablation 同型），照惯例走
   Recall@K 报告与清洗前后量化对比。
 - 每阶段收工按 AGENTS.md 四件套（质量门 / DEV_PLAN 回写 / 工程笔记 / ROADMAP+RUNBOOK）
   + 中文 commit push。
+
+# V5 设计表：基座 + 领域增强包——工业传感器包（V5 α，2026-09-17）
+
+> 定位升级（对用户确认的叙事）：项目 = **多模态数据清洗与预处理平台** =
+> curation-eval 基座（协议/注册表/执行器/污染器框架/门禁指标，pip 包）+ 领域增强包。
+> **增强包六件套**：适配器 / 领域算子 / 领域污染器 / 确定性语料 / 漏斗 config / 评测门禁
+> ——V4 α 的 FHIR 包为参考实现，本包（industrial_sensor）为第二实例。
+> 本设计**不新增框架机制**：增强包是既有扩展点的实例化；不做插件系统/算子市场（红线）；
+> 不引入改写型算子语义，预处理（换算/对齐的执行）走漏斗外前置/后置阶段（红线确认）。
+
+## V5 α 决策点 1：样本粒度——一窗一条，canonical JSON 展平
+
+一个 Sample = 一个 **通道×时间窗**（默认 256 读数），text = 窗口数据 canonical JSON
+（读数数组 + 起止时间戳 + 采样率），meta 键：`sensor_record_type`（reading_window /
+maintenance_event）、device_id、channel、unit、sampling_hz、operating_mode、window_start。
+镜像 FHIR 模式（text=单一事实源；`SensorSample` 适配器入包，roundtrip 保真）。
+
+- 弃选 A：逐读数一条——过滤粒度太碎，时序算子需全局排序，成本高。
+- 弃选 B：整通道一条——窗口过大，污染注入无法局部化，P/R 归因变粗。
+- **检修计划事件进样本流**（maintenance_event，镜像 FHIR 多资源类型先例）：
+  fault_vs_maintenance 所需的业务事件源在同模态内闭合，执行器零改动。
+
+## V5 α 决策点 2：五个工业算子（主仓 operators/industrial_quality.py）
+
+score 语义沿用「越高越好」；全部 cost_class=RULE（信号统计是纯算术）。
+
+| 算子 | score 定义 | 形态 | 主靶 |
+|---|---|---|---|
+| sensor_stuck | 窗口标准差≈0 判卡死；operating_mode=idle 的平坦窗合法放行 | 单样本 | sensor_flatline |
+| sensor_range | 超量程/物理不可能值占比（内嵌量程表） | 单样本 | sensor_out_of_range |
+| sensor_drift | 同通道**同工况**后续窗均值 vs 基线窗（首 K 窗）系统偏移超阈——跨工况不比较（工况差异是合法的） | **批量 shardable=False** | sensor_cal_offset |
+| unit_consistency | 同测点多源单位一致性（MPa vs bar 混源），内嵌工控单位表 | **批量 shardable=False** | sensor_unit_swap |
+| fault_vs_maintenance | 哨兵填充窗（-999 工业惯例）∩ 检修计划窗 → 合法放行；计划外哨兵窗 → 检出。计划索引由 maintenance_event 样本在 run_batch 构建 | **批量 shardable=False** | sensor_unplanned_silence |
+
+## V5 α 决策点 3：污染器（包侧 sensor_contamination.py，供体重抽模式复用）
+
+| kind | 注入动作 | 靶算子 |
+|---|---|---|
+| sensor_cal_offset | 窗口读数整体加系统性偏移（模拟校准漂移） | sensor_drift |
+| sensor_flatline | 非 idle 工况窗塞平坦读数 | sensor_stuck |
+| sensor_out_of_range | 塞超量程值/负值 | sensor_range |
+| sensor_unit_swap | meta.unit MPa→bar 不标注（读数值按新单位重写，值不变） | unit_consistency |
+| sensor_unplanned_silence | 读数改哨兵值 -999 且不在任何计划窗内 | fault_vs_maintenance |
+
+ground truth 与既有污染器一致（labels.dirty=kind，注入即复制不改原始样本）。
+
+## V5 α 决策点 4：确定性合成语料（主仓 data/sensor_synth.py）
+
+- 构成：3 类设备（泵/风机/加热炉）× 每类 2 通道 × 约 200 窗 + maintenance_event
+  40-60 条 ≈ **读数窗 1200+**（满足任务 ≥1000）；AR(1)+高斯噪声，全部走
+  random.Random(seed)；内嵌量程表/单位表/工况 schedule（idle/run/changeover）。
+- 合法业务异常（不注入不标注）：changeover 工况均值偏移、idle 平坦窗、
+  计划检修窗**直接缺席**（真实静默，由事件样本佐证）——误杀可归因。
+- --seed 切换版本，同 seed 逐字节一致；无真实产线数据（脚注声明）。
+
+## V5 α 决策点 5：评测入口（镜像 eval_fhir）
+
+configs/funnel_industrial.yaml + scripts/eval_industrial.py（operator_pr 格式报告 +
+漏斗串联门禁 召回 ≥90% / 误杀 ≤5% exit code）+ Makefile eval-industrial +
+OPERATOR_TARGETS 五条 + RUNBOOK 段。
+
+## V5 α 决策点 6：双轨（α 只做合成轨；公开数据集为 V5 β）
+
+NASA C-MAPSS 等公开数据集**没有污染 ground truth**，不入 CI 门禁——作为 V5 β
+「真实底座试跑」（下载器幂等 + 前置窗口化/量纲标注 stage + 注入实验报告），
+沿用维基/金融双轨方法论。PHM 下游任务证据（清洗前后 F1）同归 V5 β。
+
+## 风险
+
+| 风险 | 对策 |
+|---|---|
+| 时序算子对窗口顺序敏感，破坏确定性 | run_batch 内按 (device, channel, window_start) 规范化排序（id 排序约定的领域版），测试锁双跑一致 |
+| drift 检测把合法 changeover 误判漂移 | 同工况比较前置（meta.operating_mode 分组）；changeover 窗归合法业务异常清单 |
+| 哨兵值 -999 与真实读数域冲突 | 量程表外值即哨兵；语料生成保证真实读数远离哨兵域 |
+| 四个模态后成本表/报告拥挤 | 维持既有模态跳过语义，报告按 pipeline 名分文件（operator_pr_<domain>） |
+
+## 验收标准汇总
+
+- eval-industrial 全量跑通：故障召回 ≥90% / 误杀 ≤5%（门禁 exit code 锁），
+  五算子四向单测 + 语料确定性 + 污染器靶向命中；前三模态数字零回归（基线 229+47 只增）。
+- 《领域增强包规范》落 docs（六件套清单 + FHIR/工业双参考实现），README 重定位段。
+- V5 β（C-MAPSS 真实底座 + PHM 下游 F1 证据）/ V4 βγ（评测闭环 + CI 诊断）顺延另拆。
