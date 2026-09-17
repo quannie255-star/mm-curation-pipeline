@@ -17,9 +17,12 @@ from dataclasses import fields as dc_fields
 from typing import Any
 
 # 模态 → 该模态样本必然可用的字段。开放扩展：新模态在此登记。
+# fhir_resource：text 承载资源的 canonical JSON（FHIRSample 适配器约定），
+# 结构化内容由算子按需解析——执行器与评测器因此对医疗模态零特例。
 MODALITY_FIELDS: dict[str, frozenset[str]] = {
     "image_caption": frozenset({"text", "image_path"}),
     "text_article": frozenset({"text"}),
+    "fhir_resource": frozenset({"text"}),
 }
 
 

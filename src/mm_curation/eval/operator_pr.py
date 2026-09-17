@@ -49,6 +49,12 @@ OPERATOR_TARGETS: dict[str, list[str]] = {
     "pii_detect": ["pii_inject"],
     "perplexity": ["mojibake"],
     "text_minhash": ["exact_duplicate", "near_duplicate_text"],
+    # V4 α：医疗 FHIR 模态算子，靶子为 fhir_impl.py 的合规脏数据类型
+    "phi_residual": ["fhir_phi_leak"],
+    "code_validity": ["fhir_code_invalid"],
+    "unit_normalization": ["fhir_unit_off"],
+    "temporal_consistency": ["fhir_time_inverted"],
+    "referential_integrity_fhir": ["fhir_ref_broken"],
 }
 
 

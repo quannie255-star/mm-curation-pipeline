@@ -374,6 +374,25 @@ judge_studio 同款模式）。零额外采集，只读 ops_daily 落盘产物�
 46 条（21.5%），抽样全是数字密集的行情快报——已进 docs/ops_backlog.md 首条；
 磁盘水位告警同步触发（85.3% > 80%）。
 
+## 1.18 医疗 FHIR 模态评测（V4 α，2026-09-17）
+
+第三个模态 `fhir_resource` 零框架特例接入：FHIR 资源经 `FHIRSample`
+（curation-eval 包 v0.3.0）展平为 Sample（text = 资源 canonical JSON），
+5 个医疗算子 + 5 类合规污染器 + 确定性合成语料，执行器/评测器零改动。
+
+| 步骤 | 命令（make-free） | 耗时 | 验收 |
+|---|---|---|---|
+| 评测+门禁 | `python -X utf8 scripts/eval_fhir.py` | ~5 秒 | 500 条语料 + 150 注入；五算子主靶 recall 100%/误杀 0；漏斗召回 100% ≥90%、误杀 0% ≤5% → **PASSED exit 0** |
+| 冒烟档 | `python -X utf8 scripts/eval_fhir.py --scale 0.1 --seed 7` | ~1 秒 | 50 条语料，报告落盘门禁绿 |
+| 观测模式 | `python -X utf8 scripts/eval_fhir.py --no-gate` | ~5 秒 | 只出报告不设退出码 |
+| 漏斗串联 | `python -X utf8 scripts/run_pipeline.py --config configs/funnel_fhir.yaml` | ~1 秒 | data/processed/fhir_funnel |
+
+- 报告：`data/reports/operator_pr_fhir.{json,md}`（格式与 operator_pr 一致 + 漏斗门禁段）。
+- 确定性：同 `--seed` 语料逐字节一致；码表（ICD-10 30/LOINC 15/ATC 10）、UCUM
+  单位表、假名池内嵌于 `src/mm_curation/data/fhir_synth.py`，与算子/污染器同源。
+- 诚实边界：语料全部程序生成，无任何真实患者数据；姓名池为通用常见姓名样式。
+- `make eval-fhir` 等价于第一条命令。
+
 ## 2. 演示（10 分钟，面试/展示）
 
 ```bash

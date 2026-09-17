@@ -5,6 +5,14 @@
 """
 
 from .contamination import ContaminationPlan, Contaminator, available_kinds, register
+from .fhir import FHIRSample
+from .fhir_contamination import (  # noqa: F401  导入以触发 @register 注册
+    FhirCodeInvalid,
+    FhirPhiLeak,
+    FhirRefBroken,
+    FhirTimeInverted,
+    FhirUnitOff,
+)
 from .metrics import cohen_kappa, mrr, pr_from_drops, recall_at_k
 from .ray_executor import RayDistributedExecutor
 from .registry import (
@@ -29,6 +37,7 @@ __all__ = [
     # 协议核心（V2 α）
     "MODALITY_FIELDS",
     "Sample",
+    "FHIRSample",
     "CostClass",
     "OperatorMeta",
     "register_operator",
@@ -52,4 +61,4 @@ __all__ = [
     "mrr",
     "cohen_kappa",
 ]
-__version__ = "0.2.0"
+__version__ = "0.3.0"

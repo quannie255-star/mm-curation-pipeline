@@ -754,10 +754,12 @@ id 差集丢弃 + shardable=False 全局视角）是现成机制（minhash_lsh �
 run_batch 假设输入已按模态过滤（漏斗经 run_batch_mixed_modality 预过滤，评测集本就
 全 fhir 模态），与 text_minhash 同约定。
 
-## V4 α 决策点 4：医疗污染器（`src/mm_curation/contamination/fhir_impl.py`）
+## V4 α 决策点 4：医疗污染器（实施时落**包侧** curation_eval/fhir_contamination.py）
 
-复用 ContaminationPlan 骨架零改动（deepcopy + labels.dirty + id 后缀机制对模态无感），
-只新增 5 个 Contaminator：
+> 实施修订（2026-09-17 动码时）：原定主仓 V1 套（contamination/base.py），盘点发现
+> 仓库双注册表并存——V2 协议套在包内（benchmarks/judge_data/β 文本污染器都在那），
+> V1 主仓套仅剩 scripts/contaminate.py 一个消费方。按 β 先例改投包侧 V2 套，
+> 供体重抽走 ctx.pool，ContaminationPlan 零改动。下表不变：
 
 | kind | 注入动作 | 靶算子 |
 |---|---|---|

@@ -1,51 +1,56 @@
-# tasks.md — 原子任务拆解（现行模块：θ 偏好判官工坊）
+# tasks.md — 原子任务拆解（现行模块：V4 α 医疗模态协议扩展）
 
-> 按 docs/AI_CODING_PROTOCOL.md 生成：设计表（design_tables.md θ 节）经用户确认后拆任务，
-> 逐任务交付「代码 + pytest 证据 + 状态报告」。历史模块任务清单验收后归档 docs_archive/，
-> 本文件只保留现行模块。
+> 按 docs/AI_CODING_PROTOCOL.md 生成：设计表（design_tables.md V4 节）确认后拆任务，
+> 逐任务交付「代码 + pytest 证据 + 状态报告」。历史模块任务清单验收后归档 docs_archive/
+> （θ 已归档 docs_archive/v3-theta-studio/）。β/γ 阶段任务在 α 收官后另拆。
 
-## θ 层序声明
+## V4 α 层序声明
 
-数据逻辑层 → CLI 脚本层 → UI 层 → 文档回写层（下层依赖上层，不跨层跳写）。
+协议层（curation-eval 包）→ 数据逻辑层（语料/算子/污染器）→ CLI 脚本层 → 文档回写层
+（下层依赖上层，不跨层跳写）。
 
-## θ0 设计门
+## α1 协议层（packages/curation-eval）
 
-- [x] 设计表入 docs/design_tables.md θ 节，用户确认（2026-09-06，commit 1068e34）
+- [x] schema.py：MODALITY_FIELDS 登记 `fhir_resource: frozenset({"text"})`（既有登记点一行扩展）
+- [x] 新模块 curation_eval/fhir.py：`FHIRSample.from_resource / to_resource / parse`，
+      text = canonical JSON（sort_keys、ensure_ascii=False），meta 三键
+      （fhir_resource_type / fhir_version / fhir_last_updated）；构造期 fail-fast
+- [x] `__init__.py` 导出 FHIRSample；版本 0.2.0 → 0.3.0
+- [x] tests/test_fhir.py ≥6：roundtrip 保真 / meta 三键与 modality / 未知模态仍拒 /
+      from_dict 序列化往返 / 混合模态执行器跳过语义 / 批量算子 id 排序确定性 /
+      错误输入 ValueError
 
-## θ1 数据逻辑层（src/mm_curation/tuning/preference.py 增量）
+## α2 数据逻辑层（主仓）
 
-- [x] v2 标注行工厂 `make_label_row()`（全文 + 变体元数据 + labeler）
-- [x] 示例语料装载 `load_news_corpus_excluded()`（结构性排除 judge/pref/ext 全部既有占用）
-- [x] 模拟用户生成器 `oracle_labels_from_corpus()`（labeler=oracle，两本账通道之一）
-- [x] 数据构造 `build_user_pref_data()`：最小对三元组 / 按对 holdout / REJECT 剔除进统计 /
-      训练对照 + 评测对照题 / 协议一致性校验
-- [x] 冻结 `write_user_benchmark()`（manifest 含 labeler / 协议原文 / 泄漏检查）
-- [x] 单测 tests/test_pref_user.py（≥7 条：oracle 规则 / 最小对 / holdout 不相交 /
-      REJECT 剔除 / 对照题金标 / 不足与协议不一致退出 / manifest 字段）
+- [x] src/mm_curation/data/fhir_synth.py：`generate_corpus(seed, scale)`——
+      P100/O200/E100/M100（scale 缩放），内嵌假名池 40 + ICD-10 30 + LOINC 15 +
+      ATC 10 + UCUM 10 静态表；引用闭合；约 8% 合法业务异常；同 seed 逐字节一致
+- [x] src/mm_curation/operators/fhir_quality.py：phi_residual / code_validity /
+      unit_normalization（单样本）+ temporal_consistency / referential_integrity_fhir
+      （批量 shardable=False）；operators/__init__.py 接线
+- [x] OPERATOR_TARGETS 增五条主靶映射（eval/operator_pr.py）
+- [x] 包侧 curation_eval/fhir_contamination.py：fhir_phi_leak / fhir_code_invalid /
+      fhir_time_inverted / fhir_ref_broken / fhir_unit_off（供体重抽模式；
+      动码时发现仓库双污染器注册表并存——V1 主仓套仅剩 contaminate.py 消费方，
+      按 β 文本污染器先例改投包侧 V2 协议套，ContaminationPlan 零改动）
+- [x] tests/test_fhir_synth.py（seed 逐字节 / 构成与引用闭合 / 干净语料零 PHI 模式）
+- [x] tests/test_fhir_quality.py：5 算子 × ≥4（通过/拒绝/边界/错误输入）+
+      批量确定性
+- [x] tests/test_fhir_contamination.py（同 seed 确定性 / 五类靶向命中对应算子 /
+      原始样本不被修改）
 
-## θ2 CLI 脚本层
+## α3 CLI 脚本层
 
-- [x] `scripts/build_user_pref_data.py`：--labels/--out-dpo/--out-benchmark/--holdout/--limit；
-      标注不足或协议不一致 exit 2
-- [x] `scripts/build_oracle_labels.py`：模拟用户标注生成（独立文件，不与真人标注混）
-- [x] `run_pref_benchmark.py` 报告按 benchmark 名落盘（pref_alignment_<name>.json，
-      防向导评测覆盖 η-a 报告）
+- [x] configs/funnel_fhir.yaml（五算子链，单样本在前批量在后）
+- [x] scripts/eval_fhir.py：语料生成 → ContaminationPlan 注入 → evaluate_all 独立 P/R
+      （operator_pr 格式）→ 漏斗串联门禁（总体故障召回 ≥0.90 且误杀 ≤0.05，
+      跌破 exit 1，--no-gate 观测）→ data/reports/operator_pr_fhir.{json,md}
+- [x] Makefile 增 eval-fhir 目标
+- [x] tests/test_fhir_eval.py（小规模冒烟全绿落盘 / 门禁函数劣化判红）
 
-## θ3 UI 层（scripts/judge_studio.py 五步向导）
+## α4 文档回写层
 
-- [x] ①导入：粘贴/上传 txt·md / 一键示例语料 → S/F 变体对生成 + 可用率报告
-- [x] ②标注：甲/乙/都不合格 大按钮 + 进度条（建议 150 对）→ v2 文件逐条落盘
-- [x] ③训练：GPU 明示 → subprocess 现有 DPO 脚本（全默认参数）+ 实时日志 tail
-- [x] ④评测：subprocess 冻结评测（+通用基线）→ 对比出分页
-- [x] ⑤试用：贴任意 甲/乙 对 → 判官裁决（adapter 缓存加载，未训练时明示为通用基线）
-- [x] 冒烟：headless 启动 HTTP 200
-
-## θ3.5 流程验收（模拟用户账）
-
-- [x] oracle 250 条首训未达标（0.532≈通用，欠训练）→ 加量 550 条（536 三元组，
-      冻结考卷不变）→ **main 0.839 ≥0.75 达标**（通用 0.532 / 对照 0.80 vs 0.40）
-
-## θ4 文档回写层
-
-- [ ] RUNBOOK θ 段（含学习曲线实验命令）/ DEV_PLAN 日志 / ROADMAP 进度
-- [ ] 质量门全绿（ruff + 主仓 + 包）→ commit + push
+- [x] RUNBOOK eval-fhir 段（裸命令，Git Bash 无 make）
+- [x] DEV_PLAN 状态快照 + 日志；ROADMAP 进度表 V4 α 行
+- [x] ENGINEERING_NOTES（扁平化决策：第三模态零框架特例的话术）
+- [x] 质量门全绿（ruff + 主仓 + 包）→ 实点基线回写 → commit + push

@@ -1,0 +1,30 @@
+# 医疗 FHIR R4 质量漏斗（V4 α，fhir_resource 模态）——与图文/文本漏斗同一框架、同一约定。
+# 约定：score 语义统一为「越高越好」；min/max 为保留阈值；单样本算子在前、批量在后。
+# 语料：合成 FHIR R4（scripts/eval_fhir.py 按 --seed 生成，500 条/全量档），阈值依据：
+#   - 合规脏数据均为「存在即违规」，min=1.0 一票否决（PHI/编码/单位/时间/引用）
+#   - temporal_consistency 对引用缺失计 None 不误杀（断链责任在 referential）
+name: fhir_r4_quality
+description: >
+  医疗模态完整漏斗：合规单样本算子（PHI 残留/编码有效性/单位标准化）
+  -> 跨资源批量算子（时间一致性/引用完整性）。
+  与 cn_flickr_curation_v2 / zh_wiki_text_curation 共享注册表与执行器，零框架特例。
+
+dataset:
+  raw_jsonl: data/raw/fhir_synth/corpus.jsonl
+
+output:
+  dir: data/processed/fhir_funnel
+
+operators:
+  # --- 合规单样本算子（毫秒级） ---
+  - op: phi_residual        # PHI 残留：真实样式姓名/完整手机号/证件号/邮箱
+    params: {min: 1.0}
+  - op: code_validity       # ICD-10/LOINC/ATC 编码格式 + 码表成员
+    params: {min: 1.0}
+  - op: unit_normalization  # valueQuantity 单位 ∈ UCUM（大小写敏感，缺单位违规）
+    params: {min: 1.0}
+  # --- 跨资源批量算子（全量视角，shardable=False） ---
+  - op: temporal_consistency  # Observation 时间 > Patient.birthDate 且在 Encounter 周期内
+    params: {min: 1.0}
+  - op: referential_integrity_fhir  # subject/encounter 引用闭合
+    params: {min: 1.0}

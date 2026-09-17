@@ -4,6 +4,7 @@ from . import (  # noqa: F401
     clip_quality,
     dedup,
     detector_quality,
+    fhir_quality,
     image_quality,
     llm_judge,
     text_corpus,

@@ -29,6 +29,9 @@ funnel: ## 运行清洗漏斗（CONFIG=configs/pipeline.example.yaml）
 eval-op: ## 算子级 P/R 独立评测（全量脏集，独立运行每个算子）
 	python scripts/eval_operators.py
 
+eval-fhir: ## 医疗 FHIR 模态 P/R + 漏斗门禁（合成语料，确定性 seed）
+	python -X utf8 scripts/eval_fhir.py
+
 threshold-scan: ## 阈值敏感性扫描（含 matplotlib 图表）
 	python scripts/threshold_scan.py
 

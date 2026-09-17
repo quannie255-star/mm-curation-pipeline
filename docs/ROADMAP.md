@@ -395,3 +395,18 @@ benchmark 产物不入库）。工程发现：泄漏检查在中文上的两层�
 | ι 判官能力阶梯 | 通用 1.5B 补档（δ 走真实漏斗路径 + ζ/ext/pref 三冻结 benchmark）+ ζ 1.5B LoRA（训练中） | δ κ **0→0.247**（解析率 69.5%→93.8%，「只改 base_url」实测成立）；ζ 0.047 / pref 0.517/0.467 ≈随机；ext **0.06-0.24 反向**——通用放大不保证单调，域任务仍只有微调能救（矩阵 benchmarks/capability_matrix.json） |
 | κ 规模拐点 | 语料扩到 100 万（独立文件，SHARDS 全 6 分片）+ ray benchmark 参数化（--corpus/--tile/--out）+ 梯度双跑 | **单机全区间 local 胜**：100k 2.21× / 300k 1.38× / 1M 2.34×（Ray/local），每档等价性三口径全等（1M kept 774,424 逐 id 相等）——「什么时候开 Ray」的答案是多节点，不是大数据；报告 data/reports/scale_crossover.{md,png} |
 | λ SemDeDup 采样 | SemanticPruneSampler（faiss 球面 k-means 簇内剪枝 → 存活池走分层配比），索引空间向量零重编码 | **诚实阴性**：9 组合仅 1 项 R@10 微胜 stratified，ε 越大越差——漏斗已在上游吃掉语义冗余，「下游无冗余可剪」反向证明去重质量；16 单测全绿；笔记 #66（回归基线要带池子指纹） |
+
+## V4 α：医疗模态协议扩展（2026-09-17）
+
+> 外部任务书两方向之一：curation-eval 协议延伸到医疗数据（FHIR R4）。
+> 设计表 design_tables.md V4 节；后续 β 评测量化闭环 / γ CI 失败诊断 / δ 医疗端到端另拆。
+
+| 件 | 内容 | 结果 |
+|---|---|---|
+| 协议层 | MODALITY_FIELDS 登记 `fhir_resource` + `FHIRSample` 适配器（text=canonical JSON，roundtrip 保真），包 v0.3.0 | 执行器/评测器/算子级评测零改动处理医疗样本——第三模态零框架特例实证 |
+| 医疗算子 | phi_residual / code_validity / unit_normalization（单样本）+ temporal_consistency / referential_integrity_fhir（批量 shardable=False，跨资源 None 不误杀语义） | 五算子 precision / 主靶 recall 全 100% |
+| 合规污染器 | 五类注入落**包侧 V2 协议套**（fhir_contamination.py，供体重抽模式；仓库双污染器注册表并存——V1 主仓套仅剩 contaminate.py 消费，按 β 先例投包侧） | 每类注入被主靶算子 100% 检出，干净侧零误杀 |
+| 合成语料 | fhir_synth.py 确定性 500 条（P100/E100/O200/M100 引用闭合 + 合法业务异常 + 内嵌码表），同 seed 逐字节一致 | 无真实患者数据；`--seed` 切换版本 |
+| 评测入口 | `eval_fhir.py` 算子级 P/R（operator_pr 同格式）+ 漏斗串联门禁（召回 ≥90%/误杀 ≤5% exit code） | 500+150 实跑：漏斗召回 100%/误杀 0% **PASSED**；报告 operator_pr_fhir.{json,md}；Makefile eval-fhir |
+
+测试基线 229+47（+35/+7 零倒退）；笔记 #67（协议对数字错的三个坑）。
