@@ -685,3 +685,197 @@ scripts/text_dedup_benchmark.py / scripts/finetune_gpt2.py: 两个实验入口
 3. 质量门：ruff 绿；主仓 pytest 实点 ≥183 不倒退（新增不计回归）；包侧 40 不受影响。
 4. 真跑验收（联网，用户执行）：`fetch_finance_news.py --symbols 600519` 落 ≥1 条；
    `ops_daily.py --skip-findata` 出首份日报。
+
+# V4 设计表：医疗模态协议扩展 + 评测量化闭环（2026-09-17）
+
+> 来源：外部任务书（方向一：curation-eval 协议扩展至医疗 FHIR 模态；方向二：评测体系
+> 升级为可对标学术基准的量化闭环）。任务书五条硬约束全盘接受：①不破坏既有评测数字
+> （主仓 194 + 包 40 基线只增不减，图文/文本管道既有指标逐项相等）；②离线可跑、
+> 无外部 API 依赖；③不改 Sample 协议方法签名，新模态走注册表扩展；④确定性优先
+> （语料 --seed 逐字节一致）；⑤测试先行（每算子 ≥4 条单测）。
+> 分期：**V4 α 医疗模态协议扩展 → V4 β 评测量化闭环 → V4 γ CI 失败诊断**；
+> δ（医疗端到端检索闭环）依赖 α 实测数据，届时另开设计门（边界见文末）。
+> 在途避让：`tuning/extraction.py` / `eval_judge.py` / `capability_matrix.json` /
+> `runs/experiments.jsonl` / `findata_health_stage.py` 为协作方在途文件，本轮不触碰。
+
+## V4 α 决策点 1：FHIR 资源如何扁平化为 Sample（数据结构表）
+
+| 方案 | 做法 | 弃/用 |
+|---|---|---|
+| A. text = canonical JSON | 资源 JSON 规范化序列化（sort_keys、ensure_ascii=False）进 `sample.text`；meta 带资源类型/版本/更新时间三键 | **采用** |
+| B. 结构化塞 meta["fhir"]，text 留叙事摘要 | 双份事实源，roundtrip 依赖 meta，序列化不对称 | 弃 |
+| C. FHIRSample 子类化 Sample | dataclass 继承后 `Sample.from_dict` 返回基类类型，协议出现两套构造路径 | 弃 |
+
+A 的理由：MODALITY_FIELDS 只需登记 `fhir_resource: frozenset({"text"})`；五个医疗算子
+required_fields 全部为 `{"text"}`（结构化内容由算子从 text 解析）；既有文本/图文算子靠
+modalities 声明天然跳过 fhir 样本（不会拿 JSON 长度误判）；执行器与算子级评测器
+（含 `run_operator` 的批量口径）零改动——任务书「现有算子执行器不需要修改」直接满足。
+
+| FHIR 资源 | Sample 映射 | 说明 |
+|---|---|---|
+| resourceType + id | `id = f"{resourceType[:3].lower()}_{logical_id}"` | resourceType 本体留在 JSON 内 |
+| 全资源 JSON | `text = json.dumps(..., sort_keys=True, ensure_ascii=False)` | 单一事实源 |
+| resourceType | `meta["fhir_resource_type"]` | Patient/Observation/Encounter/MedicationRequest |
+| （版本） | `meta["fhir_version"] = "R4"` | 本期只做 R4；OMOP 不在本期范围 |
+| meta.lastUpdated | `meta["fhir_last_updated"]` | |
+| subject/encounter 等引用 | 留在 JSON 内，不提升为顶层字段 | referential/temporal 算子解析 JSON |
+
+## V4 α 决策点 2：FHIRSample 适配器（包侧新公共模块，只增不改）
+
+位置：`packages/curation-eval/src/curation_eval/fhir.py`；包版本 0.2.0 → 0.3.0。
+MODALITY_FIELDS 登记走 schema.py 既有登记点（一行扩展，不算改协议签名）。
+
+| API | 签名 | 语义 |
+|---|---|---|
+| `FHIRSample.from_resource` | `(resource: dict, *, fhir_version="R4") -> Sample` | 校验 resourceType/id → 展平为 Sample（modality="fhir_resource"） |
+| `FHIRSample.to_resource` | `(sample: Sample) -> dict` | 逆映射；roundtrip 保真：`from_resource(to_resource(s))` 与 s 逐字段相等 |
+| `FHIRSample.parse` | `(sample: Sample) -> dict` | 算子用：text → 资源 dict |
+
+错误输入约定：缺 resourceType / 缺 id / 未知 resourceType / 非 fhir 样本误用 →
+ValueError（构造期 fail-fast，与注册表同哲学）。
+
+## V4 α 决策点 3：五个医疗算子（主仓 `src/mm_curation/operators/fhir_quality.py`）
+
+score 语义沿用「越高越好」，None = 无法计分保留并记录；cost_class 全部 = RULE
+（码表/单位表为静态查表，无推理开销；任务书的「中成本」指表维护成本，不进 CostClass）。
+
+| 算子 | score 定义 | 默认阈值 | 执行形态 | 主靶（OPERATOR_TARGETS） |
+|---|---|---|---|---|
+| phi_residual | 1 - PHI 命中字段数/扫描字段数（扫描 name/address/telecom/identifier 叶值；正则族：手机号/身份证/SSN/邮箱 + 未脱敏 given 名） | min=1.0 | 单样本 | fhir_phi_leak |
+| code_validity | 合法编码字段占比（ICD-10/LOINC 格式校验 + 内嵌码表成员；无 code 字段 = 1.0） | min=1.0 | 单样本 | fhir_code_invalid |
+| unit_normalization | valueQuantity 单位 ∈ UCUM 表占比（大小写敏感；缺 unit = 违规；无 valueQuantity = 1.0） | min=1.0 | 单样本 | fhir_unit_off |
+| temporal_consistency | 时间检查通过占比（effectiveDateTime 晚于 Patient.birthDate 且落在 Encounter 周期内；引用缺失 = None 不误杀） | min=1.0 | **批量，shardable=False**（需跨资源查 birthDate/周期） | fhir_time_inverted |
+| referential_integrity_fhir | 可解析引用占比（subject/encounter 等引用指向集内存在的资源；无引用 = 1.0） | min=1.0 | **批量，shardable=False**（需全量 id 集） | fhir_ref_broken |
+
+两点有意偏离任务书字面：①「一算子一文件」收进家族文件 fhir_quality.py（与
+text_quality.py/image_quality.py 同型，仓库既有惯例优先）；②「跨资源查询」的两算子
+做批量算子而非把引用提升为顶层字段——保持 FHIR 语义原样，批量算子协议（run_batch +
+id 差集丢弃 + shardable=False 全局视角）是现成机制（minhash_lsh 同型）。批量算子
+run_batch 假设输入已按模态过滤（漏斗经 run_batch_mixed_modality 预过滤，评测集本就
+全 fhir 模态），与 text_minhash 同约定。
+
+## V4 α 决策点 4：医疗污染器（`src/mm_curation/contamination/fhir_impl.py`）
+
+复用 ContaminationPlan 骨架零改动（deepcopy + labels.dirty + id 后缀机制对模态无感），
+只新增 5 个 Contaminator：
+
+| kind | 注入动作 | 靶算子 |
+|---|---|---|
+| fhir_phi_leak | 脱敏名（given=["*"]）替换为假名池真实样式姓名；变体：telecom 复原完整手机号 | phi_residual |
+| fhir_code_invalid | E11.9 → E119 / e11.9（格式破坏），或换成码表外合法格式码 | code_validity |
+| fhir_time_inverted | Observation.effectiveDateTime 移到其 Patient.birthDate 之前 | temporal_consistency |
+| fhir_ref_broken | subject 指向不存在的 Patient id，或 encounter 引用断链 | referential_integrity_fhir |
+| fhir_unit_off | mg/dL → mg/dl（UCUM 大小写违规），或删除 unit | unit_normalization |
+
+ground truth 与现有污染器一致：labels.dirty = kind；注入不修改原始样本（新增条目）。
+
+## V4 α 决策点 5：合成 FHIR R4 语料生成器（`src/mm_curation/data/fhir_synth.py`）
+
+- 构成：Patient 100 / Observation 200 / Encounter 100 / MedicationRequest 100 = **500 条**；
+  Observation 引用 Patient+Encounter、MedicationRequest 引用 Patient+Encounter，
+  引用闭合保证干净侧在 referential 算子上误杀 = 0 可归因。
+- 确定性：id 顺序编号（pat-000001…）；内嵌静态表——假名池 40 个（脱敏基线与注入池
+  两用）、ICD-10 码表 30 个、LOINC 码表 15 个、UCUM 单位表 10 个；随机只走
+  `random.Random(seed)` 控制 value/时间偏移/变体字段；同 seed 输出逐字节一致。
+- 无真实患者数据：全部字段程序生成，假名池为通用常见姓名样式、不指向真实个体
+  （报告固定脚注声明）。
+- 合法业务异常（不注入、不标注、计干净侧）：约 8% Observation 缺 valueQuantity、
+  部分 Encounter 无 end、个别资源无 telecom——防止算子靠「字段必须齐全」作弊拿召回；
+  异常清单进 manifest，误杀审计可区分。
+
+## V4 α 决策点 6：评测入口（make eval-fhir）
+
+- `configs/funnel_fhir.yaml`：五算子链（批量两算子按依赖排后），name = fhir_r4_quality。
+- `scripts/eval_fhir.py`：生成语料（--seed，默认 42）→ ContaminationPlan 注入
+  （--inject-rate，默认 0.3）→ evaluate_all 独立 P/R → 报告
+  `data/reports/operator_pr_fhir.{json,md}`（格式与 make eval-op 一致）。
+- **门禁内置**（沿用 data_ci 哲学：单测管逻辑、门禁管数字）：总体故障召回 ≥0.90
+  （分类型在报告列出）且干净误杀率 ≤0.05，跌破 exit 1；--no-gate 观测模式。
+- Makefile 增 `eval-fhir`；RUNBOOK 补裸命令（本机 Git Bash 无 make）。
+
+## V4 α 流转表（样本生命周期）
+
+语料生成（labels={}，干净）→ ContaminationPlan 注入（labels.dirty=kind、id 加后缀、
+原始样本保持干净）→ 两条互不影响路径：①算子级独立评测（run_operator 全量单跑，
+evaluate_operator 现成口径）；②漏斗串联（funnel_fhir.yaml，StageStat 逐级统计）。
+批量算子内部：按 id 规范化排序（协议既有确定性约定）→ 建跨资源索引（Patient
+birthDate 表 / 全量 id 集）→ 逐样本计分写 meta["score:<op>"] → 低于阈值剔除。
+
+## V4 α 测试计划（基线主仓 194 + 包 40 只增不减）
+
+- 包侧 ≥6：roundtrip 保真 / MODALITY 登记校验（未知模态仍拒）/ 混合模态漏斗跳过语义
+  （fhir 样本过文本算子计 skipped 不误杀）/ from_dict 兼容 / 批量算子 id 排序确定性 /
+  错误输入 ValueError。
+- 主仓：5 算子 × ≥4（正常通过/正常拒绝/边界值/错误输入）；污染器 3（同 seed 确定性/
+  五类注入靶向命中/比例归一）；语料 2（seed 逐字节一致/构成与引用闭合断言）；
+  eval_fhir 冒烟 2（小规模全绿落盘/劣化注入 exit 1）。
+
+## V4 β 决策点 1：benchmark_compare 的诚实边界
+
+对标的是**协议与维度**，不是复现其数字——KramaBench/Evian 数据集不入仓（离线红线），
+其评测协议作为内嵌参照系；产出是本项目证据映射进两个学术框架的对标表：
+
+| 对标框架 | 取用协议 | 本项目证据源 |
+|---|---|---|
+| KramaBench 端到端层 | 任务级最终指标 | 检索 R@K + 训练级证据（finetune_eval） |
+| KramaBench 管道设计层 | 管道组件贡献 | 漏斗 StageStat + 阈值扫描曲线 |
+| KramaBench 子任务实现层 | 子任务 P/R | 算子级 P/R（operator_pr） |
+| Evian 分解后评估 | 正交维度分解 | 清洗收益按维度分组消融：一致性=去重组 / 连贯性=规则组 / 事实性=模型组 |
+
+路径说明：任务书写「eval/ 目录」，仓库既有惯例是逻辑进 `src/mm_curation/eval/`、
+CLI 薄壳进 `scripts/`（eval_operators/eval_ablation 同型），照惯例走。
+输出 `data/reports/benchmark_compare.{json,md}`。
+
+## V4 β 决策点 2：attribution_report 三块
+
+1. 算子级边际贡献：泛化 eval_ablation（零重编码技巧复用），逐算子 + 分组
+   （去重/规则/模型）双粒度；验收 = 「去重组 ΔR@1 = -0.017」在报告中复现。
+2. 模态级对比：清洗强度 = 漏斗前缀长度 k（前 k 个算子后的存活集）；图文侧 held_out
+   R@1 曲线（零重编码）；文本侧 GPT-2 zh PPL 曲线（5,000 条固定 seed 子采样——全量
+   PPL × 8 个前缀点成本不可接受，代理口径如实标注）→ `attribution_by_modality.json`。
+3. 成本-收益比：每算子「每 1% 误杀率对应的墙钟成本」，沿用 cost_model 计时口径，
+   输出值得保留/可以关闭的分档建议。
+
+## V4 β 决策点 3：train-evidence 自动化管线
+
+- `scripts/train_evidence.py` 编排：干净/脏集划分 → 分别微调 → 固定 held-out 评测
+  → 对比报告（扩展 finetune_eval.json 格式，新增 reproducibility 字段）。
+- 双任务：clip（R@1）与 ppl（GPT-2 困惑度），`--tasks clip,ppl` 可选跑。
+- 可复现性检查：同 seed 训两次，R@1 差异 ≤0.5% 否则 exit 1（GPU 全量约数小时，
+  --smoke 降规模冒烟进 CI）。
+- Makefile 增 `train-evidence`。
+
+## V4 γ 决策点：CI 门禁失败诊断
+
+- 共享诊断模块 `src/mm_curation/eval/diagnostics.py`：
+  ①门禁跌破阈值 → 落退步样本清单（样本 id + 注入类型 + 各算子分数与阈值）；
+  ②算子触发差异表：本次 vs 上次运行逐样本「通过↔被丢」翻转清单，标注责任算子；
+  ③前后状态落盘 `data/reports/ci_diagnostics/<gate>/<date>.json`（本地对比上一次），
+  data-ci.yml 补 actions/upload-artifact，GitHub 页面直接可读。
+- 接入三个门禁脚本：data_ci_benchmark / data_ci_image_benchmark /
+  threshold_regression_gate（共享 helper，各自门禁逻辑不动）。
+- 验收：故意注入回归（如 phash_near 阈值调松）→ 日志出现退步清单与差异表而非裸 FAIL。
+
+## 风险
+
+| 风险 | 对策 |
+|---|---|
+| FHIR JSON 进 text 后，文本算子若误配 modalities 会拿 JSON 长度误判 | 算子 modalities 精确声明；包侧测试锁「混合模态跳过」语义 |
+| 批量算子（temporal/referential）在 Ray 下的全局视角正确性 | shardable=False 走既有单机汇聚路径；α 先 local，Ray 等价性留 δ 顺带验证 |
+| temporal_consistency 遇引用缺失样本被误杀 | 协议 None 语义：无法计分保留并记录，断链责任归 referential 算子 |
+| 文本 PPL 前缀曲线成本失控 | 5,000 条固定 seed 子采样 + 前缀点 ≤9 个 + 代理口径如实标注 |
+| train-evidence GPU 时长阻塞合入 | --smoke 降规模进 CI；全量由用户择机执行 |
+| 合成语料「合法业务异常」被算子误杀虚增误杀率 | 异常清单入 manifest，误杀审计可区分 |
+
+## 验收标准汇总（对照任务书）
+
+- α：make eval-fhir 跑通，P/R 报告格式与 operator_pr 一致；五算子双向单测齐；污染器
+  总体故障召回 ≥90% / 误杀 ≤5%（门禁 exit code 锁）；图文+文本管道既有测试全绿且
+  评测数字逐项相等（全量 pytest 前后对比）。
+- β：benchmark_compare 出 Markdown+JSON 对标表；attribution_report 复现去重组
+  -0.017；train-evidence 图文管道跑通且双跑 R@1 差 ≤0.5%。
+- γ：故意注入回归时门禁输出退步样本清单 + 算子触发差异表。
+- δ（另开设计门）：医疗模态接入 清洗漏斗 → 向量索引 → 检索评测 链路，有独立
+  Recall@K 报告与清洗前后量化对比。
+- 每阶段收工按 AGENTS.md 四件套（质量门 / DEV_PLAN 回写 / 工程笔记 / ROADMAP+RUNBOOK）
+  + 中文 commit push。
