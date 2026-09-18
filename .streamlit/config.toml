@@ -1,0 +1,11 @@
+# Streamlit 主题（洁净室蓝绿：配合 showcase_app.py 的净水厂设计语言）
+# 影响仓库内所有 Streamlit 应用，保持统一皮肤。
+[theme]
+base = "light"
+primaryColor = "#0E7490"
+backgroundColor = "#F7F9FA"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#1C2B33"
+
+[server]
+port = 8501

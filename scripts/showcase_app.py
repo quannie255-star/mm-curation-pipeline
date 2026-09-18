@@ -1,15 +1,10 @@
 """数据质量平台演示门户（V5 β）：四模态一个框架的统一演示入口。
 
-定位：面试/展示的**唯一入口**——总览讲平台故事（基座+领域增强包），四个模态
-页签各自由 data/reports/*.json 渲染门禁卡与算子 P/R 表，证据链页签串起
-「清洗收益可证明」的完整数字链。四个存量应用（streamlit_app / ops_dashboard /
-judge_studio / platform_app）保持不动，本门户在侧边栏给出跳转定位。
+设计语言：「数据净水厂」——脏数据是原水，算子是滤级，门禁是出厂验收。
+视觉收敛（洁净室蓝绿，语义色只给门禁结论），唯一大胆处是首屏净水流程条
+与实时门禁读数仪。包装层面向第一次来的个人使用者：30 秒看懂 + 角色路线。
 
-现场演示能力：轻量评测（eval-fhir / eval-industrial，纯 CPU ~6 秒）提供
-「重跑门禁」按钮——subprocess 实时日志 tail（judge_studio 同款），跑完自动
-刷新报告。重量级评测（图文 eval-op 等）只给命令不给按钮。
-
-启动：streamlit run scripts/showcase_app.py
+启动：python -m streamlit run scripts/showcase_app.py
 """
 
 from __future__ import annotations
@@ -32,34 +27,115 @@ RERUN_WHITELIST = {
 
 DOMAINS = {
     "image": {
-        "title": "图文（V1，COCO-CN）",
+        "title": "图文数据",
+        "tag": "图像 + 文字描述",
         "report": "operator_pr.json",
-        "blurb": "11 级漏斗：清洗后检索 R@1 +21%，2106 条全量召回 100%",
+        "blurb": "11 级滤芯：模糊图、重复图、图文不符、低质描述……清洗后检索准确率提升 21%",
         "cmd": "python scripts/eval_operators.py",
-        "cost": "约 4 分钟（需图文数据集与 CLIP 缓存）",
+        "cost": "约 4 分钟（需要先准备图文数据集）",
     },
     "text": {
-        "title": "文本（V2 β，中文维基）",
+        "title": "文本数据",
+        "tag": "网页文章 / 语料库",
         "report": "text_dedup_benchmark.json",
-        "blurb": "10 万档去重 exact 1.0 / near 0.97；微调 ppl +7.5%",
+        "blurb": "30 万篇维基文本：转载重复、乱码、模板水文。去重 exact 100%，微调质量 +7.5%",
         "cmd": "python scripts/data_ci_benchmark.py",
-        "cost": "约 0.5 秒（合成语料门禁）",
+        "cost": "约 0.5 秒",
     },
     "fhir": {
-        "title": "医疗 FHIR（V4 α）",
+        "title": "医疗数据",
+        "tag": "医院信息系统的 FHIR 资源",
         "report": "operator_pr_fhir.json",
-        "blurb": "PHI/编码/单位/时间/引用五算子；计划事件源进样本流",
+        "blurb": "隐私残留、编码写错、单位混乱、时间倒挂、检查单指向不存在的患者——五个滤芯各管一种",
         "cmd": "python -X utf8 scripts/eval_fhir.py",
-        "cost": "约 6 秒（可现场重跑）",
+        "cost": "约 6 秒",
     },
     "industrial": {
-        "title": "工业传感器（V5 α）",
+        "title": "工业传感器",
+        "tag": "产线设备时序读数",
         "report": "operator_pr_industrial.json",
-        "blurb": "卡死/量程/漂移/单位/计划判别；「停牌 vs 采集失败」的工业映射",
+        "blurb": "传感器卡死、超量程、校准漂移、单位混用；计划检修的停数是正常的，链路断了才是故障",
         "cmd": "python -X utf8 scripts/eval_industrial.py",
-        "cost": "约 6 秒（可现场重跑）",
+        "cost": "约 6 秒",
     },
 }
+
+CSS = """
+<style>
+:root {
+  --paper: #F7F9FA; --ink: #1C2B33; --sub: #5B6E76; --line: #D8E1E5;
+  --water: #0E7490; --wash: #E8F2F4; --pass: #15803D; --fail: #B91C1C;
+}
+.stApp { background: var(--paper); color: var(--ink); }
+#MainMenu { visibility: hidden; }
+h1 { font-weight: 650; letter-spacing: -0.02em; }
+p, li { line-height: 1.65; }
+.block-container { padding-top: 2.2rem; max-width: 1180px; }
+
+/* 指标读数卡：仪器面板风，细边框直读，无投影 */
+[data-testid="stMetric"] {
+  background: #FFFFFF; border: 1px solid var(--line);
+  border-radius: 10px; padding: 12px 16px;
+}
+[data-testid="stMetricValue"] { font-weight: 700; color: var(--ink); }
+[data-testid="stMetricLabel"] { color: var(--sub); }
+
+/* 页签：分段控制 */
+.stTabs [data-baseweb="tab-list"] { gap: 6px; border-bottom: 1px solid var(--line); }
+.stTabs [data-baseweb="tab"] {
+  padding: 8px 18px; border-radius: 8px 8px 0 0;
+  color: var(--sub); font-weight: 550;
+}
+.stTabs [aria-selected="true"] {
+  background: #FFFFFF; color: var(--water);
+  border-top: 2px solid var(--water);
+}
+
+/* 按钮：主动语态的实心主行动 */
+.stButton > button {
+  border-radius: 9px; border: 1px solid var(--water);
+  background: var(--water); color: #FFFFFF; font-weight: 600;
+}
+.stButton > button:hover { background: #155E75; border-color: #155E75; color: #FFF; }
+
+[data-testid="stDataFrame"] {
+  border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+  background: #FFF;
+}
+[data-testid="stSidebar"] { background: #FFFFFF; border-right: 1px solid var(--line); }
+.stCodeBlock code { border-radius: 8px; }
+
+/* 净水流程条：唯一的视觉重心 */
+.hero { background: #FFFFFF; border: 1px solid var(--line); border-radius: 14px;
+        padding: 26px 30px 18px; margin-bottom: 14px; }
+.hero-flow { display: flex; align-items: stretch; gap: 0; margin: 14px 0 6px; }
+.hero-step { flex: 1; text-align: center; padding: 14px 8px;
+             background: var(--wash); border-radius: 10px; }
+.hero-step .ico { font-size: 22px; }
+.hero-step .nm { font-weight: 650; margin-top: 4px; }
+.hero-step .ds { font-size: 12.5px; color: var(--sub); margin-top: 2px; line-height: 1.4; }
+.hero-pipe { display: flex; align-items: center; padding: 0 7px; color: var(--water);
+             font-size: 20px; font-weight: 300; }
+.readout { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+.readout .cell { flex: 1; min-width: 200px; border: 1px solid var(--line);
+                 border-radius: 8px; padding: 8px 14px; background: var(--paper);
+                 display: flex; justify-content: space-between; align-items: center; }
+.readout .nm { font-weight: 600; font-size: 13.5px; }
+.readout .val { font-size: 13px; color: var(--sub); }
+.pill { font-weight: 700; font-size: 12.5px; padding: 2px 10px; border-radius: 999px; }
+.pill.pass { color: var(--pass); border: 1px solid var(--pass); }
+.pill.na { color: var(--sub); border: 1px solid var(--line); }
+@media (max-width: 820px) { .hero-flow { flex-direction: column; }
+  .hero-pipe { transform: rotate(90deg); padding: 2px 0; justify-content: center; } }
+</style>
+"""
+
+WHAT_IS_THIS = (
+    "这是一套**给数据做质检的流水线**。把脏数据当成原水：先沉淀（规则检查，"
+    "比如太短的文本、模糊的图片）、再过滤（去重、结构校验）、最后深度净化"
+    "（模型判读）。每一级滤芯都有质检报告——抓坏了多少（**召回**）、错伤了多少"
+    "好数据（**误杀**）——出厂前还要过一道验收门禁，不达标不出厂。"
+)
 
 
 def load_report(name: str) -> dict | None:
@@ -95,9 +171,7 @@ def pr_rows(report: dict | None) -> list[dict]:
     rows = []
     for op in report.get("operators", []):
         prim = op.get("primary_recall") or {}
-        recall_txt = "/".join(
-            f"{v:.0%}" for v in prim.values() if v is not None
-        ) or "—"
+        recall_txt = "/".join(f"{v:.0%}" for v in prim.values() if v is not None) or "—"
         prec = op.get("precision")
         rows.append(
             {
@@ -132,7 +206,7 @@ def ft_rows(report: dict | None) -> list[dict]:
     """训练级证据（CLIP 干净/脏集微调对比）。"""
     if not report:
         return []
-    label = {"base": "基线（未微调）", "clean_ft": "干净集微调", "dirty_ft": "脏集微调"}
+    label = {"base": "基线（未微调）", "clean_ft": "用干净数据训练", "dirty_ft": "用脏数据训练"}
     return [
         {
             "配置": label.get(name, name),
@@ -162,7 +236,7 @@ def ablation_rows(report: dict | None) -> list[dict]:
 
 def run_rerun(cmd: list[str]) -> None:
     """现场重跑：subprocess 流式 tail 日志（judge_studio 同款），成功后刷新。"""
-    with st.status("运行评测中…", expanded=True) as status:
+    with st.status("质检运行中，正在重新生成报告…", expanded=True) as status:
         proc = subprocess.Popen(  # noqa: S603
             cmd,
             cwd=REPO,
@@ -180,158 +254,222 @@ def run_rerun(cmd: list[str]) -> None:
             log_view.code("\n".join(tail[-25:]), language="text")
         rc = proc.wait()
         if rc == 0:
-            status.update(label="评测完成 ✓ 报告已刷新", state="complete")
+            status.update(label="质检完成，报告已刷新", state="complete")
             st.rerun()
         else:
-            status.update(label=f"评测失败 rc={rc}（门禁未过或环境缺失）", state="error")
+            status.update(
+                label=f"运行结束但门禁未通过（退出码 {rc}），报告已照常落盘", state="error"
+            )
+
+
+def render_hero() -> None:
+    gates = {k: gate_cards(load_report(s["report"])) for k, s in DOMAINS.items()}
+    st.markdown(
+        """
+        <div class="hero">
+        <div class="hero-flow">
+          <div class="hero-step"><div class="ico">🚰</div><div class="nm">原水</div>
+            <div class="ds">脏数据：重复、乱码、隐私残留、传感器坏数</div></div>
+          <div class="hero-pipe">──</div>
+          <div class="hero-step"><div class="ico">🧱</div><div class="nm">沉淀</div>
+            <div class="ds">规则滤芯：长度、量程、编码格式</div></div>
+          <div class="hero-pipe">──</div>
+          <div class="hero-step"><div class="ico">🧺</div><div class="nm">过滤</div>
+            <div class="ds">去重与校验：转载、断链、单位混用</div></div>
+          <div class="hero-pipe">──</div>
+          <div class="hero-step"><div class="ico">🔬</div><div class="nm">深度净化</div>
+            <div class="ds">模型与判别：漂移、时间一致性</div></div>
+          <div class="hero-pipe">──</div>
+          <div class="hero-step"><div class="ico">💧</div><div class="nm">出水</div>
+            <div class="ds">带质检报告的可信数据集</div></div>
+        </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    cells = []
+    for key, spec in DOMAINS.items():
+        g = gates.get(key)
+        if g:
+            val = f"召回 {g['recall']:.0%} · 误杀 {g['false_kill']:.1%}"
+            pill = (
+                '<span class="pill pass">合格出厂</span>'
+                if g["passed"]
+                else '<span class="pill na">未达标</span>'
+            )
+        else:
+            val = "报告未生成"
+            pill = '<span class="pill na">待质检</span>'
+        cells.append(
+            f'<div class="cell"><span class="nm">{spec["title"]}</span>'
+            f'<span class="val">{val}</span>{pill}</div>'
+        )
+    st.markdown(f'<div class="readout">{"".join(cells)}</div>', unsafe_allow_html=True)
 
 
 def render_domain(key: str) -> None:
     spec = DOMAINS[key]
-    st.caption(spec["blurb"])
+    st.markdown(f"**{spec['tag']}**——{spec['blurb']}")
     report = load_report(spec["report"])
     gate = gate_cards(report) if key != "text" else None
 
     if report is None:
-        st.warning(f"报告未生成：`data/reports/{spec['report']}`")
+        st.warning(
+            f"这个领域的质检报告还没生成。运行下面的命令（{spec['cost']}），"
+            "跑完回到本页就能看到读数。"
+        )
         st.code(spec["cmd"], language="bash")
-        st.caption(f"耗时：{spec['cost']}")
     else:
         if gate:
             c1, c2, c3 = st.columns(3)
-            c1.metric("漏斗故障召回", f"{gate['recall']:.1%}", border=True)
-            c2.metric("干净误杀率", f"{gate['false_kill']:.2%}", border=True)
-            c3.metric(
-                "门禁结论",
-                "PASSED ✓" if gate["passed"] else "FAILED ✗",
-                border=True,
-            )
+            c1.metric("故障召回（坏数据抓住了多少）", f"{gate['recall']:.1%}", border=True)
+            c2.metric("误杀率（好数据错伤了多少）", f"{gate['false_kill']:.2%}", border=True)
+            c3.metric("出厂验收", "合格" if gate["passed"] else "未达标", border=True)
         st.dataframe(pr_rows(report), width="stretch", hide_index=True)
-        st.caption(f"报告：data/reports/{spec['report']}（生成命令见下方）")
+        st.caption(
+            "每一行是一个滤芯：扔 = 拦下的数据量，误杀 = 错拦的好数据，"
+            "主靶recall = 对它负责的那类脏数据抓到了多少。"
+        )
 
-    with st.expander("生成命令"):
+    with st.expander("想自己跑一遍？"):
         st.code(spec["cmd"], language="bash")
-        st.caption(f"耗时：{spec['cost']}")
+        st.caption(f"耗时：{spec['cost']}。数据与报告不入库，全部可由命令重新生成。")
 
-    if key in RERUN_WHITELIST and st.button("▶ 现场重跑门禁（秒级）", key=f"rerun_{key}"):
+    if key in RERUN_WHITELIST and st.button("重跑门禁，约 6 秒", key=f"rerun_{key}"):
         run_rerun(RERUN_WHITELIST[key])
 
     if key == "industrial":
         st.info(
-            "口径说明：批量算子（漂移等）的全局统计会被其他类型灾难注入污染，"
-            "「独立评测」口径下误杀偏高属预期；**漏斗串联门禁**才是端到端承诺口径。"
+            "读数口径：独立评测时，漂移滤芯的全局统计会被其他坏数据干扰，"
+            "误杀偏高是已知现象；**流水线串联门禁**（先拦灾难数据、再测漂移）"
+            "才是对外的验收口径。"
         )
 
 
 def main() -> None:
-    st.set_page_config(page_title="mm-curation 数据质量平台", page_icon="🧭", layout="wide")
-    st.title("🧭 mm-curation 数据质量平台")
+    st.set_page_config(page_title="mm-curation · 个人数据质量助手", page_icon="💧", layout="wide")
+    st.markdown(CSS, unsafe_allow_html=True)
+
+    st.title("把脏数据，变成可信数据集")
     st.caption(
-        "多模态数据清洗与预处理平台 = curation-eval 基座 + 领域增强包。"
-        "四个模态（图文/文本/医疗 FHIR/工业传感器）共享同一套协议、注册表、执行器与门禁——"
-        "每个领域包独立验收：污染注入 → 算子 P/R → 漏斗门禁。"
+        "mm-curation 是一套跑在你自己电脑上的个人数据质量助手：四个领域（图文、文本、"
+        "医疗、工业传感器）共用同一套质检流水线，每个领域都带着可以当场重跑的验收门禁。"
     )
+    render_hero()
+
+    with st.expander("第一次来？30 秒看懂它在做什么"):
+        st.markdown(WHAT_IS_THIS)
+        st.markdown(
+            "**接下来去哪，取决于你是谁：**\n"
+            "- *我只是好奇*——点上面的「医疗数据」页签，按一下「重跑门禁」，"
+            "看它现场质检一遍\n"
+            "- *想评估这个项目*——直接看最后的「效果证据」页签：清洗前后的检索、"
+            "训练对比数字都在\n"
+            "- *想接自己的领域*——照 docs/DOMAIN_PACKS.md 的六步，"
+            "写一个领域增强包（最薄的包一个下午能跑通）"
+        )
 
     tab_over, tab_img, tab_text, tab_fhir, tab_ind, tab_evi = st.tabs(
-        ["🏛️ 平台总览", "🖼️ 图文", "📝 文本", "🏥 医疗 FHIR", "🏭 工业传感器", "📈 证据链"]
+        ["总览", "图文数据", "文本数据", "医疗数据", "工业传感器", "效果证据"]
     )
 
     with tab_over:
         gates = {k: gate_cards(load_report(s["report"])) for k, s in DOMAINS.items()}
-        passed = sum(
-            1 for k in ("fhir", "industrial") if gates.get(k) and gates[k]["passed"]
-        )
+        passed = sum(1 for k in ("fhir", "industrial") if gates.get(k) and gates[k]["passed"])
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("数据模态", 4, border=True)
-        c2.metric("领域增强包", 4, border=True)
-        c3.metric("轻量门禁已过（本地）", passed, border=True)
-        c4.metric("测试基线", "263 + 54", border=True)
-
-        st.markdown("### 四个增强包的验收状态")
-        rows = []
-        for key, spec in DOMAINS.items():
-            g = gates.get(key)
-            rows.append(
+        c1.metric("已接入领域", 4, border=True)
+        c2.metric("质检滤芯总数", 24, border=True)
+        c3.metric("本机门禁合格", passed, border=True)
+        c4.metric("自动化测试", "267 + 54", border=True)
+        st.dataframe(
+            [
                 {
-                    "增强包": spec["title"],
-                    "门禁报告": spec["report"],
-                    "召回": "—" if not g else f"{g['recall']:.1%}",
-                    "误杀": "—" if not g else f"{g['false_kill']:.2%}",
-                    "结论": "未生成" if not g else ("PASSED ✓" if g["passed"] else "FAILED ✗"),
+                    "领域": spec["title"],
+                    "质检报告": spec["report"],
+                    "召回": "—" if not gates.get(k) else f"{gates[k]['recall']:.1%}",
+                    "误杀": "—" if not gates.get(k) else f"{gates[k]['false_kill']:.2%}",
+                    "验收": (
+                        "未生成" if not gates.get(k)
+                        else ("合格" if gates[k]["passed"] else "未达标")
+                    ),
                 }
-            )
-        st.dataframe(rows, width="stretch", hide_index=True)
-
-        st.markdown("### 基座 + 增强包六件套")
-        st.markdown(
-            "| 件 | 位置 | 说明 |\n"
-            "|---|---|---|\n"
-            "| ① 模态适配器 | curation-eval 包 | payload canonical JSON，roundtrip 保真 |\n"
-            "| ② 领域算子 | 主仓 operators/ | score 越高越好，批量走 shardable=False |\n"
-            "| ③ 领域污染器 | curation-eval 包 | 注入即带 ground truth，供体重抽 |\n"
-            "| ④ 确定性语料 | 主仓 data/ | 同 seed 逐字节一致，无真实数据 |\n"
-            "| ⑤ 漏斗配置 | configs/ | 与既有模态同一执行器，零特例 |\n"
-            "| ⑥ 评测门禁 | scripts/ | 召回 ≥90% 且误杀 ≤5%，跌破 exit 1 |"
+                for k, spec in DOMAINS.items()
+            ],
+            width="stretch",
+            hide_index=True,
         )
-        st.info(
-            "核心方法论：**清洗价值可证明**——真实脏数据没有 ground truth，"
-            "程序化污染注入让每个算子有 P/R、整条漏斗有门禁、收益有下游任务数字"
-            "（检索 R@1 +21%、微调 ppl +7.5%、CLIP 0.688 vs 0.636）。"
+        st.markdown(
+            "**为什么能信这些数字？** 每个领域的质检报告都由同一套方法生成：先程序化注入"
+            "已知坏数据（自带标准答案），再让滤芯去抓——抓没抓到、抓错了多少，全是可复现的"
+            "硬数字，同一条命令任何机器重跑结果一致。"
         )
 
     with tab_img:
         render_domain("image")
     with tab_text:
-        st.caption(DOMAINS["text"]["blurb"])
+        st.markdown(f"**{DOMAINS['text']['tag']}**——{DOMAINS['text']['blurb']}")
         reports = load_report(DOMAINS["text"]["report"])
         if reports is None:
-            st.warning("报告未生成：data/reports/text_dedup_benchmark.json")
+            st.warning(
+                f"质检报告还没生成。运行下面的命令（{DOMAINS['text']['cost']}），"
+                "跑完回来看读数。"
+            )
             st.code(DOMAINS["text"]["cmd"], language="bash")
         else:
             st.dataframe(dedup_rows(reports), width="stretch", hide_index=True)
-            st.caption("数据 CI 门禁：exact ≥0.99 / near ≥0.90 / 误杀 ≤1%（data-ci.yml 每次跑）")
+            st.caption("验收线：exact ≥99%、near ≥90%、好数据错伤 ≤1%（CI 每次自动跑）。")
     with tab_fhir:
         render_domain("fhir")
     with tab_ind:
         render_domain("industrial")
 
     with tab_evi:
-        st.markdown("### 训练级证据：干净集 vs 脏集微调（CLIP 检索）")
+        st.markdown("### 用脏数据训练模型，代价是多少？")
         ft = ft_rows(load_report("finetune_eval.json"))
         if ft:
             st.dataframe(ft, width="stretch", hide_index=True)
             st.caption(
-                "脏集微调不如不微调（0.636 < 0.556 基线）；干净集微调 +13.2pp——脏数据的代价可量化。"
+                "同一批图文检索任务：不微调 55.6%；用干净数据微调涨到 68.8%；"
+                "用脏数据微调反而掉到 63.6%——不如不训。脏数据不只是没用，是有害的。"
             )
         else:
-            st.warning("未生成：python -X utf8 scripts/finetune_clip.py（约 20 分钟 GPU）")
+            st.warning(
+                "这份报告还没生成。运行 `python -X utf8 scripts/finetune_clip.py`"
+                "（约 20 分钟 GPU）。"
+            )
 
-        st.markdown("### 消融：分组移除算子的检索变化")
+        st.markdown("### 拆掉一级滤芯，整体会变差吗？")
         ab = ablation_rows(load_report("ablation_eval.json"))
         if ab:
             st.dataframe(ab[:8], width="stretch", hide_index=True)
-            st.caption("去重组移除后 R@1 -0.017（唯一显著组）——清洗是系统性工程，去重贡献最大。")
+            st.caption(
+                "去重滤芯拆掉后检索 R@1 掉 0.017——它是唯一显著的一组，"
+                "说明清洗是系统工程，不是单点技巧。"
+            )
         else:
-            st.warning("未生成：python scripts/eval_ablation.py（约 3 分钟）")
+            st.warning("这份报告还没生成。运行 `python scripts/eval_ablation.py`（约 3 分钟）。")
 
-        st.markdown("### 更多证据（命令复现）")
+        st.markdown("### 还有一组数字")
         st.markdown(
-            "- 文本微调 ppl：clean 7.16 vs dirty 7.70（+7.5%）→ `finetune_gpt2.py`\n"
-            "- 分层采样：budget=1000 时 R@1 +24% → `eval_sampling.py`\n"
-            "- 判官微调：κ -0.024 → +0.560 → `eval_judge.py`（V3 平台）"
+            "- 文本语言模型：干净数据微调困惑度 7.16，脏数据 7.70（越低越好，差 7.5%）"
+            "——命令 `finetune_gpt2.py`\n"
+            "- 固定预算挑数据：分层采样比随机采样检索 R@1 高 24%——命令 `eval_sampling.py`\n"
+            "- 领域判官微调：κ 从 -0.024 到 +0.560（V3 个人微调平台）——命令 `eval_judge.py`"
         )
 
-    st.sidebar.markdown("### 专题深潜（存量应用）")
-    st.sidebar.code(
-        "streamlit run scripts/streamlit_app.py  # 图文检索 Demo", language="bash"
+    st.sidebar.markdown("### 想看得更深？")
+    st.sidebar.caption("这些是专题工作台，日常演示用本页就够：")
+    st.sidebar.code("streamlit run scripts/streamlit_app.py\n  # 图文检索体验", language="text")
+    st.sidebar.code("streamlit run scripts/ops_dashboard.py\n  # 每日运维驾驶舱", language="text")
+    st.sidebar.code("streamlit run scripts/judge_studio.py\n  # 训练你的领域判官", language="text")
+    st.sidebar.code("streamlit run scripts/platform_app.py\n  # 微调平台控制台", language="text")
+    st.sidebar.markdown("### 自己动手")
+    st.sidebar.page_link(
+        "https://github.com/quannie255-star/mm-curation-pipeline", label="GitHub 仓库"
     )
-    st.sidebar.code("streamlit run scripts/ops_dashboard.py  # 运维驾驶舱", language="bash")
-    st.sidebar.code("streamlit run scripts/judge_studio.py  # 判官工坊", language="bash")
-    st.sidebar.code("streamlit run scripts/platform_app.py  # 微调平台控制台", language="bash")
     st.sidebar.markdown(
-        "### 复现\n"
-        "所有数字由命令重新生成（数据/报告不入库），"
-        "见 docs/RUNBOOK.md；领域包扩展见 docs/DOMAIN_PACKS.md。"
+        "所有数字都能用一条命令重新生成（数据与报告不入库）：\n\n"
+        "复现手册 docs/RUNBOOK.md · 扩展指南 docs/DOMAIN_PACKS.md"
     )
 
 
