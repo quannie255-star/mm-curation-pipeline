@@ -50,6 +50,20 @@ def funnel_gate_metrics(dropped, n_dirty: int, n_clean: int) -> dict:
     }
 
 
+def worst_case_gate(runs: list[dict]) -> dict:
+    """多 seed 聚合：取最差 seed 的召回/误杀（保守口径），全 seed 过门禁才算过。"""
+    return {
+        "recall": min(r["recall"] for r in runs),
+        "false_kill_rate": max(r["false_kill_rate"] for r in runs),
+        "n_dirty": runs[-1]["n_dirty"],
+        "n_dirty_caught": min(r["n_dirty_caught"] for r in runs),
+        "n_clean_killed": max(r["n_clean_killed"] for r in runs),
+        "n_clean": runs[-1]["n_clean"],
+        "passed": all(r["passed"] for r in runs),
+        "n_seeds": len(runs),
+    }
+
+
 def evaluate_gate(metrics: dict, gates: dict | None = None) -> bool:
     gates = gates or GATES
     return (
@@ -61,6 +75,10 @@ def evaluate_gate(metrics: dict, gates: dict | None = None) -> bool:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--seeds", default=None,
+        help="逗号分隔多 seed 稳定性实验（如 42,7,2026）；提供时覆盖 --seed",
+    )
     parser.add_argument("--scale", type=float, default=1.0)
     parser.add_argument("--inject-rate", type=float, default=0.3)
     parser.add_argument("--config", default="configs/funnel_industrial.yaml")
@@ -75,43 +93,85 @@ def main() -> int:
     from mm_curation.operators.base import Sample
     from mm_curation.pipeline import PipelineConfig, run_funnel
 
-    corpus = generate_corpus(seed=args.seed, scale=args.scale)
-    plan = ContaminationPlan(inject_rate=args.inject_rate, seed=args.seed, kinds=dict(SENSOR_KINDS))
-    mixed, manifest = plan.run(corpus, Path("data/tmp_sensor_images"))
-    logging.info(
-        "语料 %d 条（seed=%d, scale=%s）+ 注入 %d 条（%s）",
-        len(corpus), args.seed, args.scale, manifest["n_injected"], manifest["counts"],
-    )
-
     config = PipelineConfig.from_yaml(args.config)
-    samples = [Sample.from_dict(s.to_dict()) for s in mixed]
-    results, dirty_totals, n_clean = evaluate_all(config.operators, samples)
+    seeds = [int(s) for s in args.seeds.split(",")] if args.seeds else [args.seed]
 
-    funnel = run_funnel([Sample.from_dict(s.to_dict()) for s in mixed], config)
-    gate = funnel_gate_metrics(funnel.dropped, sum(dirty_totals.values()), n_clean)
-    gate["passed"] = evaluate_gate(gate)
+    def run_one(seed: int) -> dict:
+        corpus = generate_corpus(seed=seed, scale=args.scale)
+        plan = ContaminationPlan(
+            inject_rate=args.inject_rate, seed=seed, kinds=dict(SENSOR_KINDS)
+        )
+        mixed, manifest = plan.run(corpus, Path("data/tmp_sensor_images"))
+        samples = [Sample.from_dict(s.to_dict()) for s in mixed]
+        results, dirty_totals, n_clean = evaluate_all(config.operators, samples)
+        funnel = run_funnel([Sample.from_dict(s.to_dict()) for s in mixed], config)
+        gate = funnel_gate_metrics(funnel.dropped, sum(dirty_totals.values()), n_clean)
+        gate["passed"] = evaluate_gate(gate)
+        gate["seed"] = seed
+        gate["n_clean"] = n_clean
+        gate["n_injected"] = manifest["n_injected"]
+        gate["counts"] = manifest["counts"]
+        gate["primary_recalls"] = {
+            r.op: (
+                min(
+                    (
+                        v
+                        for v in (
+                            r.recall_of(t, dirty_totals.get(t, 0))
+                            for t in r.primary_target
+                        )
+                        if v is not None
+                    ),
+                    default=None,
+                )
+            )
+            for r in results
+        }
+        logging.info(
+            "seed=%d：语料 %d + 注入 %d，召回 %.1f%%，误杀 %.2f%%",
+            seed, len(samples), manifest["n_injected"], gate["recall"] * 100,
+            gate["false_kill_rate"] * 100,
+        )
+        return gate
+
+    runs = [run_one(seed) for seed in seeds]
+    gate = worst_case_gate(runs)
+    # 算子级明细取最后一个 seed 的运行（多 seed 稳定性在报告单列一节）
+    last = runs[-1]
+    last_corpus = generate_corpus(seed=last["seed"], scale=args.scale)
+    last_plan = ContaminationPlan(
+        inject_rate=args.inject_rate, seed=last["seed"], kinds=dict(SENSOR_KINDS)
+    )
+    last_mixed, manifest = last_plan.run(last_corpus, Path("data/tmp_sensor_images"))
+    results, dirty_totals, n_clean = evaluate_all(
+        config.operators, [Sample.from_dict(s.to_dict()) for s in last_mixed]
+    )
 
     report = {
         "pipeline": config.name,
         "seed": args.seed,
         "scale": args.scale,
         "inject_rate": args.inject_rate,
-        "n_total": len(samples),
+        "n_total": len(last_mixed),
         "n_clean": n_clean,
         "n_dirty": sum(dirty_totals.values()),
         "dirty_totals": dirty_totals,
         "eval_scope": "每个算子独立在全量脏集上跑一次，丢弃互不影响",
         "operators": [r.to_dict(dirty_totals, n_clean) for r in results],
         "funnel_gate": gate,
+        "stability": runs if len(runs) > 1 else None,
+        "manifest": manifest,
     }
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     md = render_pr_markdown(results, dirty_totals, n_clean, config.name)
-    md += _gate_markdown(gate, args)
+    md += _gate_markdown(gate, args, runs)
     out.with_suffix(".md").write_text(md, encoding="utf-8")
 
-    print(f"\n工业传感器 P/R: {config.name}（{len(samples)} 条全集, {len(config.operators)} 算子）")
+    print(
+        f"\n工业传感器 P/R: {config.name}（{len(last_mixed)} 条全集, {len(config.operators)} 算子）"
+    )
     print(f"{'算子':<26}{'扔':>5}{'误杀':>5}{'precision':>10}{'主靶recall':>12}")
     for r in results:
         prec = "—" if r.precision is None else f"{r.precision:.1%}"
@@ -120,7 +180,8 @@ def main() -> int:
         ) or "—"
         print(f"{r.op:<26}{r.n_dropped:>5}{r.clean_killed:>5}{prec:>10}{prim:>12}")
     print(
-        f"漏斗门禁: 召回 {gate['recall']:.1%}（门限 ≥{GATES['recall_min']:.0%}）, "
+        f"漏斗门禁（{'%d seeds 最差口径' % len(runs) if len(runs) > 1 else '单 seed'}）: "
+        f"召回 {gate['recall']:.1%}（门限 ≥{GATES['recall_min']:.0%}）, "
         f"误杀 {gate['false_kill_rate']:.2%}（门限 ≤{GATES['false_kill_max']:.0%}）→ "
         f"{'PASSED' if gate['passed'] else 'FAILED'}"
     )
@@ -130,7 +191,7 @@ def main() -> int:
     return 0
 
 
-def _gate_markdown(gate: dict, args) -> str:
+def _gate_markdown(gate: dict, args, runs: list[dict]) -> str:
     return "\n".join(
         [
             "",
@@ -139,11 +200,26 @@ def _gate_markdown(gate: dict, args) -> str:
             f"- 语料 seed={args.seed}，scale={args.scale}，注入率 {args.inject_rate:.0%}",
             f"- 总体故障召回 **{gate['recall']:.1%}**（{gate['n_dirty_caught']}/{gate['n_dirty']}，"
             f"门限 ≥{GATES['recall_min']:.0%}）",
-            f"- 干净误杀率 **{gate['false_kill_rate']:.2%}**（{gate['n_clean_killed']} 条，"
+            f"- 干净误杀率 **{gate['false_kill_rate']:.2%}**"
+            f"（{gate['n_clean_killed']}/{gate.get('n_clean', '—')} 条，"
             f"门限 ≤{GATES['false_kill_max']:.0%}）",
             f"- 结论：**{'PASSED' if gate['passed'] else 'FAILED'}**",
             "",
             "> 语料为程序生成的合成工业传感器数据，不含任何真实产线数据；",
+            *(
+                [
+                    "- 多 seed 稳定性（同一门限逐 seed 判定）：",
+                    *[
+                        f"  - seed {r['seed']}：召回 {r['recall']:.1%}，"
+                        f"误杀 {r['false_kill_rate']:.2%}"
+                        f"（误杀 {r['n_clean_killed']}/{r['n_clean']}）"
+                        for r in runs
+                        if len(runs) > 1
+                    ],
+                ]
+                if len(runs) > 1
+                else []
+            ),
             "> 工况切换瞬态不在合成范围（drift 算子只裁稳态窗），真实瞬态属 V5 β 真实数据轨。",
             "> 口径说明：批量算子（drift 等）的全局统计会被其他类型灾难注入污染，",
             "> 「独立评测」口径下其误杀偏高属预期现象；漏斗串联门禁（上游先拦灾难窗）",

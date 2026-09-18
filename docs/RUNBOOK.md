@@ -87,6 +87,8 @@ git push --dry-run origin main
 | 阈值扫描 | `python scripts/threshold_scan.py` | ~5 分钟 | 5 张 PNG 曲线 |
 | 采样对比 | `python scripts/eval_sampling.py` | ~2 分钟 | budget=1000 R@1 +24% |
 | 消融 | `python scripts/eval_ablation.py` | ~3 分钟 | 去重组 R@1 -0.017 |
+| 随机删 baseline | `python -X utf8 scripts/eval_random_drop_baseline.py` | ~3 分钟 | 漏斗 0.575 vs 随机 0.447，净贡献 +0.128 |
+| 多 seed 门禁 | `python -X utf8 scripts/eval_fhir.py --seeds 42,7,2026` | ~20 秒 | 最差口径召回/误杀入报告 stability 字段 |
 | 检测器 | `python -X utf8 scripts/train_detector.py` | ~4 分钟 GPU | testA 98.2%/testB 87.3% |
 | CLIP 微调 | `python -X utf8 scripts/finetune_clip.py` | ~20 分钟 GPU | clean_ft 0.688 vs dirty_ft 0.636 |
 | 成本核算 | `python -X utf8 scripts/cost_model.py` | ~2 分钟 | cost_model.md 四维表 |
