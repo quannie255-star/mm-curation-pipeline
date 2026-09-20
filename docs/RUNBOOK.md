@@ -119,6 +119,9 @@ git multi-pack-index write && git commit-graph write --reachable
    被限速到 ~22KB/s（9.2MB 要 **418 秒**，首块就要等 46 秒，极易误判为「卡死」）；
    而 git 协议走增量只有 **625KB / 20 秒**。**用「超时」当「失败」的证据之前，
    先量一次吞吐**——判标是字节/秒，不是「等了多久」。
+   **`codeload` 忽略 `Range` 头**（实测带 `Range: bytes=0-65535` 仍返回 `200` +
+   全量 `Content-Length: 9218131` 且无 `Content-Range`），所以「分片下载绕开限速」
+   这条路**不存在**——一次都别试。
 
 **验收（逐位一致，不接受近似）**：
 
