@@ -75,6 +75,70 @@ git push --dry-run origin main
 > 那么 push 挂住必然是凭据环节（故障 B），不是网络。这个一秒的判断能省掉
 > 半小时的无效重试。
 
+## 0.2 Git 对象库灾难恢复（2026-09-20 实测走通）
+
+**先分清「健康」的真假信号**——这是本次事故最贵的一课：
+
+| 命令 | 它到底在干什么 | 能否当健康检查 |
+|---|---|---|
+| `git rev-parse HEAD` | 只读 `.git/refs/heads/main` 这 41 字节**文件**，不碰对象库 | ❌ 假的。对象全丢也照常返回 |
+| `git status` | 读 index + 工作区，对象缺失时也可能看似正常 | ❌ 不可靠 |
+| `git cat-file -t HEAD` | 真的去对象库取这个对象 | ✅ |
+| `git fsck --full --strict` | 全库可达性与对象完整性 | ✅ 唯一权威 |
+
+**症状**：`git count-objects -v` 的 `count` 归零而 `in-pack` 只剩旧历史、
+`git fsck` 报 `missing blob` 与 `invalid sha1 pointer`。**工作区文件通常完好**
+——丢的只是 `.git/objects`。
+
+**恢复（从远端重建对象，全程不需要 `github.com` 的 git 协议）**：
+
+```bash
+# 1. 取远端提交清单（api.github.com 稳定；github.com 可能被代理挡 502）
+#    curl https://api.github.com/repos/<owner>/<repo>/commits?sha=main&per_page=100
+# 2. 找一个「本地仍完好」的祖先提交做协商锚点（缺失段的前一个）
+#    git cat-file -t <anchor>   # 必须返回 commit
+# 3. 空临时裸库 + 播种本地旧 pack + 把 ref 指到该锚点
+git init --bare /tmp/recover_bare.git
+cp .git/objects/pack/*.pack .git/objects/pack/*.idx /tmp/recover_bare.git/objects/pack/
+git -C /tmp/recover_bare.git update-ref refs/heads/main <anchor>
+# 4. 只拉增量（服务器发缺失段）
+git -C /tmp/recover_bare.git -c http.version=HTTP/1.1 \
+    -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=999999 \
+    fetch --no-tags https://github.com/<owner>/<repo>.git main
+# 5. 对象按内容寻址 → 拷回真实仓库是纯增量，不可能改坏已有对象
+cp /tmp/recover_bare.git/objects/pack/pack-* .git/objects/pack/
+git multi-pack-index write && git commit-graph write --reachable
+```
+
+**两条必须知道的坑**：
+
+1. **别在真实仓库里直接 `git fetch`**——`refs/heads/main` 已经指向丢失的提交，
+   协商阶段 git 会认为「我已拥有它」从而**什么都不下载**（negotiation trap）。
+   必须在一个**没有该 ref 的裸库**里 fetch，并把 ref 指到一个已知完好的祖先。
+2. **`github.com` 只是慢/不稳，不等于不可用**。本次实测：`codeload` 的 tarball
+   被限速到 ~22KB/s（9.2MB 要 **418 秒**，首块就要等 46 秒，极易误判为「卡死」）；
+   而 git 协议走增量只有 **625KB / 20 秒**。**用「超时」当「失败」的证据之前，
+   先量一次吞吐**——判标是字节/秒，不是「等了多久」。
+
+**验收（逐位一致，不接受近似）**：
+
+```bash
+git cat-file -t HEAD                      # 必须 commit
+git rev-list --count HEAD                 # 必须等于远端提交数
+git fsck --full --strict                  # 必须 rc=0 且零异常行
+git log --oneline -3                      # 提交信息应是原文
+```
+
+**预防（比恢复便宜一万倍）**：对象是**唯一不可再生**的资产——工作区文件丢了能重写，
+对象丢了只能靠网络。所以：
+
+- **动 `objects/` 之前先备份**：`git bundle create /tmp/repo.bundle --all`
+  或 `cp -r .git /tmp/git-backup`。
+- **不要用 `git prune --expire now` / `git gc --prune=now` 来「清垃圾」**：
+  它删的是「按当前可达性判定的不可达对象」，一旦判错**没有回滚**
+  （对象就是一个个内容寻址的裸文件）。85MB 是磁盘问题，不是正确性问题。
+- 定期 `git repack -a -d`：对象进了 pack 至少有 `multi-pack-index` 一层结构保护。
+
 ## 1. 完整复现（按管道顺序，每步有验收数字）
 
 | 步骤 | 命令（make-free） | 耗时 | 验收 |
