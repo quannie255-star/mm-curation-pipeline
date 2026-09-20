@@ -19,6 +19,16 @@ import streamlit as st
 REPO = Path(__file__).resolve().parents[1]
 REPORTS = REPO / "data" / "reports"
 
+# 门面数字：每一轮收工用 `pytest --collect-only` 实点回写，并把日期写在 help 里。
+# 历史教训——这个数被写错过四次，根因都是"凭记忆填"；把它做成常量 + 带日期，
+# 至少能让下一个改它的人看见它是"某天实点的快照"而不是永恒真理。
+# 改这里要同步：README 状态表 / DEV_PLAN 测试基线行 / PROOF_CHAIN 代码测试行。
+TEST_COUNT_MAIN = 328
+TEST_COUNT_PKG = 67
+TEST_COUNT_ASOF = "2026-09-18"
+# 实点 `available_operators()`（同一注册表跨四模态共用）。曾写「24」——腐烂了。
+OP_COUNT = 29
+
 # 轻量评测白名单：只有纯 CPU 秒级脚本允许现场重跑（面试现场不可等重活）
 RERUN_WHITELIST = {
     "fhir": [sys.executable, "-X", "utf8", "scripts/eval_fhir.py"],
@@ -234,6 +244,148 @@ def ablation_rows(report: dict | None) -> list[dict]:
     return sorted(rows, key=lambda r: r["ΔR@1"])
 
 
+# --- V6 清洗过程可视化（设计表决策点 10）-------------------------------
+# 与业界的差异化落点：Data-Juicer 的 op_effect 能调参数看保留/丢弃，但不告诉你
+# 阈值该定多少、依据是什么；tracer 能看被过滤样本，但那是运行期内存态、不落盘。
+# 这三个纯函数对应的就是那三样：逐级水位、记录级台账、有预算依据的门限反推。
+
+
+def load_verdicts(relpath: str) -> list[dict]:
+    """读判决台账 JSONL（禁用 splitlines——U+2028 陷阱，笔记 #44）。"""
+    path = REPORTS / relpath
+    if not path.exists():
+        return []
+    rows: list[dict] = []
+    for line in path.read_text(encoding="utf-8").split("\n"):
+        if not line.strip():
+            continue
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue  # 半行/损坏行跳过，不因一条坏数据让整页空转
+    return rows
+
+
+VERDICT_RELPATH = "normalize_ablation/B/verdict.jsonl"
+
+
+@st.cache_data(show_spinner=False)
+def cached_verdicts(relpath: str = VERDICT_RELPATH) -> list[dict]:
+    """UI 侧缓存包装：判决台账是**万行级**文件，不缓存会被 Streamlit 的重跑机制放血。
+
+    Streamlit 每次控件交互都从头重跑脚本 —— 阈值沙盘的滑块动一下、判决表的
+    下拉换一项，都要重新解析一遍整个台账。缓存只挡「同一文件重复读」，
+    不改变纯函数 `load_verdicts` 的语义：单测直接测纯函数（bare 模式下
+    `st.cache_data` 退化为普通调用，仍可离线跑）。
+    """
+    return load_verdicts(relpath)
+
+
+def waterfall_rows(report: dict | None) -> list[dict]:
+    """漏斗逐级水位对照（原样 vs 归一化）——「补这一层有没有用」的现场读数。"""
+    if not report:
+        return []
+    return [
+        {
+            "滤级": r["op"],
+            "原样·拦截": r["dropped_A"],
+            "归一化·拦截": r["dropped_B"],
+            "Δ": r["delta_dropped"],
+        }
+        for r in report.get("comparison", {}).get("per_op", [])
+    ]
+
+
+def verdict_table(
+    rows: list[dict],
+    op: str | None = None,
+    decision: str | None = None,
+    limit: int = 200,
+) -> list[dict]:
+    """判决台账（可筛）——「这一条为什么被删」的单条可读视图。"""
+    out: list[dict] = []
+    for r in rows:
+        if op and r.get("op") != op:
+            continue
+        if decision and r.get("decision") != decision:
+            continue
+        out.append(
+            {
+                "级": r.get("seq"),
+                "滤芯": r.get("op"),
+                "判决": "删" if r.get("decision") == "drop" else "留",
+                "分数": None if r.get("score") is None else round(r["score"], 4),
+                "门限": ", ".join(f"{k}={v}" for k, v in (r.get("threshold") or {}).items())
+                or "—",
+                "判据": r.get("rule"),
+                "指纹": (r.get("input_fingerprint") or "")[7:19],
+            }
+        )
+        if len(out) >= limit:
+            break
+    return out
+
+
+def score_values(rows: list[dict], op: str) -> list[float]:
+    """某一级滤芯的分数列（判决台账是唯一数据源，不另算）。"""
+    return [
+        r["score"]
+        for r in rows
+        if r.get("op") == op and isinstance(r.get("score"), (int, float))
+    ]
+
+
+def score_histogram(scores: list[float], bins: int = 24) -> list[dict]:
+    """分数分布直方图（st.bar_chart 的数据形态；纯函数，可单测）。"""
+    if not scores:
+        return []
+    lo, hi = min(scores), max(scores)
+    if hi <= lo:
+        return [{"区间": f"{lo:.3g}", "样本数": len(scores)}]
+    width = (hi - lo) / bins
+    counts = [0] * bins
+    for v in scores:
+        counts[min(int((v - lo) / width), bins - 1)] += 1
+    return [{"区间": f"{lo + i * width:.3g}", "样本数": c} for i, c in enumerate(counts)]
+
+
+def recommend_threshold(scores: list[float], *, side: str, max_drop_rate: float) -> dict | None:
+    """由分数分布 + **丢弃预算**反推门限（「有依据的阈值」的最小形态）。
+
+    口径诚实声明：这里给的是**丢弃预算**（愿意最多丢多少），**不是误杀率**。
+    误杀率需要 ground truth 或人工复核标签——W3 的人审层接上后才成立。
+    混用这两个口径就是「假精确」，所以界面上分两处标清楚。
+    """
+    if not scores:
+        return None
+    s = sorted(scores)
+    n = len(s)
+    if side == "min":
+        k = min(max(int(round(max_drop_rate * n)), 0), n - 1)
+        thr = s[k]
+        dropped = sum(1 for v in s if v < thr)
+    else:
+        k = min(max(int(round((1 - max_drop_rate) * n)), 0), n - 1)
+        thr = s[k]
+        dropped = sum(1 for v in s if v > thr)
+    return {
+        "threshold": thr,
+        "drop_rate": dropped / n,
+        "n": n,
+        "score_min": s[0],
+        "score_p50": s[n // 2],
+        "score_max": s[-1],
+    }
+
+
+def current_threshold(rows: list[dict], op: str) -> dict:
+    """该级滤芯当前生效的门限（取台账里任一行的 threshold 字段）。"""
+    for r in rows:
+        if r.get("op") == op and r.get("threshold"):
+            return r["threshold"]
+    return {}
+
+
 def run_rerun(cmd: list[str]) -> None:
     """现场重跑：subprocess 流式 tail 日志（judge_studio 同款），成功后刷新。"""
     with st.status("质检运行中，正在重新生成报告…", expanded=True) as status:
@@ -369,18 +521,53 @@ def main() -> None:
             "写一个领域增强包（最薄的包一个下午能跑通）"
         )
 
-    tab_over, tab_img, tab_text, tab_fhir, tab_ind, tab_evi = st.tabs(
-        ["总览", "图文数据", "文本数据", "医疗数据", "工业传感器", "效果证据"]
+    (
+        tab_over,
+        tab_img,
+        tab_text,
+        tab_fhir,
+        tab_ind,
+        tab_evi,
+        tab_proc,
+        tab_cal,
+    ) = st.tabs(
+        [
+            "总览",
+            "图文数据",
+            "文本数据",
+            "医疗数据",
+            "工业传感器",
+            "效果证据",
+            "清洗过程",
+            "阈值沙盘",
+        ]
     )
 
     with tab_over:
         gates = {k: gate_cards(load_report(s["report"])) for k, s in DOMAINS.items()}
         passed = sum(1 for k in ("fhir", "industrial") if gates.get(k) and gates[k]["passed"])
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("已接入领域", 4, border=True)
-        c2.metric("质检滤芯总数", 24, border=True)
+        c1.metric("已接入领域", len(DOMAINS), border=True)
+        c2.metric(
+            "已注册质检算子",
+            OP_COUNT,
+            border=True,
+            help=(
+                "实点 `available_operators()`（2026-09-18）——29 个算子共用同一张注册表，"
+                "跨四个模态按 `meta.modalities` 声明各自适用范围，不是四套独立实现。"
+            ),
+        )
         c3.metric("本机门禁合格", passed, border=True)
-        c4.metric("自动化测试", "267 + 54", border=True)
+        c4.metric(
+            "自动化测试",
+            f"{TEST_COUNT_MAIN} + {TEST_COUNT_PKG}",
+            border=True,
+            help=(
+                f"主仓库 {TEST_COUNT_MAIN} + curation-eval 包 {TEST_COUNT_PKG}，"
+                f"实点 `pytest --collect-only`（{TEST_COUNT_ASOF}）。"
+                "包侧 5 条 Ray 测试需装 ray 才被收集（本机含）。"
+            ),
+        )
         st.dataframe(
             [
                 {
@@ -457,6 +644,129 @@ def main() -> None:
             "- 领域判官微调：κ 从 -0.024 到 +0.560（V3 个人微调平台）——命令 `eval_judge.py`"
         )
 
+    with tab_proc:
+        st.markdown("### 每一级滤芯拦了多少，以及为什么拦")
+        cmp_report = load_report("normalize_ablation.json")
+        wf = waterfall_rows(cmp_report)
+        if wf:
+            st.caption(
+                "同一批语料跑两遍：**原样**进漏斗 vs 先过一遍**归一化**"
+                "（把空白、回车、隐形字符理平）。看哪一级的判决会变——"
+                "这直接回答「补这一层到底有没有用」。"
+            )
+            st.dataframe(wf, width="stretch", hide_index=True)
+            if cmp_report.get("headline"):
+                st.info(cmp_report["headline"].replace("**", ""))
+            shape = cmp_report.get("corpus_A") or {}
+            if shape:
+                c1, c2, c3 = st.columns(3)
+                c1.metric(
+                    "空白占比 p90（原样 → 归一化后）",
+                    f"{shape.get('whitespace_ratio_p90', 0):.2f} → "
+                    f"{(cmp_report.get('corpus_B') or {}).get('whitespace_ratio_p90', 0):.2f}",
+                    border=True,
+                )
+                c2.metric(
+                    "空白占比 >50% 的篇目", shape.get("n_whitespace_dominant", 0), border=True
+                )
+                ns = cmp_report.get("normalize_aggregate") or {}
+                c3.metric(
+                    "被归一化改写", f"{ns.get('n_changed', 0)}/{ns.get('n', 0)}", border=True
+                )
+                st.caption(
+                    "读法：空白占比的**中位数**几乎不动、**p90** 却差一个数量级——"
+                    "语料是双峰的（干净篇目 + 严重膨胀篇目）。归一化作用在那条长尾上，"
+                    "**漏斗的拦截数几乎看不见它，进下游的字符总量看得见**。"
+                )
+        else:
+            st.warning("这份对照报告还没生成。跑一次就会同时产出对照读数与判决台账：")
+            st.code("python -X utf8 scripts/normalize_ablation.py", language="bash")
+
+        st.markdown("#### 判决台账：这一条到底为什么被删")
+        rows_b = cached_verdicts()
+        if rows_b:
+            ops = sorted({r.get("op") for r in rows_b if r.get("op")})
+            f1, f2 = st.columns(2)
+            pick = f1.selectbox("滤芯", ["全部"] + ops, key="verdict_op")
+            dec = f2.selectbox("判决", ["全部", "drop", "keep"], key="verdict_dec")
+            table = verdict_table(
+                rows_b,
+                op=None if pick == "全部" else pick,
+                decision=None if dec == "全部" else dec,
+            )
+            st.dataframe(table, width="stretch", hide_index=True)
+            st.caption(
+                f"显示 {len(table)} 条（单页上限 200）。每条都带**机器可读判据**、"
+                "**门限**与**输入指纹**——删掉任何一条，都能回答"
+                "「哪一级、什么分数、比哪个门限、依据是什么」。"
+            )
+            with st.expander("这跟业界已有的东西差在哪"):
+                st.markdown(
+                    "- Data-Juicer 的 `tracer` 也能看「哪些样本被过滤」，但那是"
+                    "**运行期内存态**：不落盘、不带判据、不带输入指纹，跑完就没了\n"
+                    "- Croissant 的 PROV-O 血缘做到**数据集/文件级**，没落到单条记录\n"
+                    "- 这份台账是**落盘的记录级血缘**，并预留了人工复核回填位"
+                    "（下一步的人审队列会往里写推翻记录）"
+                )
+        else:
+            st.warning("判决台账还没生成（跑一次对照实验就有了）。")
+
+    with tab_cal:
+        st.markdown("### 门限该定多少？——从分布反推，不是拍脑袋")
+        rows_cal = cached_verdicts()
+        cal_ops = sorted({r.get("op") for r in rows_cal if r.get("op")})
+        if not cal_ops:
+            st.warning("判决台账还没生成。跑一次对照实验即可：")
+            st.code("python -X utf8 scripts/normalize_ablation.py", language="bash")
+        else:
+            op = st.selectbox("选一级滤芯", cal_ops, key="cal_op")
+            scores = score_values(rows_cal, op)
+            if not scores:
+                # 批量算子（去重类）按整批样本的集合关系裁决，不给逐样本打分——
+                # 没有分布就没有阈值的「门」，这一格不是坏了，是不适用。
+                st.info(
+                    f"`{op}` 是**批量算子**：它按整批样本的集合关系裁决"
+                    "（比如去重时「谁是簇代表」取决于全局谁最小），"
+                    "**不产生逐样本分数**——所以没有分布可看、也没有阈值可推。"
+                    "门限沙盘只对逐样本打分的算子成立，这里如实说明而不是给个空图。"
+                )
+            else:
+                side_txt = st.radio(
+                    "这一级的门限方向",
+                    ["下限 min：低于此值删除", "上限 max：高于此值删除"],
+                    horizontal=True,
+                    key="cal_side",
+                )
+                budget = st.slider(
+                    "丢弃预算：最多愿意删掉多少", 0.0, 0.5, 0.05, 0.01, key="cal_budget"
+                )
+                hist = score_histogram(scores)
+                if hist:
+                    st.bar_chart(hist, x="区间", y="样本数", height=220, color="#0e7c7b")
+                side = "min" if side_txt.startswith("下限") else "max"
+                rec = recommend_threshold(scores, side=side, max_drop_rate=budget)
+                cur = current_threshold(rows_cal, op)
+                if rec:
+                    cur_val = cur.get(side)
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric(
+                        "当前门限",
+                        "—" if cur_val is None else f"{cur_val:.4g}",
+                        border=True,
+                    )
+                    c2.metric("按预算反推的门限", f"{rec['threshold']:.4g}", border=True)
+                    c3.metric("该门限下的删除率", f"{rec['drop_rate']:.2%}", border=True)
+                    st.caption(
+                        f"这一级共 {rec['n']} 个分数：最小 {rec['score_min']:.4g} / "
+                        f"中位 {rec['score_p50']:.4g} / 最大 {rec['score_max']:.4g}。"
+                    )
+                    st.warning(
+                        "**口径别混**：这里反推的是**丢弃预算**（愿意最多删多少），"
+                        "**不是误杀率**——误杀率要有 ground truth 或人工复核标签才算得出来。"
+                        "Data-Juicer 的 op_effect 能拖滑块看保留/丢弃，但不给预算线、"
+                        "不给推荐值、也不说这个数是怎么来的；这一页补的就是那一格。"
+                        "等人审队列接上（W3），这里会升级成真正的「按误杀预算反推」。"
+                    )
     st.sidebar.markdown("### 想看得更深？")
     st.sidebar.caption("这些是专题工作台，日常演示用本页就够：")
     st.sidebar.code("streamlit run scripts/streamlit_app.py\n  # 图文检索体验", language="text")

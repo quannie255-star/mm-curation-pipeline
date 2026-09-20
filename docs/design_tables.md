@@ -1009,3 +1009,575 @@ NASA C-MAPSS 等公开数据集**没有污染 ground truth**，不入 CI 门禁�
 | 新环境报告未生成，门户空转 | 每页签缺报告时明示生成命令与耗时；总览卡显示「未生成」态 |
 | 现场重跑按钮误触发重活 | 白名单只有两个轻量脚本 + 固定 --scale 档位 |
 | 五个应用入口混乱 | 门户即唯一入口，其他四个在「深入页签」中定位为专题深潜 |
+
+---
+
+# V6 设计表：全链路补全 + 统一可视化工作台（2026-09-18）
+
+> **来源**：用户 2026-09-18 指示——「三个域都保留；源接入、抽取层、人审层等缺失层级尽快补完；
+> 其他环节对标业界成熟方案升级；中间过程前端可视化；**保留业界完整架构**，但做成
+> **比业界更易上手、交互更多、更可视化**的版本，并补业界空缺生态位」。
+> 事实依据：`docs/INDUSTRY_BENCHMARK.md`（业界图谱）/ `docs/STRATEGY_V6.md`（战略）/
+> `docs/GAP_AUDIT.md`（产品级缺口）。
+> **本表落盘，等用户确认后动码**（AGENTS.md 设计门）。
+> **在途避让**（协作方 2026-09-18 未提交）：`Makefile` / `benchmarks/capability_matrix.json` /
+> `docs/DEV_PLAN.md` / `docs/PROOF_CHAIN.md` / `runs/experiments.jsonl` / `scripts/eval_*.py` /
+> `scripts/finetune_clip.py` / `src/mm_curation/tuning/extraction.py`。本轮设计不触碰。
+
+---
+
+## 零、先更正我自己写错的两处（诚实性优先）
+
+写本表前实点全仓，推翻了我上一轮在 `STRATEGY_V6.md` §四 的两条描述。**先更正，再设计**——
+这是本项目的立身之本（「动手前先实点，别信描述」）。
+
+| 我在 V6 战略里写的 | 实点结果 | 结论 |
+|---|---|---|
+| 「1. 源接入 ❌ 完全缺失」 | `src/mm_curation/data/web_sources.py` 已实现 `fetch`（UA+重试+退避）/ `can_fetch`（robots.txt+按 host 缓存）/ `extract_links` / `crawl`（限速+幂等+断点续爬），训练 4 条测试 | **不是缺失，是半成品** |
+| 「2. 抽取层 ❌ 完全缺失」 | 同上文件已有 `extract_article`：硬编码 `left_zw` 容器 + `backtop`/`ydtj`/`share` 结束标记 + 剥 `<a>` 块 + 段落 `≥20` 字粗滤 | **不是缺失，是「站点耦合的手写正则版」** |
+
+**这三处的真实差距（比「缺失」更精确）**：
+
+1. **抽取是站点耦合的**——`extract_article` 写死了中国新闻网的容器名与结束标记，
+   换一个源就要重写整个函数。业界「抽取层」的含义是**结构无关的正文抽取**
+   （trafilatura / resiliparse 那一层）。这是真差距。
+2. **没有 RawDoc 中间态**——HTML 抓完立刻解析成 `text` 落盘，**原始 HTML 从不落盘**。
+   后果：无法「换抽取器重跑同一批 HTML」、无法做抽取质量对照实验、无法复现 #65 的现场。
+   实测确认 `data/raw/` 下无任何 HTML 存档。这是真差距，且是**方法论级**的。
+3. **归一化层的缺失根因在执行框架**——笔记 #65 的修复记录原文写着：
+   > 「盘点算子框架后确认所有算子都是打分器（score→阈值），**没有文本改写通道**，
+   > 『归一化算子』不符合协议形态」——故修复被推进了 `chinese_ratio` 的语义里。
+   **真根因：框架只有「打分→阈值」一条通道，没有「改写」通道。** 这不是算子缺一个，
+   是协议缺一条。见决策点 1。
+
+另外纠正 `STRATEGY_V6.md` §四 的计数：那一节写「4 处全缺 / 6 处半成品」但表里只有 3 个 ❌。
+按实点修正为 **「源接入/抽取：半成品（站点耦合）；归一化：缺失（框架无改写通道）；
+人审：缺失；配比/血缘：缺失」**——详见决策点 1 的层表。原文已就地更正。
+
+---
+
+## 决策点 1：层序纪律（先做什么，以及为什么这个顺序不是摊薄）
+
+用户要求「尽快补完」。我接受并行路线，**但层序有纪律**，理由不是保守，而是**依赖**：
+
+```
+第 1 组  让证据可信        归一化层 → 抽取层 → RawDoc 存档
+         （不补这组，后面所有「真实分布上的数字」都不可信——#65 就是这么栽的）
+              │
+第 2 组  让决策可审计      判决书（数据结构）→ 人审层（消费者）→ 血缘层（导出形态）
+         （判决书是数据记录，不是层；它被 4 个层消费，是生态位的骨架）
+              │
+第 3 组  让架构完整        配比层 → checkpointing → 统一 CLI
+              │
+第 4 组  让外部能用         Workbench（UI）→ pip 分发 → Data-Juicer 插件
+```
+
+**为什么第 1 组必须最先**（这是本表最关键的一条论证）：三支柱的核心差异化是
+「**基于真实分布的可信度**」——阈值校准依据、迁移代价、每条删除的裁决。
+但 `docs/REAL_DATA_REPORT.md` 里的真实分布数字**本身就被抽取缺陷污染**（#65：2066 篇里
+778 篇误杀中，绝大多数是空白膨胀而非真的低中文占比）。**在不修抽取/归一化的前提下
+去量化「迁移代价」，量化的是一个被污染的量。** 所以补第 1 组不是摊薄，是**给核心差异化
+清地基**。
+
+**「补层即出数字」的执行纪律**（回应摊薄风险）：
+每个补层任务**必须附带一个对照实验**（A/B 或 A/B/C 三口径），实验数字是验收的一部分。
+不允许出现「层补好了，但没有数字说它有用」的任务。这样补层过程本身持续产出证据，
+而不是等全补完再回头找数字——这是对 `STRATEGY_V6.md` §九 风险 1（摊薄）的具体对策。
+
+**明确不做（本轮红线，与 V6 §九 一致）**：
+❌ 新算子 ❌ 新模态 ❌ fork 任何业界框架 ❌ 重造 Argilla/Lilac
+❌ 绝对规模追赶 ❌ 7B 训练级裁判 ❌ RegMix 代理训练 ❌ 鉴权/多租户
+
+---
+
+## 决策点 2：改写通道 + 归一化层（框架真缺口，W1 第一件事）
+
+### 2.1 改写通道（包侧协议，`curation-eval` v0.4.0 → v0.5.0）
+
+**不改 `Operator` 协议**（V4 红线：不改协议签名）。新增一条**并列**协议：
+
+| 项 | 设计 | 理由 |
+|---|---|---|
+| 协议名 | `Transformer`（与 `Operator` 并列，不继承） | 打分器与改写器语义正交：一个产出 score→阈值，一个产出新样本 |
+| 关键方法 | `transform(sample: Sample) -> TransformResult` | 单向、无状态、逐样本 |
+| `TransformResult` | `{sample: Sample \| None, changed: bool, log: dict}` | `None` = 改写后不可用（如归一化后为空）→ 该阶段丢弃并记因 |
+| 模态声明 | `modalities: frozenset[str]`（与 Operator 同款语义） | 不匹配 = 原样透传，计 `skipped`，**不误杀** |
+| 确定性 | 同输入必同输出（纯函数，无随机无 IO） | 与项目确定性约定一致 |
+| 接入点 | `run_funnel(samples, config, *, pre_stages: Sequence[Transformer] = ())` — **新增可选关键字参数，默认空** | 旧调用零破坏；V4 红线只锁 `Sample` 协议签名，未锁 `run_funnel` |
+
+**为什么不是「加一个归一化算子」**：因为改写型与打分型在漏斗里的**位置语义不同**——
+改写必须发生在**所有打分之前**（且一次），而算子是逐级串联的。做成算子会出现
+「改写算子在第 5 级，前 4 级算子在未改写文本上打分」的病态。前置阶段（pre-stage）
+是唯一语义正确的位置。
+
+### 2.2 归一化层（主仓 `src/mm_curation/normalize/text_normalize.py`）
+
+七条规则，**逐条可开关**，每条独立计数：
+
+| # | 规则 | 依据 |
+|---|---|---|
+| 1 | Unicode NFC 规范化 | 兼容字符（全角拉丁/兼容汉字）会污染字符统计 |
+| 2 | 零宽字符剥除（U+200B/200C/200D/2060/FEFF） | 网页复制粘贴的隐形垃圾，让「长度」失真 |
+| 3 | 控制字符剥除（保留 `\n` `\t`） | 同上 |
+| 4 | **换行统一**（`\r\n`/`\r` → `\n`） | **#65 现场实测的 `\r` 残留** |
+| 5 | **空白折叠**（同段内连续空白 → 1 空格；`\n{3,}` → `\n\n`） | **#65 的 3000+ 空格根因** |
+| 6 | **U+2028/U+2029 处理**（行分隔符 → `\n`） | **笔记 #44 陷阱：`splitlines()` 会在此错切 JSONL** |
+| 7 | 首尾空白剥除 + 段落级 strip | 段落拼接残留 |
+
+**默认 opt-in，不改既有 config**：归一化会改写所有下游算子的输入，从而改变
+图文/文本/医疗/工业四个模态的**全部既有数字**。V4 设计表有「既有指标逐项相等」的硬约束，
+因此：**既有 4 个 config 一字不动**；归一化以 `pre_stages` 显式开启，新实验/新 config 用。
+这同时让「同批数据开/关归一化」成为天然 A/B 对照组。
+
+**可审计性（判决书的前身）**：每个被归一化的样本在 `meta["normalize"]` 落
+`{rules_applied: [...], orig_len, new_len, chars_removed, whitespace_ratio_before}`。
+**「我改了你 3001 字里的 2571 个字符，因为规则 4+5」——这是可审计的最小形态。**
+
+### 2.3 W1 的对照实验（补层即出数字）
+
+| 口径 | 抽取 | 归一化 |
+|---|---|---|
+| **A**（历史基线） | 现有 `extract_article` | 无 |
+| **B** | 现有 `extract_article` | **有** |
+
+- 语料：`data/raw/news_corpus.jsonl`（**2066 篇真实爬取新闻，9.8MB，#65 的同一现场**）
+- 指标：`chinese_ratio` 拦截数 / 空白占比中位数 / 中文占比中位数 / 保留率 /
+  `text_length` 通过率 / `text_minhash` 召回对数的变化
+- **验收预期的锚点**（笔记 #65 已给出的数字）：`chinese_ratio` 拦截预期回到 ~5 篇、
+  保留率 ~98%。实验的价值不在重复这个数，而在**量化「归一化层相对 chinese_ratio 单点补丁的增量」**——
+  即：`text_length`、`perplexity`、`text_minhash` 这几个**当年没被补丁覆盖的算子**，
+  在归一化层下是否也改变了判决。**若增量 ≈ 0，如实记为阴性**（说明单点补丁已够，
+  归一化层的价值退化为「架构正确性」而非「数字提升」——这本身是诚实的面试素材）。
+
+---
+
+## 决策点 3：抽取层 + RawDoc 中间态（W2）
+
+### 3.1 RawDoc：让「换抽取器重跑」成为可能（补的是方法论）
+
+这是本次补层里**我认为最有价值的一条**——不是补一个解析器，是补**一个中间态**。
+
+| 数据结构 | 字段 | 落盘位置 |
+|---|---|---|
+| `RawDoc` | `uri / host / fetched_at / http_status / media_type / content_sha256 / content_path / connector / fetcher_version` | 正文按**内容寻址**：`data/raw/html/<sha256[:2]>/<sha256>.html.gz` |
+| `ExtractedDoc` | `uri / source_doc_sha256 / title / text / lang_guess / extractor / extractor_version / warnings[] / extracted_at` | `data/interim/extracted/<run_id>.jsonl` |
+
+**内容寻址的三个红利**：①多 URI 同内容天然只存一份（去重免费）；
+②抽取结果可标注「来自哪份 HTML 的哪个哈希」（血缘起点）；③**抽取器升级后可对同一批
+RawDoc 全量重放**，产出「抽取器版本 × 质量」的对照曲线——这是业界做 ablation 的做法，
+本项目此前做不了。
+
+### 3.2 抽取器三级链（依赖降级是硬要求）
+
+| 优先级 | 抽取器 | 依赖 | 角色 |
+|---|---|---|---|
+| 1（最高） | `NewsCnExtractor` | 零 | **收编现有 `extract_article`**，按 host 注册覆盖（`chinanews` 走这条） |
+| 2 | `TrafilaturaExtractor` | `[extract]` extra（懒加载） | 结构无关通用抽取 |
+| 3（永远可用） | `HeuristicExtractor` | **零依赖（stdlib `html.parser` + 文本密度打分）** | 兜底：CI 与裸环境可跑 |
+
+**依赖现状实测**：`trafilatura` ❌ 未装 / `resiliparse` ❌ 未装 / `lxml` ✅ 6.0.2 /
+`bs4` ✅ 4.14.3 / `httpx` ✅ 0.28.1。→ trafilatura 走 extra + 懒加载，
+**不装也能跑全链路**（降级到 Heuristic）；`lxml`/`bs4` 已在，Heuristic 可选用 bs4 但**不用**
+（保持 stdlib 零依赖，CI 才能裸跑——这是 ε 阶段那条「本地绿 ≠ CI 绿」教训的复用）。
+
+**回归红线**：`NewsCnExtractor` 对同一份 HTML 的输出必须与旧 `extract_article`
+**逐字等价**（红格单测锁死），否则历史语料不可比。
+
+### 3.3 抽取层的语料来源（需要重抓 HTML，合规做法已现成）
+
+`data/raw/news_corpus.jsonl` 只有 text、**原始 HTML 从未落盘**，所以抽取层的对照实验
+必须重放一批真实 HTML。做法沿用 `web_sources.crawl` 的现成合规骨架：
+**robots.txt 检查 + 1s/页限速 + 明体面 UA + 幂等断点续爬，抓 200 页中国新闻网文章**。
+**明确拒绝合成 HTML**——那会重蹈「闭环自证」（自己造 HTML、自己写抽取器、自己测 100%）
+的覆辙，是本项目已经识别并写进方法论的反模式。
+
+### 3.4 抽取层的对照实验（三口径）
+
+| 口径 | 抽取器 | 归一化 |
+|---|---|---|
+| A | 旧 `extract_article` | 无（= 历史基线，须与 `news_corpus.jsonl` 逐字对齐） |
+| B | 旧 `extract_article` | 有 |
+| C | `TrafilaturaExtractor` | 有 |
+
+- 指标：正文长度分布 / 空白占比 / `chinese_ratio` / 与**人工抽检 30 篇**的正文完整度评级
+  （抽检结果进报告，人工评级表落 `data/reports/extract_manual_audit.md`）
+- **预留阴性出口**：若 C ≤ B（通用抽取器在此源上无增益），如实记录并**把抽取层的定位
+  改写为「换源成本从重写函数降为加一行配置」**而非「质量提升」。抢来的数字不写。
+
+---
+
+## 决策点 4：源接入层协议化（W2）
+
+现状是**能用的单文件脚本**，缺的是**协议**——所以补的是「可换源」而不是「再写一个爬虫」。
+
+| 项 | 设计 |
+|---|---|
+| 协议位置 | **包侧** `curation_eval/sources.py`：`RawDoc` + `SourceConnector` Protocol（`iter_raw() -> Iterator[RawDoc]`） |
+| 实现位置 | **主仓** `src/mm_curation/sources/`（网络/IO 属数据面，包保持零网络依赖——离线红线） |
+| 实现清单 | `LocalFilesSource`（glob + 后缀分派）/ `JsonlSource`（直通，保留现有路径）/ `HttpListSource`（URL 清单 + 幂等）/ `WarcSource`（`[warc]` extra，懒加载） |
+| 收编 | `web_sources.crawl` 改造成 `NewsCnConnector`（`SourceConnector` 的实现），**合规逻辑（robots/限速/重试）原样保留**，只换外壳 |
+| 幂等约定 | 已抓 URI 集合入 `data/state/<connector>_seen.txt`；断点续抓；`fetched_at` 与 `etag` 入库供增量判断 |
+
+**三域各自的源接入**（用户要求三域保留）：
+
+| 域 | 源 | 连接器 |
+|---|---|---|
+| 中文网页新闻 | chinanews / 东财新闻 | `NewsCnConnector` / `JsonlSource`（akshare 产物已结构化） |
+| 工业传感器 | `data/raw/real/{skab,metropt3,cmapss}/*.csv` | `LocalFilesSource` + 现有 `ingest_real_sensor.py` 收编 |
+| 医疗 FHIR | FHIR bundle JSON 目录 | `FhirDirSource`（新，薄） |
+
+---
+
+## 决策点 5：判决书（三支柱的骨架 + 四层共用的数据结构，W1 起）
+
+**判决书不是「一个层」，是一条数据记录。** 它被 4 处消费：
+漏斗（写入）→ 人审层（读队列）→ 血缘层（导出）→ UI（展示/统计）。放这里定义，避免重复。
+
+`data/verdicts/<run_id>/verdict.jsonl` 每行一条裁决：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `v` | int | schema 版本（=1），未来演进不改旧行 |
+| `run_id` | str | 本次运行 |
+| `seq` | int | 漏斗第几级 |
+| `op` | str | 算子名 |
+| `decision` | enum | `drop \| keep \| skip \| review` |
+| `score` / `threshold` | float / null | 判决依据的数值 |
+| `rule` | str | **机器可读判据代号**（如 `ratio_below_min` / `whitespace_dominant`） |
+| `evidence` | dict | **判据真正用到的量**（如 `{chars_han: 430, chars_total: 3001, whitespace_ratio: 0.772}`）——这一格是「判决书」与「一行日志」的分界 |
+| `input_fingerprint` | str | 该级输入文本 sha256（可回溯到具体输入） |
+| `normalize` | dict\|null | 该样本在前置阶段被改写的内容（若有） |
+| `review` | dict\|null | **人工裁决回填位**（由人审层写入） |
+| `prov` | dict | PROV-O 三元：`{activity, used, generated}`——**记录级血缘** |
+
+**为什么这条记录是生态位**：Data-Juicer 的 `tracer` 能告诉你「哪些样本被过滤了」，
+但那是**运行期内存态、不落盘、无判据依据、无输入指纹**；Croissant 的 PROV-O
+只做到**数据集/文件级**。**「单条样本为什么被删、依据是什么、能不能被推翻」这一层，
+业界是空的。** 判决书就是把这一层落成数据。
+
+**与「不破坏既有数字」的兼容**：判决书是**旁路产物**，`dropped_by` 等既有统计一字不改；
+只有显式开启 `--verdict-ledger <dir>` 才落盘。既有 4 个 config 行为不变。
+
+---
+
+## 决策点 6：人审层（W3，最小面）
+
+**红线：不重造 Argilla。** 只做三件事：**队列 + 裁决 + 回写**。
+
+### 6.1 队列的排序策略（这是有技术含量的地方，不是随机抽）
+
+| 优先级 | 策略 | 理由 |
+|---|---|---|
+| 1 | **边界带**：`\|score - threshold\| / threshold < 0.1` | 最不确定的判决——人审的边际信息量最大 |
+| 2 | **算子分歧**：同一样本被 ≥2 个算子给出不一致倾向 | 系统性错判的征兆 |
+| 3 | **配额**：每 `rule` 最多 N 条 | 防某一类（如 boilerplate）淹没队列 |
+| 4 | 兜底：确定性哈希排序 | 可复现 |
+
+### 6.2 数据结构
+
+| 文件 | 字段 |
+|---|---|
+| `data/review/cases.jsonl` | `case_id`（确定性：`sha1(run_id|sample_id|op)`）/ `run_id` / `sample_id` / `op` / `score` / `threshold` / `rule` / `evidence` / `priority` / `priority_reason` / `status(pending\|decided)` |
+| `data/review/verdicts.jsonl` | `case_id` / `decision(accept\|overturn\|unsure)` / `corrected_label` / `labeler` / `ts` / `note` |
+
+### 6.3 闭环：人审不是摆设，它产出标签
+
+`overturn`（人判「这条不该删」）→ 记为**人工确认的误杀** → 喂给
+**阈值校准**（W2 的阈值沙盘用它算「误杀预算」的实际消耗）与
+**迁移代价报告**（合成标定在真实分布上的衰减有了人工背书的分母）。
+
+**这是本表里唯一一条「人审 → 数字」的链路**，没有它人审层就是装饰。
+验收要求：`--review-report` 能输出「人工复核 N 条，推翻 M 条，推翻率 M/N，
+推翻样本在各算子上的分布」——**M/N 是「校准阈值」支柱的直接输入**。
+
+---
+
+## 决策点 7：配比层（W4，轻量）
+
+**红线：不做 RegMix 代理训练**（需要算力，且非差异化）。只做 **manifest + ledger**。
+
+| 产物 | 内容 |
+|---|---|
+| `configs/mixture_*.yaml` | `MixtureSpec`：`domains: [{name, source_glob, weight_target, max_repeat}]` |
+| `data/mixtures/<name>/manifest.json` | 各域 `weight_target` vs `weight_actual` / `docs` / `tokens` / `repeat_factor` / 源文件 `sha256` 清单 / `spec_sha256` |
+| `data/mixtures/<name>/ledger.jsonl` | 追加式 token 台账：`{ts, domain, docs, tokens, source_sha256}` |
+| token 口径 | `chars/4` 启发式（默认，注明为估算）；`[tokenizer]` extra 装 transformers 后可用真实 tokenizer，报告注明用的是哪个 |
+
+**三条保护性告警**（业界生产必备，本项目此前没有）：
+`domain_starved`（实际权重 < 目标 80%）/ `domain_oversampled`（实际 > 目标 200%）/
+`source_drift`（源文件 sha256 与上次不同）。**告警进 UI 与报告，不静默。**
+
+---
+
+## 决策点 8：血缘层（W4，Croissant 1.1）
+
+| 产物 | 内容 |
+|---|---|
+| `data/croissant/<run_id>/croissant.jsonld` | Croissant 1.1：`@type: sc:Dataset` / `name` / `description` / `license`（DUO 或 ODRL）/ `version` / `distribution[]`（`cr:FileObject`: `contentUrl` + `sha256` + `contentSize` + `encodingFormat`）/ `recordSet[]`（字段定义） |
+| **项目扩展** | `curation:verdictRecordSet`——**把判决书 expose 成 Croissant 的记录集**，字段对齐 PROV-O（`prov:Activity` / `prov:Entity` / `prov:used`）。**这是「业界只到文件级、我们到记录级」的落地处。** |
+| 校验 | `--validate`：装了 `mlcroissant`（extra）走官方校验；未装则跑本地 JSON-LD shape 检查（必需键/类型/引用完整性）。**实测两者均未装 → 走本地检查，CI 零新依赖。** |
+
+---
+
+## 决策点 9：执行层 checkpointing（W4，装饰器不改协议）
+
+**不改 `Executor` 协议**（γ 阶段已定型的协议不动）。用**装饰器组合**：
+
+```
+CheckpointedExecutor(inner: Executor, store: Path)
+  ├─ 每级 materialize 后落 data/checkpoints/<run_id>/stage_<k>.jsonl + state.json
+  ├─ state.json = {completed_stages: [..], input_fingerprint: sha256(上游语料), config_sha256}
+  └─ --resume <run_id>：校验 input_fingerprint 与 config_sha256 一致才续跑，否则拒绝并说明
+```
+
+**为什么用装饰器**：γ 的等价性验收（2106 条四口径全等，commit `0d7f86b`）依赖
+`LocalSequentialExecutor` 与 `RayDistributedExecutor` 的行为契约。装饰器让 checkpoint
+成为**可选外包层**，两个执行器内部零改动，**既有等价性测试的语义不被触碰**。
+
+---
+
+## 决策点 10：可视化工作台（诚实定位 + 新增 4 页签）
+
+### 10.1 必须先说清楚的事：可视化**不是**真空
+
+我上一轮暗示「中间过程可视化是空缺生态位」。**搜索后的事实推翻了这个前提**——
+Data-Juicer 已经有完整的可视化体系：
+
+| Data-Juicer 已有 | 内容 |
+|---|---|
+| `demos/data_visualization_op_effect` | **交互式参数调节 + 保留/丢弃样本展示** |
+| `demos/data_visualization_op_insight` | 实时算子执行、多模态 |
+| `demos/overview_scan` | 算子目录浏览（显示算子源码） |
+| `demos/data_visualization_statistics` / `_diversity` | 统计 / 动词-名词对 sunburst |
+| `tracer` 模块 | 跟踪被过滤样本 / 被 mapper 改过的样本 / 重复样本 |
+| `dj-analyze`（`analyze_data.py`） | `overall.csv`/`overall.md` + 相关系数热图 + 箱线图 + 直方图 |
+| `monitor` / `adapter` | CPU/内存/GPU/耗时监控 |
+| `checkpoint` 模块、**DJ-Sandbox** + HPO | 数据沙盒、超参优化 |
+
+**所以「做一个可视化前端」不是差异化。** 真实的差异化只在两处，且都是可验证的：
+
+| 差异化 | Data-Juicer 的现状 | 本项目的落点 |
+|---|---|---|
+| **① 可视化的是「有没有依据」，不是「长什么样」** | op_effect 能调参数、看保留/丢弃——但**不告诉你阈值该定多少、依据是什么**；analyze 出的是相关性热图，不是校准反推 | 阈值沙盘：**分数分布曲线 + 误杀预算线 → 推荐阈值**，并列出「推荐 vs 当前」的差 |
+| **② 决策可追溯到单条，且能被人推翻** | tracer 是**运行期内存态**，不落盘成账本；Croissant 只到文件级 | 判决台账：`verdict.jsonl` 落盘、可按算子过滤、可下钻、**可直接送人审** |
+| **③ 比业界更易上手** | 跑 demos **必须 clone 源码 + `pip install -e .[all]` + `cd demos/xxx && streamlit run app.py`**；且 **ray 模式下 `analyze` / `monitor` / `checkpoint` 全部不支持**（官方明确标注） | `pip install curation-eval[ui]` → **一条命令起完整工作台**，单机/Ray 两种模式都有 |
+
+**必须把这段写进文档（而不是藏起来）**——「我知道业界已经有 X，所以我做的是 Y，
+因为 X 在 Z 上不成立」，这比「我做了一个可视化」强一个量级。
+
+### 10.2 新增 4 个页签（现有 6 页签之上，共 10）
+
+| 页签 | 内容 | 对着业界的哪块空白 |
+|---|---|---|
+| ⑦ **漏斗解剖与判决台账** | 逐级水位图（StageStat 漏斗/桑基）+ 点击下钻到样本 + 判决台账表（op/score/threshold/rule/evidence）+ 导出 CSV | 水位图 DJ 无「点击下钻到样本」；台账对应 tracer 的**落盘化** |
+| ⑧ **阈值沙盘** | 单算子分数分布直方图 + 误杀预算滑块（横线）+ 推荐阈值 + 「推荐 vs 当前」差异 + 调整后 kept/dropped 预览 | op_effect 有滑块，**但无预算线、无推荐值、无依据**——差异化在这三样 |
+| ⑨ **人审队列** | 卡片流 + 键盘快捷键（通过/推翻/不确定）+ 进度 + 推翻率统计 + 一致性核对 | Argilla 更全但需独立部署；这里是**同屏内**且与人审→阈值闭环打通 |
+| ⑩ **迁移代价对照** | 三域（工业/新闻/医疗）「合成标定 vs 真实分布」的召回/误杀双柱 + 衰减区间条 + 人工复核推翻率 | **业界无此视图**（迁移代价没人公开量化过） |
+
+**技术约束**：只用 `st.bar_chart` / `st.dataframe` / `st.metric`（**不新增依赖**）；
+数据源统一走「报告 → 纯函数 → UI」三层，纯函数可单测（沿用 `test_showcase_app.py` 4 条的模式）。
+
+---
+
+## 决策点 11：易上手（W5，把 Workbench 搬进包）
+
+### 11.1 这是「比业界更易上手」的唯一实质手段
+
+| 路径 | Data-Juicer | 本项目的目标 |
+|---|---|---|
+| 上手步骤 | `git clone` → `pip install -e .[all]` → `cd demos/<app>` → `streamlit run app.py` | `pip install curation-eval[ui]` → **`curation-eval demo`** |
+
+**架构代价与做法**：UI 必须住在包里才能在 pip 装完后可用。
+
+| 项 | 设计 |
+|---|---|
+| 位置 | `packages/curation-eval/src/curation_eval/ui/`（包的产品面） |
+| 主仓 | `scripts/showcase_app.py` 变**薄壳**（两行 import + 调 `ui.main()`），既有行为与命令不变 |
+| 默认数据 | `curation-eval demo` **不用静态示例 JSON**，而是**现场跑一遍**：包内 20 条**合成**样本（明确标注「示例数据，非真实」）→ 跑真实算子链（纯 CPU、秒级）→ 生成判决书 → 起 UI。**是「活的」演示**，展示的正是中间过程 |
+| 真实数据 | `--run-dir <path>` 指向用户自己的运行产物（报告 + 判决书），UI 切到真实模式 |
+| 依赖 | `streamlit` 进 `[ui]` extra，**不是核心依赖**；未装时 `curation-eval demo` 打印安装指引并 exit 2 |
+| 风险 | 包体积增大 → 示例数据 <100KB，可接受；包侧测试数上升 → 只增不减，符合基线纪律 |
+
+### 11.2 统一 CLI（顺手补 GAP_AUDIT 的 P1 项：50 个脚本无统一入口）
+
+`curation-eval` 二级子命令：`run`（跑漏斗）/ `eval`（算子级 P/R）/ `demo`（工作台）/
+`verdict`（判决书查询/导出）/ `review`（人审 CLI）/ `croissant`（血缘导出）/ `mixture`（配比构建）。
+**存量 `scripts/*.py` 一律不动**（在途文件多，且已有 RUNBOOK 引用）——子命令是**新增薄壳**，
+内部调既有脚本。避免「统一 CLI 变成大规模重命名」这种高危动作。
+
+---
+
+## 决策点 12：Data-Juicer 插件接入（W5，先 spike）
+
+事实：**Data-Juicer v1.5.5（2026-08-07）新增 External OP Plugins——第三方算子可作独立
+pip 包经 Python entry points 自动注册。** 这是「不 fork、但接入业界框架」的正解。
+
+| 项 | 设计 |
+|---|---|
+| 形式 | 包内新增 `curation_eval/dj_plugin/`，`pyproject.toml` 声明 entry point |
+| **待实测项（spike 半天，不许猜）** | **entry-point 组名**（本表按 `data_juicer.ops` 占位）、算子基类/注册装饰器的确切名字与签名、`Sample` 与 DJ 数据形态（dict/JSON）的适配点 |
+| 首个算子 | `VerdictOp`：**把判决书能力反向输出给 DJ** ——DJ 侧跑完算子后，用本项目的判决书格式记录「每条被删样本的判据与依据」。**这是「评测层反过来服务业界框架」的最小可运行形态。** |
+| 失败预案 | 若 entry point 机制与预期不符 → 降级为「导出脚本」形式（`curation-eval verdict export --format data-juicer`），**并如实记录 spike 结论**（这本身是笔记素材） |
+
+---
+
+## 数据结构表（汇总）
+
+| 数据 | 位置 | 关键字段 | 消费方 |
+|---|---|---|---|
+| `RawDoc` | `data/raw/html/<sha2>/<sha256>.html.gz` + 索引 jsonl | uri/host/fetched_at/media_type/content_sha256/content_path/connector | 抽取层 |
+| `ExtractedDoc` | `data/interim/extracted/<run_id>.jsonl` | uri/source_doc_sha256/title/text/extractor/extractor_version/warnings | 归一化层 |
+| `Sample.meta["normalize"]` | 内存/漏斗产物 | rules_applied/orig_len/new_len/chars_removed/whitespace_ratio_before | 判决书、UI |
+| **判决书** | `data/verdicts/<run_id>/verdict.jsonl` | v/run_id/seq/op/decision/score/threshold/rule/evidence/input_fingerprint/normalize/review/prov | 人审层、血缘层、UI、阈值校准 |
+| `review/cases.jsonl` | `data/review/` | case_id/run_id/sample_id/op/score/threshold/rule/evidence/priority/priority_reason/status | 人审 UI/CLI |
+| `review/verdicts.jsonl` | `data/review/` | case_id/decision/corrected_label/labeler/ts/note | 阈值校准、迁移代价报告 |
+| `MixtureManifest` | `data/mixtures/<name>/manifest.json` | domains[]{weight_target,weight_actual,docs,tokens,repeat_factor,sha256_list}/spec_sha256/warnings[] | 报告/UI |
+| `TokenLedger` | `data/mixtures/<name>/ledger.jsonl` | ts/domain/docs/tokens/source_sha256 | 报告 |
+| `Croissant` | `data/croissant/<run_id>/croissant.jsonld` | distribution[]/recordSet[]/**curation:verdictRecordSet** | 外部消费者、校验 |
+| `CkptState` | `data/checkpoints/<run_id>/state.json` | completed_stages/input_fingerprint/config_sha256 | 执行器 resume |
+
+---
+
+## 接口约定表（CLI）
+
+| 命令 | 输入 → 输出 | 退出码 |
+|---|---|---|
+| `python -X utf8 -m mm_curation.normalize --in <jsonl> --out <jsonl> [--rules nfc,zero_width,...]` | 语料 → 归一化语料 + `--stats` 打印逐规则计数 | 0=成；2=输入缺失 |
+| `python -X utf8 scripts/fetch_raw_html.py --source chinanews --max 200 --out data/raw/html` | URL → RawDoc（robots+限速+幂等） | 0=成；1=全失败；3=robots 全禁 |
+| `python -X utf8 scripts/extract_docs.py --raw data/raw/html --extractor auto --out data/interim/extracted/<run>.jsonl` | RawDoc → ExtractedDoc（三级链降级） | 0=成；2=无可用抽取器 |
+| `python -X utf8 scripts/run_pipeline.py --config <yaml> --verdict-ledger data/verdicts/<run>` | 漏斗 + **可选**判决书落盘（不传则行为与今日完全一致） | 既有语义不变 |
+| `python -X utf8 scripts/review_cli.py list --run <id> --batch 50` / `decide --case <id> --decision overturn` / `stats --run <id>` | 队列消费 → 裁决回写 | 0=成；2=队列空 |
+| `python -X utf8 scripts/calibrate_threshold.py --verdicts <jsonl> --op <name> --false-drop-budget 0.02` | 判决书 → 推荐阈值 + 依据曲线 | 0=成；3=预算不可达 |
+| `python -X utf8 scripts/build_mixture.py --spec configs/mixture_demo.yaml --out data/mixtures/demo` | MixtureSpec → manifest + ledger（含告警） | 0=成；4=域饥饿告警 |
+| `python -X utf8 scripts/export_croissant.py --run <id> --out data/croissant/<id> [--validate]` | 产物 → croissant.jsonld（+ 校验） | 0=成；5=校验失败 |
+| `python -X utf8 scripts/run_pipeline.py --resume <run_id>` | 续跑 | 0=成；6=指纹不一致拒绝续跑 |
+| `curation-eval demo [--run-dir <path>]` | 现场跑示例 → 起 UI | 0=成；2=未装 streamlit |
+
+---
+
+## 流转表（样本生命周期 · V6 全链路版）
+
+```
+[源接入]  URI/本地文件/CSV/FHIR bundle
+             │ SourceConnector.iter_raw()
+             ▼
+[RawDoc]  内容寻址存档  data/raw/html/<sha2>/<sha>.html.gz     ← 可重放，抽取器升级不丢现场
+             │ ExtractorChain: NewsCn(host覆盖) → Trafilatura([extract]) → Heuristic(零依赖)
+             ▼
+[ExtractedDoc]  data/interim/extracted/<run_id>.jsonl
+             │ 归一化前置阶段（Transformer；opt-in，逐条记 normalize_log）
+             ▼
+[Sample 规范化态]  meta["normalize"] = {rules_applied, chars_removed, ...}
+             │ run_funnel(..., pre_stages=[normalize], verdict_ledger=...)
+             ▼
+[算子链]   seq=1..N   每级判决 ──写──▶ verdict.jsonl（旁路，不传参则零落盘）
+             │                                    │
+             ├── kept ──▶ 下游（索引/微调/配比）    ├──▶ 人审层（队列排序：边界带>分歧>配额）
+             └── dropped ──▶ 既有 dropped.jsonl     │         │ 人工裁决
+                                                    │         ▼
+                                                    │   review/verdicts.jsonl
+                                                    │         │ 推翻率 M/N
+                                                    ▼         ▼
+                                          阈值校准（分布+误杀预算→推荐阈值）
+                                                    │
+                        ┌───────────────────────────┴───────────────────────┐
+                        ▼                                                   ▼
+              Croissant 1.1 导出                                 UI 工作台（10 页签）
+              （distribution + recordSet                         ⑦漏斗解剖⑧阈值沙盘
+               + curation:verdictRecordSet 记录级）                 ⑨人审队列⑩迁移代价
+```
+
+**checkpointing**：`CheckpointedExecutor` 包裹上述链条，每级落 `stage_<k>.jsonl`；
+`--resume` 校验 `input_fingerprint` + `config_sha256`。
+
+---
+
+## 分期与原子任务拆解（确认后落 `docs/tasks.md`）
+
+> 纪律：**每个补层任务必须附带对照实验**（见决策点 1）。任务粒度 50–150 行。
+
+### W1 — 改写通道 + 归一化层 + 判决书骨架（零新依赖，纯 CPU，可立即动码）
+
+| # | 任务 | 验收 | 状态（2026-09-20 实点） |
+|---|---|---|---|
+| W1-1 | 包侧 `Transformer` 协议 + `TransformResult` | ≥4 单测（协议实现/模态跳过/改写日志/changed 语义） | ✅ `test_transform.py` 13 条 |
+| W1-2 | `run_funnel` 增 `pre_stages` 可选参数（默认空） | ≥3 单测（空=旧行为/单级/改写后不可用丢样本） | ✅ 漏斗集成三条红线（不传 ledger 零痕迹） |
+| W1-3 | `normalize/text_normalize.py` 七规则 | ≥8 单测（含 #65 现场样本：`\r` 残留 + 3000 空格） | ✅ `test_normalize.py` 24 条；**规则正交化**后逐规则归因纯（笔记 #70） |
+| W1-4 | `TextNormalizeTransformer` 接入 + `normalize_log` | ≥3 单测 | ✅ 只声明自然语言模态（`fhir_resource` canonical JSON 刻意排除） |
+| W1-5 | 判决书 `verdict/ledger.py`（schema v1） | ≥5 单测（落盘/过滤/版本兼容/evidence 完整性） | ✅ `test_verdict_ledger.py` 21 条 |
+| W1-6 | 漏斗集成：判决自动写账本（opt-in） | ≥3 单测（不传参零落盘 = 旧行为逐位一致） | ✅ 另加**不变量断言**「台账行数 = 各滤级进入数之和」 |
+| W1-7 | **A/B 对照实验**（2066 篇）→ `normalize_ablation.{json,md}` | 6 项指标出数；阴性也落报告 | ✅ 同码双跑**逐字节相同**；补上追加式台账陷阱的修复（笔记 #71） |
+| W1-8 | UI ⑦ 漏斗解剖与判决台账 | ≥3 单测（解析/报告缺失降级/AppTest 渲染） | ✅ 5 条（含「裸仓库报告全缺失」降级 + 批量算子分支回归） |
+| **W2-7** | **UI ⑧ 阈值沙盘**（原排 W2，实际提前到 W1 一并做） | ≥3 单测 | ✅ 与 ⑦ 同批落地；批量算子显式「不适用」；口径（丢弃预算 ≠ 误杀率）界面分两处标 |
+
+> W1 收尾基线：主仓 **328** + 包 **67**（实点），ruff 双仓全绿。
+> **W2 动手时不要再做 W2-7**（已在 W1 完成）；W2 剩余 = RawDoc/抽取三口径/源接入协议化。
+
+### W2 — 抽取层 + RawDoc + 源接入协议化
+
+W2-1 RawDoc + 内容寻址落盘（≥4）· W2-2 `HeuristicExtractor` 零依赖（≥5）·
+W2-3 `TrafilaturaExtractor` + 降级路径（≥3）· W2-4 `NewsCnExtractor` 收编
+（**逐字等价回归红线**，≥3）· W2-5 `SourceConnector` + 三实现（≥5）·
+W2-6 **三口径抽取对照实验** + 人工抽检 30 篇 → `extract_ablation.{json,md}`（≥1）·
+W2-7 UI ⑧ 阈值沙盘（≥3）
+
+### W3 — 人审层
+
+W3-1 队列构造 + `case_id` 确定性 + 三排序策略（≥6）· W3-2 裁决落盘 + 回写判决书（≥4）·
+W3-3 `review_cli.py`（≥3）· W3-4 **人审 → 阈值校准闭环**（≥3）· W3-5 UI ⑨ 人审队列（≥3）
+
+### W4 — 配比层 + 血缘层 + 执行层
+
+W4-1 MixtureSpec（≥4）· W4-2 TokenLedger + 三告警（≥5）· W4-3 `build_mixture.py`（≥2）·
+W4-4 Croissant 生成器（≥5）· W4-5 `curation:verdictRecordSet` 记录级扩展（≥3）·
+W4-6 校验（本地 shape + 可选 mlcroissant，≥2）· W4-7 checkpointing 装饰器（≥5）·
+W4-8 `--resume` 指纹校验（≥3）· W4-9 UI ⑩ 迁移代价（≥3）
+
+### W5 — 分发与生态位对接
+
+W5-1 UI 进包 + 主仓薄壳（≥4）· W5-2 `curation-eval demo` 单命令（≥2，含无 streamlit 降级）·
+W5-3 统一 CLI 七子命令（≥3）· W5-4 **DJ 插件 spike** + 最小 `VerdictOp`（≥2，含 spike 结论落笔记）·
+W5-5 文档四件套（README 重定位 / RUNBOOK / DOMAIN_PACKS / DEV_PLAN）
+
+---
+
+## 风险
+
+| 风险 | 对策 |
+|---|---|
+| **摊薄**（最大） | 每任务强制带对照实验；层序按依赖而非按兴趣；第 1 组未出数字不进第 2 组 |
+| 归一化改变全部既有数字 | **默认 opt-in**，既有 4 个 config 一字不动；既有数字逐项相等的红线由全量跑前后对比守住 |
+| `trafilatura` 装不上 / 版本冲突 | 走 extra + 懒加载 + 三级链降级（Heuristic 永远可用）；CI 零新依赖 |
+| 重抓 HTML 被源站限流/拒绝 | 200 页 + 1s 限速 + robots 前置；失败则缩小到 50 页并注明样本量 |
+| 抽取层「无增益」被掩盖 | 预留阴性出口：C ≤ B 时如实记录，并把定位从「质量提升」改写为「换源成本降低」 |
+| 人审层做成人造摆设 | 硬性要求 `--review-report` 产出推翻率 M/N 并喂给阈值校准；无闭环不算完成 |
+| UI 进包导致包变重/测试面扩大 | streamlit 进 `[ui]` extra；示例数据 <100KB；包侧基线只增不减并实点 |
+| DJ 插件 entry point 与预期不符 | 先 spike（半天）后动码；失败降级为导出脚本 + spike 结论落笔记 |
+| 与协作方在途文件冲突 | 本轮全部**新增文件**；`run_pipeline.py` / `sdk.py` 的改动仅在确认后单独小步提交；提交只 `git add` 具体文件 |
+
+---
+
+## 验收标准汇总
+
+1. **层完整性**：10 层各有可运行实现 + 至少一条对照实验数字（不要求每层都「优于」，
+   但必须**有数**）。
+2. **零破坏**：既有 4 个 config 的数字逐项相等（归一化 opt-in 未启用时）；
+   测试基线不倒退（**2026-09-18 实点：主仓 274 + 包 54，其中包侧 5 条为 ray 测试，
+   ray 2.58.0 已装**）。
+3. **可审计**：每条 `drop` 判决在账本里都能查到 `op / score / threshold / rule / evidence /
+   input_fingerprint`；人审可推翻且推翻率可统计。
+4. **易上手**：`pip install curation-eval[ui]` → `curation-eval demo` 一条命令起完整工作台，
+   零 clone。
+5. **业界可介入**：DJ 插件 spike 有结论（成功或如实失败），最小 `VerdictOp` 可跑。
+6. **文档四件套**：ruff 全绿；DEV_PLAN 回写（含开发日志行）；工程笔记新增（#65 复验结论、
+   DJ 可视化事实校准、抽取层阴性出口若触发）；ROADMAP/RUNBOOK 同步。
+
+---
+
+## 待用户裁决（三处，其余本表已自决）
+
+| # | 决策 | 我的建议 | 不确认的后果 |
+|---|---|---|---|
+| **1** | **可视化定位承认「DJ 已有」后，是否仍投入 4 页签** | **是**——但叙事从「我做了一个可视化」改写为「我做的三件事 DJ 没做」：有依据的阈值 / 记录级可推翻的判决 / 单机+Ray 都能用的工作台 | 若按原叙事写简历，被懂行的面试官问一句「Data-Juicer 的 op_effect 你看过吗」就会挂 |
+| **2** | **归一化层默认开还是 opt-in** | **opt-in**（既有 config 不动） | 若默认开，四个模态的既有数字全变，V4「逐项相等」红线破，需全量重生成所有报告 |
+| **3** | **UI 是否搬进 pip 包**（W5） | **是**——这是「比业界更易上手」唯一实质手段 | 不做的话「易上手」只能停留在 `scripts/` 里，pip 用户享受不到 |

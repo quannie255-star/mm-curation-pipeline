@@ -9,9 +9,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Sequence
+from typing import TYPE_CHECKING, Any, Sequence
 
 from .schema import Sample
+
+if TYPE_CHECKING:  # 仅类型标注用（避免与 transform 模块的导入顺序耦合）
+    from .transform import StageTransformStat
 
 
 @dataclass
@@ -35,11 +38,17 @@ class StageStat:
 
 @dataclass
 class FunnelResult:
-    """一次漏斗运行的完整结果。"""
+    """一次漏斗运行的完整结果。
+
+    transform_* 两个字段是 V6 改写通道的产物（前置阶段）——默认空，
+    v1/V2 调用方不受影响。
+    """
 
     kept: list[Sample] = field(default_factory=list)
     stats: list[StageStat] = field(default_factory=list)
     dropped: list[tuple[str, Sample]] = field(default_factory=list)  # (算子名, 样本)
+    transform_stats: list["StageTransformStat"] = field(default_factory=list)
+    transform_dropped: list[tuple[str, Sample]] = field(default_factory=list)
 
 
 class Operator(ABC):
@@ -53,6 +62,15 @@ class Operator(ABC):
 
     @abstractmethod
     def score(self, sample: Sample) -> float | None: ...
+
+    def explain(self, sample: Sample, score: float | None) -> dict[str, Any]:
+        """可选钩子（V6 判决书）：返回该次判决的**领域判据**，进 verdict.evidence。
+
+        默认空 dict——不是抽象方法，既有算子零改动。覆写它可以把「为什么这么判」
+        的量显式暴露出来（例：chinese_ratio 的 `chars_han` / `chars_total`），
+        使判决书从「分数低于阈值」升级为「430 个汉字 / 3001 字符 → 0.143 < 0.3」。
+        """
+        return {}
 
     def keep(self, score: float | None) -> bool:
         if score is None:

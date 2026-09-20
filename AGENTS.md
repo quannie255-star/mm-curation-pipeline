@@ -10,7 +10,7 @@
 
 ## 收工（必做，缺一视为未完成）
 
-1. **质量门全绿**：`python -m ruff check .` + `python -X utf8 -m pytest -q --tb=no`（主仓库与 packages/curation-eval 各跑一次）。测试基线：主仓库 129 + 包 29，不得倒退。
+1. **质量门全绿**：`python -m ruff check .` + `python -X utf8 -m pytest -q --tb=no`（主仓库与 packages/curation-eval 各跑一次）。测试基线：主仓库 328 + 包 67，不得倒退（**改测试后实点回写**，基线在 docs/DEV_PLAN.md 顶部，别沿用旧数）。
 2. **回写 docs/DEV_PLAN.md**：更新任务状态 + 「开发日志」表加一行（日期 / 内容 / 关键数字 / commit）。
 3. **有面试价值的现象**（诡异 bug、反直觉结论、关键抉择）写进 docs/ENGINEERING_NOTES.md，格式：现象 → 根因 → 决策 → 话术。
 4. 阶段级进展同步 docs/ROADMAP.md 进度表；命令与验收数字变化同步 docs/RUNBOOK.md。

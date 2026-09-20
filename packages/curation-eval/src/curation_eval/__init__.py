@@ -40,6 +40,18 @@ from .sensor_contamination import (  # noqa: F401  导入以触发 @register 注
     SensorUnitSwap,
     SensorUnplannedSilence,
 )
+from .transform import (
+    StageTransformStat,
+    Transformer,
+    TransformerMeta,
+    TransformResult,
+    TransformRunResult,
+    available_transformers,
+    get_transformer_meta,
+    register_transformer,
+    run_pre_stages,
+    unregister_transformer,
+)
 
 __all__ = [
     # 协议核心（V2 α）
@@ -60,6 +72,17 @@ __all__ = [
     "RayDistributedExecutor",
     "StageStat",
     "FunnelResult",
+    # 改写通道（V6 α）
+    "Transformer",
+    "TransformerMeta",
+    "TransformResult",
+    "StageTransformStat",
+    "TransformRunResult",
+    "register_transformer",
+    "get_transformer_meta",
+    "available_transformers",
+    "unregister_transformer",
+    "run_pre_stages",
     # 污染器与指标
     "ContaminationPlan",
     "Contaminator",
@@ -70,4 +93,4 @@ __all__ = [
     "mrr",
     "cohen_kappa",
 ]
-__version__ = "0.4.0"
+__version__ = "0.5.0"
