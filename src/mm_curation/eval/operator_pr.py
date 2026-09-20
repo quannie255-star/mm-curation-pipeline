@@ -180,12 +180,16 @@ def render_pr_markdown(
         f"- 全集 {sum(dirty_totals.values()) + n_clean} 条"
         f"（干净 {n_clean} / 脏 {sum(dirty_totals.values())}）。",
         "",
-        "| 算子 | 主靶 | 扔 | 误杀 | precision | 主靶 recall | 干净误杀率 |",
+        "| 算子 | 主靶 | 扔 | 误杀 | precision | 主靶 recall | 干净误杀率（误杀/干净） |",
         "|---|---|---|---|---|---|---|",
     ]
     for r in results:
         prec = "—" if r.precision is None else f"{r.precision:.1%}"
-        kill = "—" if r.clean_kill_rate is None else f"{r.clean_kill_rate:.2%}"
+        # 干净误杀率的分母是**干净样本数**，不是全集。
+        # 曾经这里用 OperatorPR.clean_kill_rate（分母 n_in），列名却写「干净误杀率」：
+        # 脏占比越高、低估越多——SKAB w64 实测 24.48%（617/2520）被显示成 13.67%，
+        # 把系统说得比自己好 1.8 倍。数字口径的错比算法错更难发现，也更有害。
+        kill = "—" if not n_clean else f"{r.clean_killed / n_clean:.2%}"
         if r.primary_target:
             recalls = [
                 f"{t} {r.recall_of(t, dirty_totals.get(t, 0)) or 0:.0%}" for t in r.primary_target

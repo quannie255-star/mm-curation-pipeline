@@ -1,0 +1,53 @@
+# 工业传感器清洗漏斗 · **真实数据档**（R4，2026-09-20）
+#
+# 与 `funnel_industrial.yaml`（合成门禁档）的**唯一差别**：`sensor_drift` 的
+# 尺度来源从 `pooled`（窗内噪声 × AR(1) 外推）换成 `mad`（同组全部窗均值的稳健离散度）。
+#
+# 为什么需要独立一档而不是改默认值：合成档的门禁数字（召回 100% / 误杀 1.23%）
+# 被 docs/PROOF_CHAIN.md 与 docs/claims.json 锁定，而那两个文件由协作方在途维护
+# ——默认档一动，那批数字就要跟着动。所以真实数据用本档，合成门禁保持原样。
+#
+# 校准依据（`eval_real_sensor.py --grid sensor_drift --grid-axis scale=pooled,mad
+# --grid-axis z=2,3,4,6,8`，三个数据集各跑一遍）：
+#
+# | 数据集 | 同召回下的误杀率 | 结论 |
+# |---|---|---|
+# | MetroPT-3 | recall 0.72：pooled 28.90% → **mad 7.24%** | −75% |
+# | MetroPT-3 | recall 0.82：pooled 36.88% → **mad 20.74%** | −44% |
+# | C-MAPSS   | recall 0.48：pooled ≈9.8%（z=8）→ **mad 5.87%** | −40% |
+# | SKAB w64  | recall 0.14：pooled ≈22%（外推）→ **mad 8.41%** | −62% |
+#
+# 合成轨回归（`eval_industrial.py --seeds 42,7,2026`）：
+#   召回 100.0%（不变）、误杀 **1.23% → 0.95%**（更优），
+#   `sensor_drift` 的误杀 **20 → 0** —— 即 MAD 档**没有**触发设计表里的回退条件
+#   （回退条件 = 合成误杀高于 1.23%），但它仍以可选档形式交付，理由见上。
+#
+# ⚠️ 待办：等 `PROOF_CHAIN.md` / `claims.json` 由协作方同步后，可把
+# `funnel_industrial.yaml` 的默认尺度一并切到 `mad`（一行改动，证据已备齐）。
+
+name: industrial_sensor_quality_real
+description: >
+  工业传感器清洗漏斗（真实数据档）：单样本（卡死/量程）-> 批量跨窗
+  （漂移/单位一致性）-> 批量归因（故障 vs 计划维护判别）。
+  与合成档共用同一注册表与执行器，**零框架特例**；
+  差别仅在 sensor_drift 的尺度来源（mad 而非 pooled）。
+
+dataset:
+  raw_jsonl: data/raw/real/metropt3/windows.jsonl
+
+output:
+  dir: data/processed/industrial_funnel_real
+
+operators:
+  # --- 单样本算子（毫秒级） ---
+  - op: sensor_stuck        # 卡死：设备级停机豁免 / 无信息通道豁免 / 严格平坦 / 持续塌陷
+    params: {min: 1.0}
+  - op: sensor_range        # 量程：超量程/物理不可能值；表外通道记 None（未评）
+    params: {min: 1.0}
+  # --- 批量算子（全量视角，shardable=False） ---
+  - op: sensor_drift        # 校准漂移：**尺度 = 1.4826 × MAD(同组全窗均值)**
+    params: {min: 1.0, scale: mad}
+  - op: unit_consistency    # 单位一致性：同测点单位众数偏离（MPa vs bar 混源）
+    params: {min: 1.0}
+  - op: fault_vs_maintenance  # 三种静默形态：全哨兵 / 设备级停机 / 跨度缺口
+    params: {min: 1.0}

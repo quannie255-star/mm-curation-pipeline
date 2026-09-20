@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>真实工业数据清洗效果 · 交互式面板</title>
+<style>
+:root{
+  --bg:#f6f8fb; --panel:#ffffff; --ink:#111827; --ink2:#4b5563; --ink3:#8b95a5;
+  --line:#e3e8ef; --line2:#eef2f7;
+  --pass:#0f9d76; --drop:#d94a4a; --none:#b08300; --accent:#2563eb; --accent2:#7c3aed;
+  --shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px -12px rgba(16,24,40,.18);
+}
+html[data-theme="dark"]{
+  --bg:#0d1117; --panel:#161b22; --ink:#e6edf3; --ink2:#9aa7b4; --ink3:#6e7b8a;
+  --line:#232c37; --line2:#1c242e;
+  --pass:#3fb950; --drop:#f85149; --none:#d29922; --accent:#58a6ff; --accent2:#a371f7;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",
+  "Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 22px 72px}
+code,.num{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+/* ---------- 首屏 ---------- */
+.hero{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap}
+h1{margin:0 0 6px;font-size:25px;letter-spacing:-.01em}
+.sub{color:var(--ink2);font-size:13px;margin:0}
+.tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;
+  border:1px solid var(--line);color:var(--ink2);background:var(--panel);margin-left:6px}
+button{font:inherit;cursor:pointer;border-radius:9px;border:1px solid var(--line);
+  background:var(--panel);color:var(--ink);padding:7px 13px;transition:.15s}
+button:hover{border-color:var(--accent);color:var(--accent)}
+button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:13px;margin:20px 0 8px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:15px 16px;
+  box-shadow:var(--shadow)}
+.card .k{font-size:11px;color:var(--ink3);letter-spacing:.03em;text-transform:uppercase}
+.card .v{font-size:25px;font-weight:640;letter-spacing:-.02em;margin-top:3px}
+.card .d{font-size:12px;color:var(--ink2);margin-top:2px}
+.up{color:var(--pass)} .down{color:var(--drop)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:18px 20px;margin-top:18px;box-shadow:var(--shadow)}
+h2{font-size:16px;margin:0 0 4px;letter-spacing:-.01em}
+.hint{color:var(--ink2);font-size:12.5px;margin:0 0 14px}
+details.note{margin-top:14px;background:var(--panel);border:1px solid var(--line);
+  border-radius:13px;padding:12px 16px;box-shadow:var(--shadow)}
+details.note summary{cursor:pointer;font-weight:600;font-size:13px;color:var(--ink2)}
+details.note ul{margin:10px 0 2px;padding-left:20px;color:var(--ink2);font-size:12.5px}
+details.note li{margin:5px 0}
+/* ---------- 数据集 pill ---------- */
+.pills{display:flex;gap:9px;flex-wrap:wrap;margin:18px 0 0}
+.pill{padding:9px 15px;border-radius:11px;border:1px solid var(--line);background:var(--panel);
+  cursor:pointer;transition:.15s;text-align:left}
+.pill:hover{border-color:var(--accent)}
+.pill.on{border-color:var(--accent);background:var(--accent);color:#fff}
+.pill b{display:block;font-size:13px;font-weight:620}
+.pill span{font-size:11px;opacity:.72}
+/* ---------- 表 ---------- */
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{text-align:left;padding:8px 9px;border-bottom:1px solid var(--line2);vertical-align:middle}
+th{color:var(--ink3);font-weight:600;font-size:11px;letter-spacing:.03em;text-transform:uppercase;
+  white-space:nowrap}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+tbody tr:hover{background:var(--line2)}
+.bar{position:relative;height:7px;border-radius:4px;background:var(--line2);overflow:hidden;min-width:74px}
+.bar i{position:absolute;inset:0 auto 0 0;border-radius:4px;display:block}
+.muted{color:var(--ink3)}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px}
+.chip{display:inline-block;font-size:11px;padding:1px 7px;border-radius:6px;border:1px solid var(--line);
+  color:var(--ink2);margin:1px 3px 1px 0}
+.chip.warn{border-color:var(--none);color:var(--none)}
+.chip.bad{border-color:var(--drop);color:var(--drop)}
+/* ---------- 曲线 ---------- */
+.chart{position:relative}
+svg{display:block;width:100%;height:auto;overflow:visible}
+.grid line{stroke:var(--line2);stroke-width:1}
+.axis text{fill:var(--ink3);font-size:10.5px}
+.axis line{stroke:var(--line)}
+.lg{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--ink2);margin:2px 0 8px}
+.lg i{display:inline-block;width:11px;height:3px;border-radius:2px;margin-right:6px;vertical-align:2px}
+.tip{position:absolute;pointer-events:none;background:var(--panel);border:1px solid var(--line);
+  border-radius:9px;padding:7px 10px;font-size:11.5px;box-shadow:var(--shadow);opacity:0;
+  transition:opacity .12s;white-space:nowrap;z-index:5}
+/* ---------- 时间线 ---------- */
+.tlwrap{overflow-x:auto;border:1px solid var(--line);border-radius:11px;background:var(--panel)}
+.tl{position:relative;min-width:100%}
+.tlhead,.tlrow{display:flex;align-items:center;gap:9px;padding:0 10px}
+.tlhead{position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--line);z-index:2;
+  height:24px}
+.tlname{flex:0 0 132px;font-size:11.5px;color:var(--ink2);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.tlname b{color:var(--ink);font-weight:600}
+canvas{display:block;image-rendering:pixelated}
+.legend{display:flex;gap:15px;flex-wrap:wrap;font-size:12px;color:var(--ink2);margin:11px 0 0}
+.legend em{font-style:normal;display:inline-flex;align-items:center;gap:6px}
+.legend b{width:11px;height:11px;border-radius:3px;display:inline-block}
+/* ---------- 控件 ---------- */
+.ctrls{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin:0 0 13px}
+select,input[type=search]{font:inherit;font-size:12.5px;padding:6px 9px;border-radius:9px;
+  border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+input[type=range]{width:150px;accent-color:var(--accent)}
+#kills{max-height:400px;overflow:auto;border:1px solid var(--line);border-radius:11px}
+#kills thead th{position:sticky;top:0;background:var(--panel);z-index:1}
+.empty{color:var(--ink3);padding:18px;text-align:center;font-size:12.5px}
+.foot{color:var(--ink3);font-size:11.5px;margin-top:26px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <div>
+      <h1>真实工业数据清洗效果<span class="tag" id="gen"></span></h1>
+      <p class="sub">合成语料上标定的五条判据，迁到三个公开真实数据集后还剩多少 ——
+        以及 P2 修复把它们救回了多少。</p>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button id="theme">切换主题</button>
+      <button id="export">导出当前误杀清单 CSV</button>
+    </div>
+  </div>
+
+  <div class="cards" id="cards"></div>
+
+  <details class="note" id="honesty" open>
+    <summary>读数之前请先读这三条口径声明（点击折叠）</summary>
+    <ul id="honesty-list"></ul>
+    <ul><li id="unscored-note"></li></ul>
+  </details>
+
+  <div class="pills" id="pills"></div>
+
+  <div class="panel">
+    <h2>算子级对照　旧判据 vs 新判据</h2>
+    <p class="hint">「旧」= <code id="cfg-old"></code>（合成门禁档，尺度 pooled）；
+      「新」= <code id="cfg-new"></code>（真实数据档，尺度 MAD）。
+      误杀率分母是**干净窗数**，不是全集 —— 分母写错会把系统说得比自己好 1.8 倍。</p>
+    <table id="ops"></table>
+  </div>
+
+  <div class="panel">
+    <h2>召回-误杀曲线　尺度与阈值怎么定的</h2>
+    <p class="hint">横轴 = 真实脏召回，纵轴 = 真实干净误杀率。**越靠左上越好**。
+      两条线只差「尺度怎么定的」一件事：pooled 用窗内噪声外推，MAD 用同组窗均值的稳健离散度。
+      点越大 = 阈值越松。点一下可锁定工作点。</p>
+    <div class="lg" id="lg"></div>
+    <div class="chart" id="chart"></div>
+  </div>
+
+  <div class="panel">
+    <h2>窗级时间线　每个格子是一个窗</h2>
+    <p class="hint" id="tl-hint"></p>
+    <div class="ctrls">
+      <button class="tg on" data-v="new">新判据</button>
+      <button class="tg" data-v="old">旧判据</button>
+      <button id="zoom-in">放大</button>
+      <button id="zoom-out">缩小</button>
+      <span class="muted" style="font-size:12px" id="tl-scale"></span>
+    </div>
+    <div class="tlwrap"><div class="tl" id="tl"></div></div>
+    <div class="legend">
+      <em><b style="background:var(--pass)"></b>通过</em>
+      <em><b style="background:var(--drop)"></b>丢弃</em>
+      <em><b style="background:var(--none)"></b>未评（判据没干活）</em>
+      <em><b style="background:var(--accent2)"></b>数据集标注为脏</em>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>判据适用性 / 可达性　「没检出」和「判不了」必须可区分</h2>
+    <p class="hint">适用性回答「靶子有没有」，可达性回答「门槛够不够」——
+      两者是同一句话的两个分母。表里出现「空转」时，该算子的 0 误杀**不含任何信息量**。</p>
+    <table id="checks"></table>
+  </div>
+
+  <div class="panel">
+    <h2>误杀清单　人工抽检入口</h2>
+    <p class="hint" id="kills-hint"></p>
+    <div class="ctrls">
+      <select id="f-op"></select>
+      <select id="f-ch"></select>
+      <select id="f-lab"></select>
+      <input type="search" id="f-q" placeholder="搜设备 / 判据代号…">
+      <span class="muted" id="kills-count"></span>
+    </div>
+    <div id="kills"></div>
+  </div>
+
+  <p class="foot">数字全部由 <code class="mono">scripts/build_real_interactive.py</code> 预计算，
+    页面只做呈现不做统计 —— 口径只有一处。</p>
+</div>
+
+<script>
+const DATA = __DATA__;
+const DS = DATA.datasets;
+let cur = DS[0], verdict = 'new', zoom = 1, pinned = null;
+
+const $ = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+const pct = v => v === null || v === undefined ? '—' : (v * 100).toFixed(v < 0.01 ? 2 : (v < 0.1 ? 2 : 1)) + '%';
+const num = v => v === null || v === undefined ? '—' : v.toLocaleString('zh-CN');
+const fmtT = t => t ? new Date(t * 1000).toISOString().slice(0, 16).replace('T', ' ') : '—';
+const COLOR = { pass: '#0f9d76', drop: '#d94a4a', none: '#b08300', accent: '#2563eb', accent2: '#7c3aed' };
+
+/* ---------- 首屏卡片 ---------- */
+function drawCards() {
+  const agg = s => s.reduce((a, o) => a + o.n_dropped, 0);
+  const oldK = DS.reduce((a, d) => a + d.operators.reduce((x, o) => x + o.old.clean_killed, 0), 0);
+  const newK = DS.reduce((a, d) => a + d.operators.reduce((x, o) => x + o.clean_killed, 0), 0);
+  const nWin = DS.reduce((a, d) => a + d.n_total, 0);
+  const nUn = DS.reduce((a, d) => a + d.operators.reduce((x, o) => x + o.n_unscored, 0), 0);
+  const real = DS.reduce((a, d) => a + d.operators.reduce((x, o) => x + o.n_dirty_caught, 0), 0);
+  const allDirty = DS.reduce((a, d) => a + d.n_dirty, 0);
+  const cards = [
+    ['真实窗总量', num(nWin), DS.length + ' 个公开数据集 · ' + new Set(DS.flatMap(d => Object.keys(d.channels))).size + ' 个通道'],
+    ['算子级误杀（旧 → 新）', num(oldK) + ' → ' + num(newK),
+      '下降 ' + (100 * (1 - newK / oldK)).toFixed(0) + '%　分母=干净窗', newK < oldK ? 'up' : ''],
+    ['真实脏命中', num(real), '占全部真实脏样本 ' + pct(real / allDirty)],
+    ['「未评」样本-算子对', num(nUn), '旧版把它们显示成「通过」——这就是 F3 失效'],
+    ['误杀清单行数', num(DS.reduce((a, d) => a + d.kills.length, 0)), '可筛可导出，人工抽检入口'],
+  ];
+  $('#cards').innerHTML = cards.map(c =>
+    '<div class="card"><div class="k">' + c[0] + '</div><div class="v ' + (c[3] || '') + '">'
+    + c[1] + '</div><div class="d">' + c[2] + '</div></div>').join('');
+  $('#gen').textContent = 'generated ' + DATA.meta.generated_at.slice(0, 16).replace('T', ' ');
+  $('#honesty-list').innerHTML = DATA.meta.honesty_note.map(x => '<li>' + x + '</li>').join('');
+  $('#unscored-note').textContent = DATA.meta.unscored_note;
+  $('#cfg-old').textContent = DS[0].config_synth;
+  $('#cfg-new').textContent = DS[0].config_real;
+}
+
+/* ---------- 数据集 pill ---------- */
+function drawPills() {
+  $('#pills').innerHTML = DS.map((d, i) =>
+    '<div class="pill' + (d.id === cur.id ? ' on' : '') + '" data-i="' + i + '">'
+    + '<b>' + d.label + '</b><span>' + num(d.n_total) + ' 窗 · 干净 '
+    + num(d.n_clean) + ' / 脏 ' + num(d.n_dirty) + '</span></div>').join('');
+  $$('#pills .pill').forEach(el => el.onclick = () => {
+    cur = DS[+el.dataset.i]; pinned = null;
+    drawPills(); drawOps(); drawCurve(); drawTimeline(); drawChecks(); drawKills(); drawCards();
+  });
+}
+
+/* ---------- 算子对照表 ---------- */
+function drawOps() {
+  const rows = cur.operators.map(o => {
+    const kOld = o.old.kill_rate, kNew = o.kill_rate;
+    const better = kOld !== null && kNew !== null && kNew < kOld;
+    const delta = (kOld && kNew !== null) ? (100 * (1 - kNew / kOld)).toFixed(0) + '%' : '—';
+    const bar = v => '<div class="bar"><i style="width:' + Math.min(100, 100 * (v || 0) / 0.31)
+      + '%;background:' + (v > 0.15 ? 'var(--drop)' : v > 0.03 ? 'var(--none)' : 'var(--pass)') + '"></i></div>';
+    const forms = Object.entries(o.forms).length
+      ? Object.entries(o.forms).map(([k, v]) => '<span class="chip">' + k + ' ×' + v + '</span>').join('')
+      : '<span class="muted">—</span>';
+    const un = o.n_unscored
+      ? '<span class="chip warn">未评 ' + num(o.n_unscored) + '</span>'
+      : '<span class="muted">0</span>';
+    return '<tr><td><code>' + o.op + '</code></td>'
+      + '<td class="n">' + num(o.old.n_dropped) + ' <span class="muted">→</span> <b>' + num(o.n_dropped) + '</b></td>'
+      + '<td>' + bar(kOld) + '<span class="muted mono">&nbsp;' + pct(kOld) + '</span></td>'
+      + '<td>' + bar(kNew) + '<span class="mono">&nbsp;' + pct(kNew) + '</span></td>'
+      + '<td class="n ' + (better ? 'up' : '') + '">' + delta + '</td>'
+      + '<td class="n">' + num(o.old.n_dirty_caught) + ' <span class="muted">→</span> <b>'
+      + num(o.n_dirty_caught) + '</b></td>'
+      + '<td>' + un + '</td><td>' + forms + '</td></tr>';
+  }).join('');
+  $('#ops').innerHTML = '<thead><tr><th>算子</th><th class="n">丢弃（旧→新）</th>'
+    + '<th>旧误杀率</th><th>新误杀率</th><th class="n">降幅</th>'
+    + '<th class="n">脏命中（旧→新）</th><th>未评</th><th>判据形态命中</th></tr></thead>'
+    + '<tbody>' + rows + '</tbody>';
+}
+
+/* ---------- 召回-误杀曲线 ---------- */
+function drawCurve() {
+  const pts = (cur.curves && cur.curves.sensor_drift) || [];
+  const host = $('#chart');
+  if (!pts.length) { host.innerHTML = '<p class="empty">该数据集没有曲线数据</p>'; $('#lg').innerHTML = ''; return; }
+  const W = 900, H = 330, P = { l: 62, r: 22, t: 16, b: 42 };
+  const maxK = Math.max(...pts.map(p => p.kill_rate)) * 1.12 || 1;
+  const x = v => P.l + (W - P.l - P.r) * v;
+  const y = v => H - P.b - (H - P.t - P.b) * (v / maxK);
+  const series = {};
+  pts.forEach(p => { const s = (p.params.scale) || 'pooled'; (series[s] = series[s] || []).push(p); });
+  const col = { pooled: COLOR.accent, mad: COLOR.accent2 };
+  let g = '';
+  const ny = 5, nx = 5;
+  for (let i = 0; i <= ny; i++) {
+    const v = maxK * i / ny;
+    g += '<line x1="' + P.l + '" x2="' + (W - P.r) + '" y1="' + y(v) + '" y2="' + y(v) + '"/>';
+    g += '<text x="' + (P.l - 9) + '" y="' + (y(v) + 3.5) + '" text-anchor="end">' + (100 * v).toFixed(1) + '%</text>';
+  }
+  for (let i = 0; i <= nx; i++) {
+    const v = i / nx;
+    g += '<text x="' + x(v) + '" y="' + (H - P.b + 17) + '" text-anchor="middle">' + (100 * v) + '%</text>';
+  }
+  let lg = '';
+  let paths = '';
+  for (const s of Object.keys(series)) {
+    const arr = series[s].slice().sort((a, b) => a.recall - b.recall);
+    const d = arr.map((p, i) => (i ? 'L' : 'M') + x(p.recall).toFixed(1) + ' ' + y(p.kill_rate).toFixed(1)).join(' ');
+    paths += '<path d="' + d + '" fill="none" stroke="' + col[s] + '" stroke-width="2.2"'
+      + ' stroke-linejoin="round" stroke-linecap="round"/>';
+    arr.forEach(p => {
+      const on = pinned && pinned.label === p.label;
+      paths += '<circle cx="' + x(p.recall) + '" cy="' + y(p.kill_rate) + '" r="' + (on ? 7 : 4.2)
+        + '" fill="' + (on ? col[s] : 'var(--panel)') + '" stroke="' + col[s] + '" stroke-width="2"'
+        + ' class="pt" data-l="' + encodeURIComponent(p.label) + '" style="cursor:pointer"/>';
+    });
+    lg += '<span><i style="background:' + col[s] + '"></i>' + s + '</span>';
+  }
+  host.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet">'
+    + '<g class="grid">' + g + '</g>'
+    + '<g class="axis"><line x1="' + P.l + '" x2="' + (W - P.r) + '" y1="' + (H - P.b) + '" y2="' + (H - P.b) + '"/>'
+    + '<line x1="' + P.l + '" x2="' + P.l + '" y1="' + P.t + '" y2="' + (H - P.b) + '"/>'
+    + '<text x="' + ((P.l + W - P.r) / 2) + '" y="' + (H - 8) + '" text-anchor="middle">真实脏召回 →</text>'
+    + '<text x="14" y="' + ((P.t + H - P.b) / 2) + '" text-anchor="middle" transform="rotate(-90 14 '
+    + ((P.t + H - P.b) / 2) + ')">误杀率 →</text></g>'
+    + paths + '</svg><div class="tip" id="tip"></div>';
+  $('#lg').innerHTML = lg + '<span class="muted">点圆点锁定工作点</span>';
+
+  const tip = $('#tip');
+  $$('.pt', host).forEach(c => {
+    const p = pts.find(q => q.label === decodeURIComponent(c.dataset.l));
+    c.onmouseenter = e => {
+      tip.innerHTML = '<b>' + p.label + '</b><br>召回 ' + pct(p.recall)
+        + '　误杀 ' + pct(p.kill_rate) + '<br>丢弃 ' + num(p.n_dropped) + ' 窗';
+      tip.style.opacity = 1;
+      const r = host.getBoundingClientRect();
+      tip.style.left = (e.clientX - r.left + 12) + 'px';
+      tip.style.top = (e.clientY - r.top - 8) + 'px';
+    };
+    c.onmouseleave = () => { tip.style.opacity = 0; };
+    c.onclick = () => { pinned = pinned && pinned.label === p.label ? null : p; drawCurve(); };
+  });
+}
+
+/* ---------- 窗级时间线 ---------- */
+function drawTimeline() {
+  const keys = Object.keys(cur.channels).sort();
+  const cell = Math.max(1, Math.round(1.6 * zoom));
+  const rowH = 17, headH = 22;
+  const nameW = 132;
+  const maxN = Math.max(...keys.map(k => cur.channels[k].t.length));
+  const canvasW = Math.max(320, maxN * cell);
+  const totalW = nameW + 9 + canvasW + 10;
+  const dpr = window.devicePixelRatio || 1;
+
+  let html = '<div class="tlhead" style="width:' + totalW + 'px"><div class="tlname">'
+    + keys.length + ' 通道</div><div class="mono muted" style="font-size:11px">'
+    + fmtT(minT(keys)) + ' → ' + fmtT(maxT(keys)) + '　1 格 = 1 窗</div></div>';
+
+  keys.forEach(ch => {
+    const b = cur.channels[ch];
+    const w = b.t.length * cell;
+    html += '<div class="tlrow" style="width:' + totalW + 'px">'
+      + '<div class="tlname"><b>' + ch + '</b> <span class="muted">' + num(b.t.length) + '</span></div>'
+      + '<canvas data-ch="' + encodeURIComponent(ch) + '" width="' + (w * dpr) + '" height="' + (rowH * dpr)
+      + '" style="width:' + w + 'px;height:' + rowH + 'px"></canvas></div>';
+  });
+  $('#tl').innerHTML = html;
+  $('#tl-scale').textContent = '缩放 ' + zoom.toFixed(1) + '×（' + cell + ' px/窗）';
+  $('#tl-hint').innerHTML = '颜色 = 该窗在<b>' + (verdict === 'new' ? '新判据（MAD）' : '旧判据（pooled）')
+    + '</b>下的最终裁决。紫色小三角标出数据集标注为脏的窗 —— '
+    + '**颜色与紫标不重合的地方，就是误杀或漏检的现场**。';
+
+  $$('#tl canvas').forEach(cv => {
+    const ch = decodeURIComponent(cv.dataset.ch);
+    const b = cur.channels[ch];
+    const arr = verdict === 'new' ? b.d : b.d0;
+    const cx = cv.getContext('2d');
+    cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const C = getComputedStyle(document.documentElement);
+    const cp = C.getPropertyValue('--pass').trim(), cd = C.getPropertyValue('--drop').trim(),
+      cn = C.getPropertyValue('--none').trim(), ca = C.getPropertyValue('--accent2').trim();
+    cx.clearRect(0, 0, cv.width, cv.height);
+    for (let i = 0; i < arr.length; i++) {
+      const x = i * cell;
+      cx.fillStyle = arr[i] ? cd : (b.u[i] >= 5 ? cn : (b.u[i] > 0 ? cn : cp));
+      cx.globalAlpha = arr[i] ? 1 : (b.u[i] > 0 ? (0.35 + 0.13 * b.u[i]) : 1);
+      cx.fillRect(x, 0, Math.max(1, cell - (cell > 2 ? 1 : 0)), rowH - 4);
+      if (b.lab[i]) { cx.globalAlpha = 1; cx.fillStyle = ca; cx.fillRect(x, rowH - 4, Math.max(1, cell - (cell > 2 ? 1 : 0)), 4); }
+    }
+    cx.globalAlpha = 1;
+  });
+}
+function minT(keys) { return Math.min(...keys.map(k => cur.channels[k].t[0])); }
+function maxT(keys) { return Math.max(...keys.map(k => cur.channels[k].t[cur.channels[k].t.length - 1])); }
+
+/* ---------- 适用性 / 可达性 ---------- */
+function drawChecks() {
+  let h = '<thead><tr><th>检查</th><th>算子</th><th>对象</th><th class="n">命中</th>'
+    + '<th class="n">分母 / 门槛</th><th>结论</th><th>说明</th></tr></thead><tbody>';
+  cur.applicability.forEach(a => {
+    h += '<tr><td><span class="chip">适用性</span></td><td><code>' + a.op + '</code></td>'
+      + '<td>' + a.target + '</td><td class="n">' + num(a.n_target) + '</td>'
+      + '<td class="n">' + num(a.n_windows) + '</td>'
+      + '<td>' + (a.applicable ? '<span style="color:var(--pass)">适用</span>'
+        : '<span class="chip bad">无适用性（空转）</span>') + '</td><td>' + a.hint + '</td></tr>';
+  });
+  (cur.reachability || []).forEach(r => {
+    const v = r.structurally_unreachable ? '<span class="chip bad">结构性不可达</span>'
+      : (r.reachable && !r.n_groups_shorter ? '<span style="color:var(--pass)">可达</span>' : '部分组不可达');
+    h += '<tr><td><span class="chip">可达性</span></td><td><code>' + r.op + '</code></td>'
+      + '<td>' + r.group_by + '</td><td class="n">' + num(r.n_groups) + '</td>'
+      + '<td class="n">组 p50 ' + num(r.group_size_p50) + ' / max ' + num(r.group_size_max)
+      + '　需 ' + num(r.requirement) + '</td><td>' + v + '</td>'
+      + '<td>' + r.desc.replace('N', r.requirement) + '；短于门槛的组 '
+      + num(r.n_groups_shorter) + '/' + num(r.n_groups) + '</td></tr>';
+  });
+  $('#checks').innerHTML = h + '</tbody>';
+}
+
+/* ---------- 误杀清单 ---------- */
+function opts(list, all) {
+  return '<option value="">' + all + '</option>' + list.map(x => '<option>' + x + '</option>').join('');
+}
+function drawKills() {
+  const K = cur.kills;
+  $('#f-op').innerHTML = opts([...new Set(K.map(k => k.op))].sort(), '全部算子');
+  $('#f-ch').innerHTML = opts([...new Set(K.map(k => k.channel))].sort(), '全部通道');
+  $('#f-lab').innerHTML = opts([...new Set(K.map(k => k.label || '（数据集未标注）'))].sort(), '全部标签');
+  $('#kills-hint').innerHTML = '共 <b>' + num(K.length) + '</b> 条丢弃记录。'
+    + '**刻意不预筛「按标签算的误杀」**：真实数据无标签 ≠ 干净，预筛会把官方漏标
+    的真缺陷提前扔掉。抽检时看「标签」列与「判据代号」列的组合。';
+  renderKills();
+}
+function renderKills() {
+  const op = $('#f-op').value, ch = $('#f-ch').value, lab = $('#f-lab').value;
+  const q = $('#f-q').value.toLowerCase();
+  const rows = cur.kills.filter(k =>
+    (!op || k.op === op) && (!ch || k.channel === ch)
+    && (!lab || (k.label || '（数据集未标注）') === lab)
+    && (!q || (k.device + ' ' + (k.rule || '')).toLowerCase().includes(q)));
+  $('#kills-count').textContent = '筛选后 ' + num(rows.length) + ' / ' + num(cur.kills.length) + ' 条';
+  if (!rows.length) { $('#kills').innerHTML = '<p class="empty">无匹配记录</p>'; return; }
+  const lim = rows.slice(0, 800);
+  $('#kills').innerHTML = '<table><thead><tr><th>算子</th><th>设备</th><th>通道</th><th>窗口时间</th>'
+    + '<th>数据集标签</th><th>判据代号</th><th class="n">读数 min</th><th class="n">max</th>'
+    + '<th class="n">σ</th></tr></thead><tbody>'
+    + lim.map(k => '<tr><td><code>' + k.op + '</code></td><td class="mono">' + k.device + '</td>'
+      + '<td>' + k.channel + '</td><td class="mono">' + fmtT(k.t) + '</td>'
+      + '<td>' + (k.label ? '<span class="chip bad">' + k.label + '</span>'
+        : '<span class="muted">未标注</span>') + '</td>'
+      + '<td>' + (k.rule ? '<span class="chip">' + k.rule + '</span>' : '<span class="muted">—</span>') + '</td>'
+      + '<td class="n mono">' + k.reading_min + '</td><td class="n mono">' + k.reading_max + '</td>'
+      + '<td class="n mono">' + (k.reading_std === null ? '—' : (+k.reading_std).toPrecision(3)) + '</td></tr>').join('')
+    + '</tbody></table>'
+    + (rows.length > lim.length ? '<p class="empty">仅显示前 ' + lim.length + ' 条，完整清单请导出 CSV</p>' : '');
+}
+function exportCsv() {
+  const cols = ['op', 'device', 'channel', 't', 'label', 'rule', 'reading_min', 'reading_max', 'reading_std'];
+  const head = ['算子', '设备', '通道', '窗口时间', '数据集标签', '判据代号', '读数min', '读数max', 'σ'];
+  const body = cur.kills.map(k => cols.map((c, i) => {
+    let v = k[c];
+    if (c === 't') v = fmtT(v);
+    if (v === null || v === undefined) v = '';
+    return '"' + String(v).replace(/"/g, '""') + '"';
+  }).join(',')).join('\r\n');
+  const blob = new Blob(['\ufeff' + head.join(',') + '\r\n' + body], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'kills_' + cur.id + '.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+/* ---------- 事件 ---------- */
+$$('.tg').forEach(b => b.onclick = () => {
+  verdict = b.dataset.v;
+  $$('.tg').forEach(x => x.classList.toggle('on', x === b));
+  drawTimeline();
+});
+$('#zoom-in').onclick = () => { zoom = Math.min(12, zoom * 1.6); drawTimeline(); };
+$('#zoom-out').onclick = () => { zoom = Math.max(0.5, zoom / 1.6); drawTimeline(); };
+['#f-op', '#f-ch', '#f-lab'].forEach(s => $(s).onchange = renderKills);
+$('#f-q').oninput = renderKills;
+$('#export').onclick = exportCsv;
+$('#theme').onclick = () => {
+  const cur = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = cur;
+  drawTimeline();
+};
+if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) {
+  document.documentElement.dataset.theme = 'dark';
+}
+
+drawCards(); drawPills(); drawOps(); drawCurve(); drawTimeline(); drawChecks(); drawKills();
+</script>
+</body>
+</html>

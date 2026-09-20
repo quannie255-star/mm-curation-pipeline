@@ -22,11 +22,14 @@ KINDS = {
     "sensor_unit_swap": 1.0,
     "sensor_unplanned_silence": 1.0,
 }
+# 单样本算子：`sensor_range` 仍是 Operator。
+# `sensor_stuck` 已下沉为 BatchOperator（R1：判据需要通道内全量视角），
+# 所以它归到 BATCH_OPS —— 用 `op(sample)` 调它会直接抛 TypeError。
 SINGLE_OPS = {
-    "sensor_flatline": SensorStuckOp(min=1.0),
     "sensor_out_of_range": SensorRangeOp(min=1.0),
 }
 BATCH_OPS = {
+    "sensor_flatline": SensorStuckOp(min=1.0),
     "sensor_cal_offset": SensorDriftOp(min=1.0),
     "sensor_unit_swap": UnitConsistencyOp(min=1.0),
     "sensor_unplanned_silence": FaultVsMaintenanceOp(min=1.0),

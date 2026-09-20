@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta
 
 from .contamination import Contaminator, Context, register
 
@@ -185,3 +186,118 @@ class SensorUnplannedSilence(Contaminator):
         payload["readings"] = [SENTINEL] * len(payload["readings"])
         _store(sample, payload)
         return sample
+
+
+# ---------------------------------------------------------------------------
+# R5：真实形态靶子（P2 修复新增的三档判据，在合成轨上原本**不可达**）
+#
+# 为什么必须补：R1 给 `sensor_stuck` 加了 `scale_collapse` 档（抖动极小但非严格
+# 平坦）、R3 给 `fault_vs_maintenance` 加了 `machine_stop` / `span_gap` 档——
+# 但合成语料里只有「严格平坦」和「哨兵」两种形态，新档在合成轨上**一次都不可能
+# 触发**，等于「改了判据但没有任何合成回归能证明它工作」。
+# 这两个注入器就是那三档的合成靶子（真实形态见 docs/REAL_DATA_REPORT.md）。
+#
+# 注意：这两个 kind **不进 `eval_industrial.py` 的 SENSOR_KINDS 默认构成** ——
+# 默认构成改动会移动既有的合成门禁数字（123/0、128/8 …），那是被冻结的基线。
+# 它们的验收走独立口径（tests/test_sensor_quality.py + 低脏率档单独跑）。
+# ---------------------------------------------------------------------------
+
+
+@register("sensor_noisy_flatline")
+class SensorNoisyFlatline(Contaminator):
+    """卡死（**真实形态**）：读数冻在常数上，但保留极小的采集抖动。
+
+    与 `sensor_flatline` 的差别就是「真实 vs 理想」：那个把窗内塞成**严格**平坦
+    （`max-min == 0`），走 `sensor_stuck` 的 `exact_flat` 档；真实冻结传感器往往
+    仍输出抖动极小的读数（ADC 量化 + 电气噪声），严格平坦判据**抓不到**——
+    靶子是 `scale_collapse` 档（`σ_win < α × 通道尺度参考` 且连续 `min_run` 窗）。
+
+    抖动幅度 = 原窗 σ × `noise_ratio`（默认 0.02）—— 远低于 `α=0.2`，
+    即「确实塌陷了但没塌到 0」，这是该档存在的唯一理由。
+    """
+
+    def __init__(self, noise_ratio: float = 0.02):
+        self.noise_ratio = noise_ratio
+
+    def apply(self, sample, ctx: Context):
+        payload = _load(sample)
+
+        def ok(p):
+            return _is_reading(p) and p["operating_mode"] != "idle"
+
+        if not ok(payload):
+            payload = _draw_donor(ctx, ok)
+        readings = payload["readings"]
+        mean = sum(readings) / len(readings)
+        std = max(1e-9, (sum((v - mean) ** 2 for v in readings) / len(readings)) ** 0.5)
+        amp = std * self.noise_ratio
+        frozen = mean
+        payload["readings"] = [
+            round(frozen + ctx.rng.uniform(-amp, amp), 6) for _ in readings
+        ]
+        _store(sample, payload)
+        return sample
+
+
+@register("sensor_sampling_stall")
+class SensorSamplingStall(Contaminator):
+    """采样停摆（**真实形态**）：读数一个没少，但记录仪在窗内停摆过。
+
+    注入方式是把 `window_end` 推后到应有跨度的 `ratio` 倍（默认 6.0）——
+    时间在走、读数仍是 `n` 个，于是一个窗横跨了两个运行时段。
+
+    **本 kind 的期望裁决不是「脏」**：该窗的读数不构成一段连续观测，
+    `fault_vs_maintenance` 记 `None`（无法评判、**保留**）。所以它测的是
+    「诚实计量」而不是召回——把它混进召回去分母会凭空压低召回。真实数据依据：
+    MetroPT-3 上 `span_ratio > 5` 的窗 101/5925，与故障标签**统计独立**
+    （2.0% vs 基准 2.0%），是合法停机造成的跨接，判 `0.0` 就是误杀。
+    """
+
+    def __init__(self, ratio: float = 6.0):
+        self.ratio = ratio
+
+    def apply(self, sample, ctx: Context):
+        payload = _load(sample)
+
+        def ok(p):
+            return _is_reading(p) and p.get("sampling_hz") and len(p["readings"]) > 1
+
+        if not ok(payload):
+            payload = _draw_donor(ctx, ok)
+        hz = payload["sampling_hz"]
+        start = datetime.fromisoformat(payload["window_start"])
+        expected = (len(payload["readings"]) - 1) / hz
+        payload["window_end"] = (
+            start + timedelta(seconds=expected * self.ratio)
+        ).isoformat()
+        _store(sample, payload)
+        return sample
+
+
+@register("sensor_informational_blackout")
+class SensorInformationalBlackout(Contaminator):
+    """无信息通道（**负样本，不是脏数据**）：把窗内读数全部冻结成常数，
+    目标是让该通道**所有**窗都恒定 → 触发 `sensor_stuck` 的「无信息通道豁免」。
+
+    期望裁决：该通道全部窗记 `None`（判据不适用、**保留**）。它进的是
+    **误杀率的分母**（干净集），这正是「误杀率测得出」的前提——没有这类
+    负样本，就永远不知道豁免挡掉的是不是真误杀。
+
+    ⚠️ 要它真的生效，注入率必须**足够高**：只有当该通道「一个健康窗都不剩」
+    时才判无信息通道；注入不成整通道覆盖时，它退化成一段连续塌陷 → 会被
+    `scale_collapse` 档判脏（这本身也是一个可验收的行为）。
+    """
+
+    def apply(self, sample, ctx: Context):
+        payload = _load(sample)
+
+        def ok(p):
+            return _is_reading(p) and p.get("readings")
+
+        if not ok(payload):
+            payload = _draw_donor(ctx, ok)
+        readings = payload["readings"]
+        payload["readings"] = [round(readings[0], 6)] * len(readings)
+        _store(sample, payload)
+        return sample
+

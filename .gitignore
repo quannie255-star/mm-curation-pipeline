@@ -24,6 +24,10 @@ data/processed/
 # FAISS 索引 + store（可重建产物）
 data/indexes/
 data/reports/
+# 生成的可视化单页：内嵌 data/reports/ 的 JSON，一条命令可重生成 → 不入库
+# （2.4 MB 且 JSON 在单行上，入库会让每次重建产生 2.4 MB 单行 diff）
+# 重生成见 RUNBOOK §1.22；改版式改 scripts/templates/real_data_page.html
+docs/real_data.html
 .cache/
 # 本地转换的模型权重（CLIP ~750MB / GPT-2 zh ~500MB）
 models/

@@ -538,7 +538,7 @@ from mm_curation.extract import RawDocStore;print(RawDocStore('data/raw/html').s
 3. 报「覆盖率/漏抽率」前先确认两侧**文本归一化口径一致**（本项目需 `html.unescape`），
    否则量到的是口径差异：不归一时实测把 11.15% 的基准段错判成「未被覆盖」。
 
-**测试与质量门**（基线：主仓 **387** + 包 **67**，ruff 双仓全绿）：
+**测试与质量门**（基线：主仓 **414** + 包 **67**，ruff 双仓全绿）：
 
 ```bash
 ruff check src tests scripts dags packages
@@ -559,13 +559,65 @@ python -m pytest packages/curation-eval -q --junitxml=.pytest_tmp/ju_pkg.xml -p 
 > 汇总行仍可能被沙箱护栏吞掉——**要准数就用 `--junitxml` 解析，别去数进度点**。
 > `.pytest_tmp/` 已在 `.gitignore` 内。
 
+## 1.22 真实数据判据修复 + 真实数据前端（V6 P2，2026-09-20）
+
+**背景**：合成轨 100% / 误杀 1.23% 迁到真实数据只剩召回 24%~72%、误杀 16%~28%，
+根因是五个工业算子的判据全是对着合成注入形态写的。六项修复 R1–R6 见 `docs/ROADMAP.md`
+「V6 P2 收官」与设计表 §八。
+
+**关键约束**：**既有 4 个 config 一字不动**。真实档是**新增**的
+`configs/funnel_industrial_real.yaml`（与合成档唯一差别 = `sensor_drift.params.scale: mad`），
+`scripts/eval_real_sensor.py --config` 默认已切到它；要跑合成口径做对照，显式传旧 config：
+
+```bash
+# 真实档（默认，MAD 尺度）
+python -X utf8 scripts/eval_real_sensor.py --source metropt3 --export-kills data/reports/x.csv
+# 合成档口径（pooled σ，做前后对照用）
+python -X utf8 scripts/eval_real_sensor.py --source metropt3 \
+  --config configs/funnel_industrial.yaml --out data/reports/real_metropt3_p2.json
+```
+
+**三个真实数据集的窗口**（第二档窗宽要显式给 `--windows`）：
+
+```bash
+python -X utf8 scripts/eval_real_sensor.py --source skab --windows data/raw/real/skab/windows_w64.jsonl
+python -X utf8 scripts/eval_real_sensor.py --source cmapss
+python -X utf8 scripts/eval_real_sensor.py --source metropt3
+```
+
+> ⚠️ **SKAB 256 档（`windows.jsonl`）是惰性的**：1048 窗上五个算子全部零动作
+> （64 档命中 479）。**原因未定**，故不进前端。证据 `data/reports/real_skab_r4grid.json`，
+> 待查方向见设计表 §8.7。
+
+**R4 参数网格扫描**（召回-误杀权衡面，前端曲线的数据源）：
+
+```bash
+python -X utf8 scripts/eval_real_sensor.py --source cmapss --grid sensor_drift \
+  --grid-axis min=1.0 --grid-axis scale=pooled,mad --grid-axis z=8,6,4,3,2 \
+  --out data/reports/real_cmapss_r4grid.json
+```
+
+**前端两条命令**（顺序有依赖：先 F1 出 JSON，再 F3 注入模板）：
+
+```bash
+python -X utf8 scripts/build_real_interactive.py   # F1：约 33 秒，产 2.39 MB JSON
+python -X utf8 scripts/build_real_data_html.py     # F3：秒级，产 docs/real_data.html
+```
+
+- F1 的 JSON 是**唯一口径来源**：门户第 9 页签与 HTML 单页都只做呈现，
+  **前端不算统计**（否则页面数字迟早和报告对不上）。
+- F3 的 HTML 模板在 `scripts/templates/real_data_page.html`——
+  **改版式改它，改数字改 F1**，`build_real_data_html.py` 只负责把 JSON 塞进 `__DATA__`。
+- 「未评」（`score=None`）在页面上**单列**，不并进「通过」：它是「该算子没干活」，不是「通过了」。
+
 ## 2. 演示（10 分钟，面试/展示）
 
-**统一入口（V5 β 起，V6 α 扩到八页签）**：`streamlit run scripts/showcase_app.py`
+**统一入口（V5 β 起，V6 α 扩到八页签，V6 P2 扩到九页签）**：`streamlit run scripts/showcase_app.py`
 ——平台总览（四模态门禁卡 + 算子总数 + 测试基线）/ 图文 / 文本 / 医疗 FHIR / 工业传感器
 （后两个支持**现场重跑门禁**，~6 秒）/ 证据链（R@1、ppl、消融、采样）/
 **清洗过程**（逐级水位对照 + 判决台账，可筛滤芯与判决）/ **阈值沙盘**（选滤芯 + 方向 +
-丢弃预算滑块 → 从分数分布反推门限）。报告缺失时页面直接给生成命令与耗时。
+丢弃预算滑块 → 从分数分布反推门限）/ **真实数据**（三数据集 × 旧↔新判据并排读数 ×
+召回-误杀权衡面 × 误杀清单可筛可导出）。报告缺失时页面直接给生成命令与耗时。
 
 > 两个新页签的数据源是 §1.20 的 A/B 对照实验——**没跑过那个脚本时它们会显示
 > 生成命令**（`data/reports/` 不入库，CI 上走的就是这条降级路径）。

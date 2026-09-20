@@ -9,9 +9,12 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
@@ -29,6 +32,52 @@ TEST_COUNT_ASOF = "2026-09-18"
 # 实点 `available_operators()`（同一注册表跨四模态共用）。曾写「24」——腐烂了。
 OP_COUNT = 29
 
+# 各模态的算子数**不手写**：注册表的 `meta.modalities` 是唯一真相源。
+# 教训：`DOMAINS["image"]["blurb"]` 曾写「11 级滤芯」——实点 image_caption 模态是
+# **12** 个（8 个纯图文 + 4 个图文/文本双模态），而 11 恰好是 text_article 的数量。
+# 两个数字串了档，正是「凭记忆填品牌数字」的典型腐烂方式。改成现算 + 降级。
+MODALITY_KEYS = ("image_caption", "text_article", "fhir_resource", "industrial_sensor")
+
+
+def _modality_counts() -> dict[str, int]:
+    """实点各模态算子数；注册表不可用（裸环境）时返回空 dict，由调用方降级。"""
+    try:
+        from curation_eval.registry import available_operator_metas
+
+        import mm_curation.operators  # noqa: F401  —— 注册靠导入触发
+    except ImportError:
+        return {}
+    metas = available_operator_metas()
+    return {
+        m: sum(1 for meta in metas.values() if m in (meta.modalities or ()))
+        for m in MODALITY_KEYS
+    }
+
+
+MODALITY_COUNTS = _modality_counts()
+
+
+def modality_phrase(modality: str, fallback: str = "多级") -> str:
+    """「N 级滤芯」；注册表不可用时退回定性说法——**宁可不说数字，也不编数字**。"""
+    n = MODALITY_COUNTS.get(modality)
+    return f"{n} 级滤芯" if n else f"{fallback}滤芯"
+
+
+_LABELS = {
+    "image_caption": "图文",
+    "text_article": "文本",
+    "fhir_resource": "医疗",
+    "industrial_sensor": "工业",
+}
+
+
+def _modality_breakdown() -> str:
+    """「图文 12 / 文本 11 / 医疗 5 / 工业 5」——现算，注册表不可用时如实说明。"""
+    if not MODALITY_COUNTS:
+        return "注册表不可用，模态分布未取到"
+    return " / ".join(f"{_LABELS.get(k, k)} {v}" for k, v in MODALITY_COUNTS.items())
+
+
 # 轻量评测白名单：只有纯 CPU 秒级脚本允许现场重跑（面试现场不可等重活）
 RERUN_WHITELIST = {
     "fhir": [sys.executable, "-X", "utf8", "scripts/eval_fhir.py"],
@@ -40,7 +89,8 @@ DOMAINS = {
         "title": "图文数据",
         "tag": "图像 + 文字描述",
         "report": "operator_pr.json",
-        "blurb": "11 级滤芯：模糊图、重复图、图文不符、低质描述……清洗后检索准确率提升 21%",
+        "blurb": f"{modality_phrase('image_caption')}：模糊图、重复图、图文不符、低质描述……"
+                 "清洗后检索准确率提升 21%",
         "cmd": "python scripts/eval_operators.py",
         "cost": "约 4 分钟（需要先准备图文数据集）",
     },
@@ -137,6 +187,24 @@ p, li { line-height: 1.65; }
 .pill.na { color: var(--sub); border: 1px solid var(--line); }
 @media (max-width: 820px) { .hero-flow { flex-direction: column; }
   .hero-pipe { transform: rotate(90deg); padding: 2px 0; justify-content: center; } }
+
+/* 读数卡的「门禁量规条」：填充 ∝ 召回（0–100%，量纲正确）。
+   为什么叫量规而不是趋势：报告里**没有时间序列**，硬画一条趋势线就是编数据；
+   这里画的是当前读数在 0–100% 上的位置，能画多长就画多长。
+   语义色沿用 pass 绿 / fail 红，**不套股票涨跌约定**——本项目是数据质量门禁。 */
+.readout .cell { flex-direction: column; align-items: stretch; gap: 7px; }
+.readout .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.gauge { height: 5px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.gauge > i { display: block; height: 100%; border-radius: 999px; }
+
+/* 真实数据页：判据/形态小标签 + 页内固定口径声明 */
+.chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px;
+        border-radius: 6px; border: 1px solid var(--line); color: var(--sub);
+        background: var(--paper); }
+.chip.good { color: var(--pass); border-color: var(--pass); }
+.chip.bad { color: var(--fail); border-color: var(--fail); }
+.decl { border-left: 3px solid var(--water); padding: 3px 0 3px 12px; color: var(--sub);
+        font-size: 13.5px; line-height: 1.6; margin: 8px 0; }
 </style>
 """
 
@@ -386,6 +454,232 @@ def current_threshold(rows: list[dict], op: str) -> dict:
     return {}
 
 
+# --- F2 真实数据页签：消费 F1 的预计算 JSON，不在交互回路里跑算子 ---------------
+# 为什么前端只做呈现：真实轨评测是分钟级（10 万+ 窗 × 5 算子），页面每刷新一次都重算
+# 不可接受；更要紧的是**口径只能有一处**——前端自己算统计，迟早就和报告对不上。
+# 这一页回答两件事：①同一批真实窗、只换判据尺度，误杀掉多少；②业界最常回避的那格
+# ——**「未评」（score=None）既不是通过，也不是失败**。
+
+REAL_REPORT = "real_sensor_interactive.json"
+REAL_ARM_KEYS = {"new": "d", "old": "d0"}
+
+
+def real_datasets(payload: dict | None) -> list[dict]:
+    """面板里的数据集列表（空/损坏 payload 一律退化为空表，由调用方走降级）。"""
+    if not payload:
+        return []
+    return [d for d in payload.get("datasets") or [] if d.get("id")]
+
+
+def real_dataset(payload: dict | None, key: str) -> dict | None:
+    return next((d for d in real_datasets(payload) if d["id"] == key), None)
+
+
+def real_arm_stats(ds: dict | None, arm: str = "new") -> dict:
+    """按**窗级数组**重算某一档（new=新判据 / old=旧判据）的召回、误杀、存活率。
+
+    口径与 `eval_real_sensor` 一致：**误杀率的分母是真实干净窗**，不是总窗数——
+    拿总窗数当分母会把「这份数据脏得多」算成「误杀更低」，是这类表格最常见的假精确。
+    两档读的是**同一批窗**，唯一变量是配置（`pooled σ` ↔ `mad σ`），所以两者可比。
+    """
+    key = REAL_ARM_KEYS[arm]
+    n = n_clean = n_dirty = n_dropped = clean_killed = dirty_caught = 0
+    for blob in (ds or {}).get("channels", {}).values():
+        for lab, drop in zip(blob.get("lab") or [], blob.get(key) or []):
+            n += 1
+            n_dropped += drop
+            if lab:
+                n_dirty += 1
+                dirty_caught += drop
+            else:
+                n_clean += 1
+                clean_killed += drop
+    return {
+        "arm": arm,
+        "n": n,
+        "n_clean": n_clean,
+        "n_dirty": n_dirty,
+        "n_dropped": n_dropped,
+        "clean_killed": clean_killed,
+        "dirty_caught": dirty_caught,
+        "recall": (dirty_caught / n_dirty) if n_dirty else None,
+        "kill_rate": (clean_killed / n_clean) if n_clean else None,
+        "survival": ((n - n_dropped) / n) if n else None,
+    }
+
+
+def real_window_mix(ds: dict | None, arm: str = "new") -> list[dict]:
+    """保留窗的三分解：全算子都评过 / 通过但有算子未评 / 被丢弃。
+
+    「通过但有算子未评」这格是本项目的核心不变式：`score is None` 表示该算子在这窗上
+    **没干活**。把它并进「通过」就是虚报——这一页把它单列，就是为了看得见。
+    """
+    key = REAL_ARM_KEYS[arm]
+    buckets = {"全算子都评过（真通过）": 0, "通过但有算子未评": 0, "被丢弃": 0}
+    for blob in (ds or {}).get("channels", {}).values():
+        for drop, un in zip(blob.get(key) or [], blob.get("u") or []):
+            if drop:
+                buckets["被丢弃"] += 1
+            elif un:
+                buckets["通过但有算子未评"] += 1
+            else:
+                buckets["全算子都评过（真通过）"] += 1
+    return [{"状态": k, "窗数": v} for k, v in buckets.items()]
+
+
+def real_unscored_total(ds: dict | None) -> int:
+    """「未评（样本 × 算子）」对的总数：每一对都是一格「没干活」，不是一格「通过」。"""
+    return sum(op.get("n_unscored", 0) for op in (ds or {}).get("operators") or [])
+
+
+def real_op_rows(ds: dict | None) -> list[dict]:
+    """算子级「旧判据 → 新判据」并排读数。两个 `%` 列是**百分点**（分数 × 100）。"""
+    rows = []
+    for op in (ds or {}).get("operators") or []:
+        old = op.get("old") or {}
+        forms = op.get("forms") or {}
+        kr_old, kr_new = old.get("kill_rate"), op.get("kill_rate")
+        rows.append(
+            {
+                "算子": op.get("op"),
+                "旧·丢弃": old.get("n_dropped", 0),
+                "旧·误杀率%": None if kr_old is None else round(kr_old * 100, 3),
+                "新·丢弃": op.get("n_dropped", 0),
+                "新·误杀": op.get("clean_killed", 0),
+                "新·误杀率%": None if kr_new is None else round(kr_new * 100, 3),
+                "真实脏命中": op.get("n_dirty_caught", 0),
+                "未评窗": op.get("n_unscored", 0),
+                "命中的判据形态": " · ".join(f"{k}×{v}" for k, v in forms.items()) or "—",
+            }
+        )
+    return rows
+
+
+def real_curve_rows(ds: dict | None, op: str = "sensor_drift") -> list[dict]:
+    """召回-误杀权衡面的点：**预计算的参数网格**（尺度 × z），不是现场重算算子。"""
+    rows = []
+    for p in ((ds or {}).get("curves") or {}).get(op) or []:
+        params = p.get("params") or {}
+        rows.append(
+            {
+                "尺度": params.get("scale", "—"),
+                "z": params.get("z"),
+                "标签": p.get("label"),
+                "召回": p.get("recall"),
+                "误杀率": p.get("kill_rate"),
+                "丢弃数": p.get("n_dropped"),
+            }
+        )
+    return rows
+
+
+def real_curve_point(rows: list[dict], scale: str, z: float) -> dict | None:
+    """取网格上离 `(scale, z)` 最近的工作点——z 落在两档之间时取近档（界面上如实标注）。"""
+    cands = [
+        r for r in rows if r["尺度"] == scale and r["z"] is not None and r["召回"] is not None
+    ]
+    if not cands:
+        return None
+    return min(cands, key=lambda r: abs(r["z"] - z))
+
+
+def real_applicability_rows(ds: dict | None) -> list[dict]:
+    """判据适用性：**「恒过」不等于「通过」**——靶子在数据里不存在时，那一档是在空转。"""
+    return [
+        {
+            "算子": a.get("op"),
+            "这一档要找的靶子": a.get("target"),
+            "靶子数": a.get("n_target", 0),
+            "分母": a.get("n_windows", 0),
+            "本数据集适用": "是" if a.get("applicable") else "否（空转）",
+            "说明": a.get("hint"),
+        }
+        for a in (ds or {}).get("applicability") or []
+    ]
+
+
+def real_reachability_rows(ds: dict | None) -> list[dict]:
+    """判据可达性：门槛够不够（分组最小规模 vs 判据要求的窗口数）。"""
+    return [
+        {
+            "算子": r.get("op"),
+            "分组键": r.get("group_by"),
+            "要求": f"≥{r.get('requirement')} 窗",
+            "组数": r.get("n_groups"),
+            "组规模中位": r.get("group_size_p50"),
+            "组规模最大": r.get("group_size_max"),
+            "规模不足的组": r.get("n_groups_shorter"),
+            "可达": "是" if r.get("reachable") else "否",
+        }
+        for r in (ds or {}).get("reachability") or []
+    ]
+
+
+def _fmt_epoch(t: int | float | None) -> str:
+    """epoch 秒 → 本地可读时间；非法值如实标注，不假装有值。"""
+    if not isinstance(t, (int, float)) or t <= 0:
+        return "—"
+    return datetime.fromtimestamp(t).strftime("%Y-%m-%d %H:%M")
+
+
+def real_kill_rows(
+    ds: dict | None,
+    *,
+    op: str | None = None,
+    channel: str | None = None,
+    labeled_only: bool = False,
+    limit: int = 300,
+) -> list[dict]:
+    """被丢弃窗的抽检清单（可筛）。
+
+    **这是「误杀率是上界」的人工复核入口**：真实数据无标签 ≠ 干净，
+    只有逐条看读数极值才能把「误杀」和「其实真是坏窗」分开。
+    """
+    out: list[dict] = []
+    for r in (ds or {}).get("kills") or []:
+        if op and r.get("op") != op:
+            continue
+        if channel and r.get("channel") != channel:
+            continue
+        if labeled_only and not r.get("label"):
+            continue
+        out.append(
+            {
+                "算子": r.get("op"),
+                "设备": r.get("device"),
+                "通道": r.get("channel"),
+                "窗口起始": _fmt_epoch(r.get("t")),
+                "命中判据": r.get("rule") or "—",
+                "数据集标签": r.get("label") or "（无标签）",
+                "读数最小": r.get("reading_min"),
+                "读数最大": r.get("reading_max"),
+                "读数σ": r.get("reading_std"),
+            }
+        )
+        if len(out) >= limit:
+            break
+    return out
+
+
+def real_kill_filters(ds: dict | None) -> tuple[list[str], list[str]]:
+    """抽检清单的两个筛选项（算子 / 通道）从数据里现取，不写死。"""
+    kills = (ds or {}).get("kills") or []
+    ops = sorted({r.get("op") for r in kills if r.get("op")})
+    chans = sorted({r.get("channel") for r in kills if r.get("channel")})
+    return ops, chans
+
+
+def rows_to_csv(rows: list[dict]) -> str:
+    """表 → CSV 文本（下载按钮用）。空表返回空串，调用方据此禁用按钮。"""
+    if not rows:
+        return ""
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=list(rows[0]))
+    writer.writeheader()
+    writer.writerows(rows)
+    return buf.getvalue()
+
+
 def run_rerun(cmd: list[str]) -> None:
     """现场重跑：subprocess 流式 tail 日志（judge_studio 同款），成功后刷新。"""
     with st.status("质检运行中，正在重新生成报告…", expanded=True) as status:
@@ -449,12 +743,19 @@ def render_hero() -> None:
                 if g["passed"]
                 else '<span class="pill na">未达标</span>'
             )
+            fill = max(0.0, min(1.0, g["recall"])) * 100
+            gauge = (
+                f'<div class="gauge" title="召回 {g["recall"]:.0%}'
+                f'（抓到的坏数据占全部坏数据的比例，满格 100%）">'
+                f'<i style="width:{fill:.1f}%;background:var(--pass)"></i></div>'
+            )
         else:
             val = "报告未生成"
             pill = '<span class="pill na">待质检</span>'
+            gauge = '<div class="gauge" title="报告未生成，无量规可画"></div>'
         cells.append(
-            f'<div class="cell"><span class="nm">{spec["title"]}</span>'
-            f'<span class="val">{val}</span>{pill}</div>'
+            f'<div class="cell"><div class="row"><span class="nm">{spec["title"]}</span>'
+            f'<span class="val">{val}</span>{pill}</div>{gauge}</div>'
         )
     st.markdown(f'<div class="readout">{"".join(cells)}</div>', unsafe_allow_html=True)
 
@@ -498,6 +799,258 @@ def render_domain(key: str) -> None:
         )
 
 
+def _pct(v: float | None, digits: int = 1) -> str:
+    return "—" if v is None else f"{v:.{digits}%}"
+
+
+def _delta_pct(new: float | None, old: float | None, digits: int = 2) -> str | None:
+    """新档相对旧档的差值（百分点）。任一侧缺失就返回 None，不假装有对比。"""
+    if new is None or old is None:
+        return None
+    return f"{new - old:+.{digits}%}（对旧判据）"
+
+
+def _inline_md(text: str) -> str:
+    """把文案里的 `**粗体**` 转成 HTML——这些字符串要塞进自己写的 div，markdown 不生效。"""
+    parts = text.split("**")
+    if len(parts) == 1:
+        return text
+    return "".join(p if i % 2 == 0 else f"<b>{p}</b>" for i, p in enumerate(parts))
+
+
+def render_real() -> None:
+    """第 9 页签：真实工业数据（消费 F1 预计算 JSON，交互回路里不跑算子）。"""
+    payload = load_report(REAL_REPORT)
+    ds_list = real_datasets(payload)
+    st.markdown(
+        "**三个公开真实数据集的原始读数**——MetroPT-3（空压机）、C-MAPSS（涡扇退化仿真）、"
+        "SKAB（水泵试验台）。同一批窗、同一批算子，**只换判据的尺度**：看误杀掉多少、"
+        "真脏抓到多少。合成轨的 100% 在这里不存在，这一页就是回答「迁到真实数据还剩多少」。"
+    )
+    if not ds_list:
+        st.warning("这份面板还没生成。两条命令，一分钟内跑完：")
+        st.code(
+            "python -X utf8 scripts/build_real_interactive.py\n"
+            "python -X utf8 scripts/build_real_data_html.py",
+            language="bash",
+        )
+        return
+
+    meta = payload.get("meta") or {}
+    with st.expander("⚠️ 读这一页之前的三条口径声明（不是免责，是量纲）"):
+        for note in meta.get("honesty_note") or []:
+            st.markdown(f'<div class="decl">{_inline_md(note)}</div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="decl">{_inline_md(meta.get("unscored_note", ""))}</div>',
+            unsafe_allow_html=True,
+        )
+        st.caption(
+            f"合成档 `{meta.get('config_synth')}` ↔ 真实档 `{meta.get('config_real')}`"
+            f" · 预计算于 {meta.get('generated_at', '—')} · 复现："
+            "`python -X utf8 scripts/build_real_interactive.py`"
+        )
+
+    labels = [d.get("label") or d["id"] for d in ds_list]
+    pick = st.radio("数据集", labels, horizontal=True, key="real_ds")
+    ds = next((d for d in ds_list if (d.get("label") or d["id"]) == pick), ds_list[0])
+    st.caption(
+        f"{ds.get('blurb', '')} · 窗 {ds.get('n_total')} 条"
+        f"（数据集自带标签：干净 {ds.get('n_clean')} / 脏 {ds.get('n_dirty')}）"
+    )
+
+    new = real_arm_stats(ds, "new")
+    old = real_arm_stats(ds, "old")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric(
+        "新判据·误杀率（上界）",
+        _pct(new["kill_rate"], 2),
+        delta=_delta_pct(new["kill_rate"], old["kill_rate"]),
+        delta_color="inverse",
+        border=True,
+        help="分母是真实干净窗（不是总窗数）。新判据 = 真实档配置，sensor_drift 换 MAD 尺度。",
+    )
+    c2.metric(
+        "真实脏召回（上界）",
+        _pct(new["recall"], 1),
+        delta=_delta_pct(new["recall"], old["recall"]),
+        border=True,
+        help="真实轨标签是数据集自带的窗级弱标签，不是注入器给的「一条脏样本一个主靶」。",
+    )
+    c3.metric(
+        "存活率",
+        _pct(new["survival"], 1),
+        delta=_delta_pct(new["survival"], old["survival"]),
+        delta_color="off",
+        border=True,
+        help="保留窗 / 总窗。它与误杀率不是同一件事：误杀只统计真实干净窗里被错杀的比例。",
+    )
+    c4.metric(
+        "未评（样本 × 算子）",
+        real_unscored_total(ds),
+        border=True,
+        help="每一格都是「这个算子在这窗上没干活」，既不是通过也不是失败——"
+        "报告里「未评」一栏大，是空转信号，不是好数字。",
+    )
+
+    st.dataframe(
+        [
+            {
+                "判据档": "新判据（真实档：sensor_drift 用 MAD 尺度）",
+                "真实脏召回": _pct(new["recall"], 1),
+                "误杀率（上界）": _pct(new["kill_rate"], 2),
+                "存活率": _pct(new["survival"], 1),
+                "丢弃窗": new["n_dropped"],
+            },
+            {
+                "判据档": "旧判据（合成档：pooled σ）",
+                "真实脏召回": _pct(old["recall"], 1),
+                "误杀率（上界）": _pct(old["kill_rate"], 2),
+                "存活率": _pct(old["survival"], 1),
+                "丢弃窗": old["n_dropped"],
+            },
+        ],
+        width="stretch",
+        hide_index=True,
+    )
+
+    st.markdown("#### 每个算子各发生了什么")
+    st.dataframe(
+        real_op_rows(ds),
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "旧·误杀率%": st.column_config.NumberColumn(
+                format="%.2f", help="百分点（分数 × 100），分母 = 真实干净窗"
+            ),
+            "新·误杀率%": st.column_config.NumberColumn(
+                format="%.2f", help="百分点（分数 × 100），分母 = 真实干净窗"
+            ),
+        },
+    )
+    st.caption(
+        "「命中的判据形态」是本轮修复的落点：真实数据里没有合成靶子那种完美形态，"
+        "判据改成能认出**设备级停机 / 持续塌陷 / 跨度缺口**之后，误杀才降下来。"
+    )
+
+    st.markdown("#### 召回-误杀权衡面：同一批窗，只改判据的尺度")
+    curve = real_curve_rows(ds)
+    if not curve:
+        st.info("这个数据集没有预计算曲线（网格扫描只做了 `sensor_drift` 这一级）。")
+    else:
+        scales = sorted({r["尺度"] for r in curve})
+        zs = sorted({r["z"] for r in curve if r["z"] is not None}, reverse=True)
+        f1, f2 = st.columns(2)
+        scale = f1.selectbox(
+            "尺度（两者回答的问题不同）",
+            scales,
+            index=scales.index("mad") if "mad" in scales else 0,
+            key="real_scale",
+            help="pooled：窗内噪声能推出多大窗均值抖动（合成档用的）。"
+                 "mad：这个通道自己观察到的窗间波动有多大（只会更宽松）。",
+        )
+        z = f2.select_slider("阈值档（z 倍数，预计算网格）", options=zs,
+                             value=zs[len(zs) // 2], key="real_z")
+        point = real_curve_point(curve, scale, z)
+        try:
+            import altair as alt
+        except ImportError:
+            alt = None
+        if alt is None:  # 裸环境降级：曲线画不出来，至少把点列出来
+            st.dataframe(curve, width="stretch", hide_index=True)
+        else:
+            import pandas as pd
+
+            frame = pd.DataFrame([r for r in curve if r["召回"] is not None])
+            mad = frame[frame["尺度"] == "mad"].sort_values("召回")
+            chart = (
+                alt.Chart(mad)
+                .mark_area(opacity=0.15, color="#0E7490", interpolate="monotone")
+                .encode(x="召回:Q", y="误杀率:Q")
+                + alt.Chart(frame)
+                .mark_line(point=True, strokeWidth=2)
+                .encode(
+                    x=alt.X("召回:Q", title="真实脏召回（上界口径）",
+                            axis=alt.Axis(format="%")),
+                    y=alt.Y("误杀率:Q", title="误杀率（上界口径）",
+                            axis=alt.Axis(format="%")),
+                    color=alt.Color(
+                        "尺度:N",
+                        title="判据尺度",
+                        scale=alt.Scale(domain=["pooled", "mad"],
+                                        range=["#94A3B8", "#0E7490"]),
+                    ),
+                    tooltip=["标签:N", "z:Q", "召回:Q", "误杀率:Q", "丢弃数:Q"],
+                )
+            )
+            if point:
+                mark = pd.DataFrame([point])
+                chart = (
+                    chart
+                    + alt.Chart(mark)
+                    .mark_point(size=150, filled=True, color="#B91C1C")
+                    .encode(x="召回:Q", y="误杀率:Q")
+                    + alt.Chart(mark)
+                    .mark_text(dy=-13, fontSize=11, color="#B91C1C")
+                    .encode(x="召回:Q", y="误杀率:Q", text="标签:N")
+                )
+            st.altair_chart(chart, width="stretch")
+        if point:
+            st.caption(
+                f"当前工作点（{scale} · z={point['z']}）：召回 {_pct(point['召回'], 1)} · "
+                f"误杀率 {_pct(point['误杀率'], 2)} · 丢弃 {point['丢弃数']} 窗。"
+                "滑块在**预计算网格**上取值，不是现场重跑算子——网格之外的 z 没有数据，"
+                "所以这里不给连续滑块。"
+            )
+
+    st.markdown("#### 被丢弃窗抽检：误杀率的「上界」要靠这里定论")
+    ops, chans = real_kill_filters(ds)
+    k1, k2, k3 = st.columns([1, 1, 1])
+    pick_op = k1.selectbox("算子", ["全部"] + ops, key="real_kill_op")
+    pick_ch = k2.selectbox("通道", ["全部"] + chans, key="real_kill_ch")
+    only_lab = k3.checkbox("只看数据集已标脏的", key="real_kill_lab")
+    kill_rows = real_kill_rows(
+        ds,
+        op=None if pick_op == "全部" else pick_op,
+        channel=None if pick_ch == "全部" else pick_ch,
+        labeled_only=only_lab,
+    )
+    st.dataframe(kill_rows, width="stretch", hide_index=True)
+    st.caption(
+        f"显示 {len(kill_rows)} 条（单页上限 300）。勾上「只看数据集已标脏的」就能看到："
+        "被丢弃的窗里有一部分**本来就是坏的**——它们被算成「误杀」，只是因为数据集没标。"
+    )
+    csv_text = rows_to_csv(kill_rows)
+    if csv_text:
+        st.download_button(
+            "下载当前筛选结果（CSV，带 BOM 便于 Excel 直开）",
+            data=csv_text.encode("utf-8-sig"),
+            file_name=f"real_{ds.get('id', 'ds')}_kills_filtered.csv",
+            mime="text/csv",
+            key="real_kill_csv",
+        )
+
+    st.markdown("#### 保留下来的窗，有多少是「真通过」")
+    st.dataframe(real_window_mix(ds), width="stretch", hide_index=True)
+    st.caption(
+        "三格之和 = 该数据集全部窗。中间那格是**通过但有算子未评**——"
+        "它被放行了，但不是每个算子都真的判过它。把这一格并进「通过」就是虚报。"
+    )
+
+    st.markdown("#### 判据适用性：「恒过」不等于「通过」")
+    st.dataframe(real_applicability_rows(ds), width="stretch", hide_index=True)
+    st.caption(
+        "靶子数为 0 = 这一档在这份数据上**没有可判的东西**，它的「通过」是空转。"
+        "本轮把「判据可达性（门槛够不够）」与「判据适用性（靶子有没有）」拆成了两个问题。"
+    )
+    with st.expander("判据可达性：分组规模够不够"):
+        st.dataframe(real_reachability_rows(ds), width="stretch", hide_index=True)
+
+    st.info(
+        "同一份数据的**独立自包含单页**在 `docs/real_data.html`"
+        "（零外部依赖、双击即开，含窗级时间线与全部曲线点）；本页是门户内的快速视图。"
+    )
+
+
 def main() -> None:
     st.set_page_config(page_title="mm-curation · 个人数据质量助手", page_icon="💧", layout="wide")
     st.markdown(CSS, unsafe_allow_html=True)
@@ -530,6 +1083,7 @@ def main() -> None:
         tab_evi,
         tab_proc,
         tab_cal,
+        tab_real,
     ) = st.tabs(
         [
             "总览",
@@ -540,6 +1094,7 @@ def main() -> None:
             "效果证据",
             "清洗过程",
             "阈值沙盘",
+            "真实数据",
         ]
     )
 
@@ -553,8 +1108,9 @@ def main() -> None:
             OP_COUNT,
             border=True,
             help=(
-                "实点 `available_operators()`（2026-09-18）——29 个算子共用同一张注册表，"
-                "跨四个模态按 `meta.modalities` 声明各自适用范围，不是四套独立实现。"
+                f"实点 `available_operators()`（{TEST_COUNT_ASOF}）——{OP_COUNT} 个算子共用同一张"
+                f"注册表，按 `meta.modalities` 声明各自适用模态（{_modality_breakdown()}），"
+                "不是四套独立实现。"
             ),
         )
         c3.metric("本机门禁合格", passed, border=True)
@@ -767,6 +1323,10 @@ def main() -> None:
                         "不给推荐值、也不说这个数是怎么来的；这一页补的就是那一格。"
                         "等人审队列接上（W3），这里会升级成真正的「按误杀预算反推」。"
                     )
+
+    with tab_real:
+        render_real()
+
     st.sidebar.markdown("### 想看得更深？")
     st.sidebar.caption("这些是专题工作台，日常演示用本页就够：")
     st.sidebar.code("streamlit run scripts/streamlit_app.py\n  # 图文检索体验", language="text")
