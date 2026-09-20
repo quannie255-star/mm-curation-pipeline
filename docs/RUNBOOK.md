@@ -510,6 +510,55 @@ p90 差一个数量级（79.89%→8.09%）**，空白占比 >50% 的篇目 849 �
 3. **归一化只声明自然语言模态**（`text_article` / `image_caption`）。`fhir_resource`
    的 `text` 承载 canonical JSON，`"given": ["John  Smith"]` 里的双空格是数据不是噪声。
 
+## 1.21 抽取层 + RawDoc 存档 + 源接入协议化（V6 W2，2026-09-20）
+
+> W2 的核心是**把「原始 HTML」变成一等公民**：此前 `crawl` 抓完立刻抽成 text、
+> 原文从不落盘，于是「换个抽取器会不会更好」没有输入可回放。落盘之后，
+> 同一份 HTML 可以被 N 个抽取器反复抽——对照才成立。
+
+```bash
+# ① 三口径抽取对照实验（首次需联网抓取，60 篇 / 1s 限速，约 2 分钟）
+python scripts/eval_extract_ablation.py --max-docs 60
+#   → data/reports/extract_ablation.{json,md}
+#      + data/reports/extract_review_sample.jsonl（人工抽检对照表，human_verdict 待填）
+
+# ② 离线重跑：只读已存档原文，**零网络请求**（改指标口径时用这个）
+python scripts/eval_extract_ablation.py --from-rawdoc
+
+# ③ 看存档规模与压缩比（RawDoc 层唯一的「数字」）
+python -c "import sys;sys.path.insert(0,'src');\
+from mm_curation.extract import RawDocStore;print(RawDocStore('data/raw/html').stats())"
+```
+
+**阅读对照报告时必看的三条纪律**（详见 `docs/ENGINEERING_NOTES.md` #66）：
+
+1. `trafilatura` 未安装时记 `unavailable` 并**从分母剔除**——「没跑」不等于「跑输了」。
+2. `n_chars` 更大 ≠ 抽得更好：必须**与多抽段占比一起读**（兜底器字数比 1.92×、
+   多抽段占比 88.9%，多出来的主要是侧栏推荐位标题）。
+3. 报「覆盖率/漏抽率」前先确认两侧**文本归一化口径一致**（本项目需 `html.unescape`），
+   否则量到的是口径差异：不归一时实测把 11.15% 的基准段错判成「未被覆盖」。
+
+**测试与质量门**（基线：主仓 **387** + 包 **67**，ruff 双仓全绿）：
+
+```bash
+ruff check src tests scripts dags packages
+# 注意 basetemp 每次换一个**尚不存在**的路径（示例用 run1；下次改 run2）
+python -m pytest tests -q --junitxml=.pytest_tmp/ju_main.xml -p no:cacheprovider \
+  --basetemp="$PWD/.pytest_tmp/run1_main"
+python -m pytest packages/curation-eval -q --junitxml=.pytest_tmp/ju_pkg.xml -p no:cacheprovider \
+  --basetemp="$PWD/.pytest_tmp/run1_pkg"
+```
+
+> ⚠️ **`--basetemp` 必须满足两个条件**，否则命令会被沙箱拒掉或结果失真：
+> 1. **绝对路径**——相对路径会让 `tmp_path` 夹具全线 `FileNotFoundError`；
+> 2. **每次指向一个尚不存在的目录**——本机沙箱的「批量删除」护栏会拦 `pytest` 回收
+>    系统 `Temp/pytest-of-*` 下累积的 `garbage-*`（不指 basetemp 时），
+>    或回收**已存在**的 basetemp 目录（指了但复用同一路径时）。两种都表现为
+>    `SystemExit: 1` 把 `tmp_path` 打崩、大量 `ERROR`。
+>    指向全新路径时 pytest 不需要删任何东西，护栏不会触发。
+> 汇总行仍可能被沙箱护栏吞掉——**要准数就用 `--junitxml` 解析，别去数进度点**。
+> `.pytest_tmp/` 已在 `.gitignore` 内。
+
 ## 2. 演示（10 分钟，面试/展示）
 
 **统一入口（V5 β 起，V6 α 扩到八页签）**：`streamlit run scripts/showcase_app.py`
