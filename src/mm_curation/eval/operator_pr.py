@@ -61,6 +61,11 @@ OPERATOR_TARGETS: dict[str, list[str]] = {
     "sensor_drift": ["sensor_cal_offset"],
     "unit_consistency": ["sensor_unit_swap"],
     "fault_vs_maintenance": ["sensor_unplanned_silence"],
+    # R9 多变量层：主靶是「**单个通道**与其余通道的相互关系断了」那一类
+    # （校准偏移 / 越界 / 平坦都是单通道改动 → 贡献图会指到那一个通道）。
+    # **它不靶向 process_suspect**：多通道共同变化在本判据下是**保留**的，
+    # 因为那是设备状态变了、读数合法（见工业算子模块 R9 段）。
+    "sensor_multivariate": ["sensor_cal_offset", "sensor_out_of_range", "sensor_flatline"],
 }
 
 

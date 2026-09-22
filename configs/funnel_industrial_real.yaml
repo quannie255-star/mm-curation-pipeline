@@ -51,3 +51,6 @@ operators:
     params: {min: 1.0}
   - op: fault_vs_maintenance  # 三种静默形态：全哨兵 / 设备级停机 / 跨度缺口
     params: {min: 1.0}
+  # --- R9 多变量层（MSPC）：补「维度」，不依赖量程表/单位/工况标签 ---
+  - op: sensor_multivariate  # PCA T²/SPE + 贡献图：单通道主导→丢；多通道共同→保留
+    params: {min: 1.0}

@@ -207,12 +207,18 @@ def test_range_unknown_channel_not_judged():
 
     真实数据集的 (device_type, channel) 基本都落在内嵌表外——旧行为会让报告
     读起来像「量程全部通过」，实际一次都没评过。
+
+    R8 起 `explain` 多三个字段：把「**没有**边界来源」和「有包络但参考窗不足」
+    两种未评分开——它们对使用者是两件事（前者要去找手册量程，后者要等更多参考数据）。
     """
     s = SensorRangeOp(**MIN)(_win(channel="torque"))
     assert s is not None and s.meta["score:sensor_range"] is None
     assert s.meta["score:sensor_range"] != 1.0
     assert SensorRangeOp(**MIN).explain(_win(channel="torque"), None) == {
         "channel_in_range_table": False,
+        "channel_in_envelope_table": False,
+        "envelope_n_ref": None,
+        "min_ref": 15,
         "reason": "no_range_entry",
         "device_type": "pump",
         "channel": "torque",
@@ -617,4 +623,226 @@ def test_r5_sampling_stall_does_not_disturb_clean_windows():
     corpus = generate_corpus(seed=42, scale=0.1)
     mixed, _, _ = _inject("sensor_sampling_stall", 0.3, corpus=corpus, ratio=6.0)
     assert [s.to_dict() for s in mixed[: len(corpus)]] == [s.to_dict() for s in corpus]
+
+
+# --- R8/R9：稳健限、数据包络、留出集自检 ---------------------------------------
+#
+# 这一段的靶子是**真实数据逼出来的两个具体故障**，都已在真实轨复现过：
+# 1. 控制限若按 MSPC 教科书写「参考集 99 分位 × margin」，小参考集上会退化成
+#    静默空转（`n` 小 → 99 分位 ≈ 最大值 → 乘 margin 后无点能超）→ `robust_limit`；
+# 2. `sensor_range` 在三个真实数据集上**一次都没评过**（通道全在手册量程表外）
+#    → 补「数据包络」这条边界来源，并用**留出集自检**拦住会失灵的边界。
+
+
+def _load_build_envelopes():
+    """加载 `scripts/build_envelopes.py`（脚本不在包内，沿用项目既有 importlib 做法）。"""
+    import importlib.util
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location(
+        "build_envelopes", root / "scripts" / "build_envelopes.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _env_samples(values, *, device_id="d1", channel="pressure", mode="run"):
+    """造一列窗（每窗读数恒定 = 该窗的工作点），供 `build_envelopes.build` 使用。"""
+    out = []
+    for i, v in enumerate(values):
+        p = _window(
+            device_id=device_id,
+            channel=channel,
+            operating_mode=mode,
+            window_start=(_EPOCH + timedelta(minutes=i)).isoformat(),
+            readings=[v] * 64,
+        )
+        out.append(SensorSample.from_payload(p))
+    return out
+
+
+def test_robust_median_and_mad_scale_are_outlier_resistant():
+    from mm_curation.operators.robust import mad_scale, median
+
+    assert median([]) == 0.0
+    assert median([3.0, 1.0, 2.0]) == 2.0
+    assert median([1.0, 2.0, 3.0, 4.0]) == 2.5  # 偶数个取两中位数均值
+    assert mad_scale([5.0] * 10, 5.0) == 0.0  # 常数序列：没有离散度
+    # 抗污染：加一个 1e9 的离群点，MAD 仍在个位数量级，而标准差被拖到亿级
+    base = [1.0, 2.0, 3.0, 4.0, 5.0]
+    polluted = base + [1e9]
+    assert mad_scale(base, 3.0) == 1.4826  # = 1.4826 × median([2,1,0,1,2])
+    assert mad_scale(polluted, median(polluted)) < 3.0
+    mean = sum(polluted) / len(polluted)
+    assert (sum((v - mean) ** 2 for v in polluted) / len(polluted)) ** 0.5 > 1e8
+
+
+def test_robust_limit_is_none_on_zero_dispersion_and_not_max_based():
+    """两条关键性质：零离散度 → None（不猜）；限**不随最大值走**（这是 #75 的判据）。"""
+    from mm_curation.operators.robust import robust_limit
+
+    assert robust_limit([], 3.0) is None
+    assert robust_limit([7.0] * 50, 3.0) is None  # 完全恒定 → 定不出限
+    # 50 个干净点：若限取「99 分位 × margin」，`n=50` 时 99 分位 ≈ 最大值，
+    # 再乘 margin 就成了**追着离群点跑**的限，判据静默空转。稳健限不受影响。
+    values = [1.0 + 0.01 * i for i in range(50)]
+    limit = robust_limit(values, 3.0)
+    assert limit is not None and limit < 10.0
+    with_outlier = robust_limit(values + [1e6], 3.0)
+    assert with_outlier is not None and with_outlier < 10.0
+
+
+def test_range_envelope_supplies_bounds_when_manual_table_misses(tmp_path):
+    """包络是**第二条**边界来源：手册表外通道因此从「未评」变成「真的在判」。
+
+    用 `torque`（不在内嵌 `RANGE_TABLE` 里）——`pressure` 会被手册表接走，
+    测不到包络这条路径。
+    """
+    import json
+
+    p = tmp_path / "env.json"
+    p.write_text(
+        json.dumps(
+            {
+                "_meta": {"source": "unit-test"},
+                "pump/torque": {"lo": 1.0, "hi": 1.5, "n_ref": 40},
+            }
+        ),
+        encoding="utf-8",
+    )
+    op = SensorRangeOp(min=1.0, envelope_path=str(p))
+    ok = op(_win(channel="torque", readings=[1.2] * 256))
+    assert ok is not None and ok.meta["score:sensor_range"] == 1.0
+    assert op(_win(channel="torque", readings=[9.9] * 256)) is None  # 越出包络 → 丢
+    assert (
+        op.explain(_win(channel="torque", readings=[1.2] * 256), 1.0)["bounds_source"]
+        == "data_envelope"
+    )
+
+
+def test_range_envelope_below_min_ref_is_still_unscored(tmp_path):
+    """支撑不足的边界**不许用**：记未评（保留），且 explain 要说清是哪一种未评。"""
+    import json
+
+    p = tmp_path / "env.json"
+    p.write_text(
+        json.dumps({"pump/torque": {"lo": 1.0, "hi": 1.5, "n_ref": 3}}), encoding="utf-8"
+    )
+    op = SensorRangeOp(min=1.0, envelope_path=str(p))
+    s = _win(channel="torque", readings=[9.9] * 256)
+    assert op(s) is not None  # 未评 → 保留（既不伪装成通过，也不误丢）
+    assert s.meta["score:sensor_range"] is None
+    info = op.explain(s, None)
+    assert info["reason"] == "insufficient_reference"
+    assert info["channel_in_envelope_table"] is True
+    assert info["envelope_n_ref"] == 3
+
+
+def test_range_manual_table_beats_envelope_and_reasons_are_distinct(tmp_path):
+    """优先级：手册量程 > 数据包络 —— 前者是物理真值，后者只是代理。"""
+    import json
+
+    p = tmp_path / "env.json"
+    p.write_text(
+        json.dumps({"pump/pressure": {"lo": 100.0, "hi": 200.0, "n_ref": 40}}), encoding="utf-8"
+    )
+    op = SensorRangeOp(min=1.0, envelope_path=str(p))
+    s = _win(readings=[1.2] * 256)  # 内嵌表里 pump/pressure 是合法的
+    assert op(s) is not None
+    assert op.explain(s, 1.0)["bounds_source"] == "manual_range"
+    # 完全没有两条来源时，reason 必须与「参考不足」区分开（审计要能分这两种）
+    plain = SensorRangeOp(min=1.0)
+    info = plain.explain(_win(channel="torque"), None)
+    assert info["reason"] == "no_range_entry"
+    assert info["channel_in_envelope_table"] is False
+
+
+def test_range_envelope_shape_errors_are_fatal(tmp_path):
+    """包络表填错必须直接抛：静默产生假的「超量程」判决比不填更危险。"""
+    import json
+
+    cases = [
+        ({"pump/pressure": {"lo": 1.0, "hi": 1.5}}, "n_ref"),  # 缺 n_ref
+        ({"pump/pressure": {"lo": 2.0, "hi": 1.0, "n_ref": 20}}, "下界"),  # 上下界反了
+        ({"pressure": {"lo": 1.0, "hi": 2.0, "n_ref": 20}}, "device_type"),  # 键缺 device_type
+    ]
+    for i, (table, needle) in enumerate(cases):
+        p = tmp_path / f"bad{i}.json"
+        p.write_text(json.dumps(table), encoding="utf-8")
+        try:
+            SensorRangeOp(min=1.0, envelope_path=str(p))
+        except ValueError as exc:
+            assert needle in str(exc), (needle, str(exc))
+        else:  # pragma: no cover
+            raise AssertionError(f"形状不对的包络表应当直接抛错: {table}")
+
+
+def test_build_envelopes_holdout_selfcheck_rejects_drifting_group():
+    """留出集自检：边界在参考段之外大面积越界 → **不写**这条边界。
+
+    MetroPT-3 实测就是这个情形（固定参考段 + 工况漂移 = 54.4% 真实窗越界）；
+    若不拦，包络会把一半正常数据判成越界 —— 这比「未评」有害得多。
+    """
+    mod = _load_build_envelopes()
+    # 最早 3 个窗（30% of 10）读数在 1.0 附近（留一点离散度，否则 MAD=0 会被
+    # 「零离散度」那条规则先拦下，测不到留出集自检）；之后整体漂到 5.0。
+    samples = _env_samples([1.0, 1.002, 1.001] + [5.0] * 7)
+    env, _n_ref, _skipped, n_rejected, rejected = mod.build(samples, 0.3, 6.0, 0.05)
+    assert env == {}, "会失灵的边界不该写进表"
+    assert n_rejected == 1
+    assert rejected[("pump", "pressure")] == [1.0]  # 留出集 7/7 全部越界
+
+
+def test_build_envelopes_unions_devices_and_skips_zero_dispersion():
+    """稳态组通过；同测点多台设备取**并集**（最宽）；零离散度的组直接跳过。"""
+    mod = _load_build_envelopes()
+    narrow = _env_samples([1.0 + 0.0001 * (i % 3) for i in range(10)], device_id="d1")
+    wide = _env_samples([1.0 + 3.0 * (i % 3) for i in range(10)], device_id="d2")
+    env, n_ref, _skipped, n_rejected, _rejected = mod.build(
+        narrow + wide, 0.3, 6.0, 1.0
+    )
+    assert n_rejected == 0
+    acc = env[("pump", "pressure")]
+    assert acc["devices"] == 2
+    assert n_ref == 6  # 两台各 3 个参考窗（窗才是独立单位，不按读数计）
+    assert acc["lo"] <= 1.0 and acc["hi"] >= 4.0  # 并集覆盖了宽的那台
+    # 完全恒定的通道：定不出边界 → 跳过（不猜）
+    flat, n_ref_flat, n_skipped, _r, _rej = mod.build(
+        _env_samples([2.0] * 10), 0.3, 6.0, 0.05
+    )
+    assert flat == {} and n_ref_flat == 0 and n_skipped == 1
+
+
+def test_envelope_roundtrip_build_to_operator(tmp_path):
+    """生成端与消费端的**格式契约**必须对得上（键、字段名、来源标记）。
+
+    两端分属脚本与算子，各自的单测都过不代表拼得起来 —— 这条测的正是接缝。
+    """
+    import json
+
+    mod = _load_build_envelopes()
+    # 60 个窗 → 参考段 18 个（>= 算子的 min_ref=15），否则判据会正确地记未评
+    env, *_ = mod.build(
+        _env_samples([1.0 + 0.001 * (i % 5) for i in range(60)], channel="torque"),
+        0.3,
+        6.0,
+        1.0,
+    )
+    table = {"_meta": {"source": "unit-test"}}
+    for (device_type, channel), acc in env.items():
+        table[f"{device_type}/{channel}"] = {
+            "lo": acc["lo"],
+            "hi": acc["hi"],
+            "n_ref": acc["n_ref"],
+        }
+    p = tmp_path / "env.json"
+    p.write_text(json.dumps(table), encoding="utf-8")
+
+    op = SensorRangeOp(min=1.0, envelope_path=str(p))
+    inside = _win(channel="torque", readings=[1.0] * 256)
+    assert op(inside) is not None and inside.meta["score:sensor_range"] == 1.0
+    assert op.explain(inside, 1.0)["bounds_source"] == "data_envelope"
+    assert op(_win(channel="torque", readings=[99.0] * 256)) is None
 
