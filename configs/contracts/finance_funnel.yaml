@@ -1,0 +1,59 @@
+# 数据契约：finance_funnel（金融文本，214 条）
+# 本数据集 chinese_ratio 单算子判脏 21.5%（四数据集里最高），
+# 契约里对这一点设 warn 而非 error：它是**已知且已归因**的现象，不是回归。
+
+dataset: finance_funnel
+version: 1
+owner: data-quality
+table: stg_samples
+
+fields:
+  id:
+    required: true
+    unique: true
+  dataset:
+    required: true
+  modality:
+    required: true
+    allowed: [text_article]
+  text_len:
+    required: true
+    min_value: 10         # 数值列：用 min_value，勿用 min_len（笔记 #79）
+  is_kept:
+    required: true
+    allowed: [0, 1]
+
+checks:
+  - name: attribution_complete
+    sql: |
+      SELECT COUNT(*) FROM stg_samples
+      WHERE dataset = 'finance_funnel' AND is_kept = 0
+        AND (dropped_by IS NULL OR CAST(dropped_by AS VARCHAR) = '')
+    expect: 0
+    severity: error
+
+  - name: no_orphan_score
+    sql: |
+      SELECT COUNT(*) FROM stg_scores s
+      WHERE s.dataset = 'finance_funnel'
+        AND NOT EXISTS (SELECT 1 FROM stg_samples t WHERE t.dataset = s.dataset AND t.id = s.id)
+    expect: 0
+    severity: error
+
+  - name: profile_reconciliation
+    sql: |
+      SELECT ABS(p.n_total - c.n_detail) FROM marts_dataset_profile p
+      JOIN (SELECT dataset, COUNT(*) AS n_detail FROM stg_samples GROUP BY 1) c
+        ON c.dataset = p.dataset
+      WHERE p.dataset = 'finance_funnel'
+    expect: 0
+    severity: error
+
+  - name: chinese_ratio_not_regressed
+    # 21.5% 是当前基线值。契约只拦「明显变坏」（>30%），
+    # 不拦基线本身——把已知现象写成 error 会让 CI 永远红，等于没有 CI。
+    sql: |
+      SELECT COUNT(*) FROM marts_funnel_stage
+      WHERE dataset = 'finance_funnel' AND op = 'chinese_ratio' AND drop_rate > 0.30
+    expect: 0
+    severity: warn

@@ -1,0 +1,133 @@
+# 指标字典（Metrics Dictionary）
+#
+# 定位：这批指标是**数仓口径**，服务日常观测与 CI 校验，
+# 与 docs/claims.json 锁定的「简历对外数字」是两套——
+# 那些是单一实验的对外承诺（带数据指纹与容差），这些是随数据更新会变的运营指标。
+# 两套不互相引用，避免「运营数字漂移」被误当成「对外承诺漂移」。
+#
+# 必填三件事：definition（给人读）、denominator（分母是什么）、sql（给机器跑）。
+#
+# 求值约定（warehouse/metrics.py 强制）：SQL 必须返回四列且顺序固定
+#   dataset, dim, value, denominator
+# dim 是可选维度（算子名等），非分级指标填 ''；全局指标的 dataset 填 '__global__'。
+# 分母为 0 或算不出来 → value 为 NULL → 记 NOT_EVALUATED，不用 0 伪装。
+#
+# baseline 由 `python -X utf8 scripts/mmc.py metrics --freeze` 写入。
+
+version: 1
+
+metrics:
+  - name: retention_rate
+    label: 漏斗保留率
+    definition: >
+      清洗后存活样本数 ÷ 该运行进入漏斗的样本总数（cleaned + dropped）。
+      分母是**同一次运行的 cleaned 与 dropped 之和**，不是上游原始语料条数——
+      两者在增量/分批场景下不相等，混用会得出没有意义的数字。
+    denominator: 进入漏斗的样本总数
+    unit: ratio
+    scope: dataset
+    direction: neutral
+    owner: data-quality
+    sql: |
+      SELECT dataset, '' AS dim,
+             n_kept * 1.0 / NULLIF(n_total, 0) AS value,
+             n_total AS denominator
+      FROM marts_dataset_profile
+
+  - name: drop_rate
+    label: 漏斗丢弃率
+    definition: 被任一算子丢弃的样本数 ÷ 该运行样本总数（与保留率互补）。
+    denominator: 进入漏斗的样本总数
+    unit: ratio
+    scope: dataset
+    direction: lower_is_better
+    owner: data-quality
+    sql: |
+      SELECT dataset, '' AS dim,
+             n_dropped * 1.0 / NULLIF(n_total, 0) AS value,
+             n_total AS denominator
+      FROM marts_dataset_profile
+
+  - name: score_coverage
+    label: 分数覆盖率
+    definition: >
+      实际产生分数的 (样本 × 算子) 单元数 ÷ 理论单元数（样本数 × 该数据集算子数）。
+      **这是本项目区别于 Great Expectations 类工具的关键指标**——
+      断言型工具只报 pass/fail，不报「这条规则今天评过没有」。
+    denominator: 理论单元数
+    unit: ratio
+    scope: dataset
+    direction: higher_is_better
+    owner: data-quality
+    sql: |
+      SELECT p.dataset, '' AS dim,
+             (SELECT COUNT(*) FROM stg_scores s WHERE s.dataset = p.dataset) * 1.0
+             / NULLIF(p.n_total * (SELECT COUNT(DISTINCT op) FROM stg_scores s2
+                                   WHERE s2.dataset = p.dataset), 0) AS value,
+             p.n_total AS denominator
+      FROM marts_dataset_profile p
+
+  - name: dedup_contribution
+    label: 去重算子丢弃占比
+    definition: >
+      去重类算子（名称含 dedup / minhash / md5 / phash）造成的丢弃 ÷ 全部丢弃。
+      用于把消融实验的结论（去重组最显著）变成可日常观测的量。
+      ⚠️ 去重算子是**批量算子，只丢不打分**（n_scored=0），必须从丢弃侧统计——
+      从分数侧统计会得到 0（笔记 #78）。
+    denominator: 全部算子丢弃条数
+    unit: ratio
+    scope: dataset
+    direction: neutral
+    owner: data-quality
+    sql: |
+      SELECT dataset, '' AS dim,
+             SUM(CASE WHEN op LIKE '%dedup%' OR op LIKE '%minhash%'
+                        OR op LIKE '%md5%' OR op LIKE '%phash%'
+                      THEN n_dropped ELSE 0 END) * 1.0
+             / NULLIF(SUM(n_dropped), 0) AS value,
+             SUM(n_dropped) AS denominator
+      FROM marts_funnel_stage
+      GROUP BY dataset
+
+  - name: stage_drop_rate
+    label: 分级丢弃率
+    definition: >
+      该算子丢弃的样本数 ÷ **该算子实际评分过的样本数**。
+      批量去重算子不打留分数 → 分母为 0 → 记 NULL（NOT_EVALUATED），
+      **不用 0 伪装成「零丢弃」**（笔记 #78）。
+    denominator: 该算子评分过的样本数
+    unit: ratio
+    scope: dataset
+    direction: lower_is_better
+    owner: data-quality
+    sql: |
+      SELECT dataset, op AS dim,
+             n_dropped * 1.0 / NULLIF(n_scored, 0) AS value,
+             n_scored AS denominator
+      FROM marts_funnel_stage
+
+  - name: dataset_count
+    label: 纳管数据集数
+    definition: 数仓纳管的漏斗运行数（cleaned / dropped 配对齐全才算一个）。
+    denominator: 数据集本身（计数型指标，分母即自身）
+    unit: count
+    scope: global
+    direction: neutral
+    owner: data-quality
+    sql: |
+      SELECT '__global__' AS dataset, '' AS dim,
+             COUNT(*) * 1.0 AS value, COUNT(*) AS denominator
+      FROM marts_dataset_profile
+
+  - name: sample_total
+    label: 样本总条数
+    definition: 数仓纳管的样本总条数（cleaned + dropped）。
+    denominator: 样本本身（计数型指标，分母即自身）
+    unit: count
+    scope: global
+    direction: neutral
+    owner: data-quality
+    sql: |
+      SELECT '__global__' AS dataset, '' AS dim,
+             COUNT(*) * 1.0 AS value, COUNT(*) AS denominator
+      FROM stg_samples

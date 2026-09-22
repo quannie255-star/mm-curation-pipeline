@@ -21,6 +21,11 @@ data/raw/.cache/
 data/raw/text_cache/
 data/interim/
 data/processed/
+# 真实工业数据集原始下载（383 MB，GAP_AUDIT P0-1）——
+# 未加这条时任何人 git add -A 都会把 383 MB 塞进索引
+data/raw/real/
+# DuckDB 数仓（scripts/mmc.py build 的产物，一条命令可重建）
+data/warehouse/
 # FAISS 索引 + store（可重建产物）
 data/indexes/
 data/reports/

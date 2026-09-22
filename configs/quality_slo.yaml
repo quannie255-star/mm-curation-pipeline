@@ -1,0 +1,85 @@
+# 数据质量 SLO + 质量维度 → 算子映射
+#
+# 为什么映射写在这里而不是代码里：新增算子 = 改配置，不改代码。
+# 维度沿用数据治理行业通行的四维（完整性 / 准确性 / 一致性 / 时效性）。
+#
+# ⚠️ 三条纪律
+# 1. **覆盖率与分数并列**：`min_coverage` 不满足即判 BREACH，哪怕分数是 1.0。
+#    覆盖率不足时「满分」没有意义——它只是没评过。
+# 2. **没有 SLO 的维度标 NO_SLO 而不是 OK**：不设目标就不算达标。
+# 3. **timeliness 对非时序数据集不留算子**：宁可 NOT_EVALUATED，
+#    也不拿「文本长度」去凑一个时效性指标（凑出来的数字比没有数字更危险）。
+
+version: 1
+
+dimensions:
+  completeness:
+    label: 完整性
+    question: 该有的字段 / 内容有没有
+    ops:
+      - doc_length
+      - text_length
+      - chinese_ratio
+      - boilerplate
+      - resolution
+      - code_validity
+      - referential_integrity_fhir
+  accuracy:
+    label: 准确性
+    question: 内容与真值 / 期望是否一致
+    ops:
+      - perplexity
+      - clip_alignment
+      - blur
+      - aspect_ratio
+      - phi_residual
+      - temporal_consistency
+  consistency:
+    label: 一致性
+    question: 口径 / 单位 / 格式是否统一
+    ops:
+      - char_repetition
+      - line_repetition
+      - unit_normalization
+      - pii_detect
+  uniqueness:
+    label: 唯一性
+    question: 有没有重复 / 冗余内容
+    # 全部是批量去重算子：只丢不打分（n_scored=0），故本维度不设 min_score，
+    # 只承诺「规则在跑」——对这些算子来说「丢」是期望行为，不是失败。
+    ops:
+      - md5_exact
+      - minhash_lsh
+      - phash_near
+      - semantic_dedup
+      - text_minhash
+  timeliness:
+    label: 时效性
+    question: 数据是否够新 / 是否按时产出
+    # 目前四个数据集都没有「采集时刻新鲜度」类算子，故为空 → 一律 NOT_EVALUATED。
+    # 工业时序模态接入后（sensor_stuck / fault_vs_maintenance）才填这里。
+    ops: []
+
+slo:
+  # uniqueness 只设 min_coverage、不设 min_score：该维度全是批量去重算子，
+  # 只丢不打留分数，「丢」是期望行为 → 用通过率考核等于惩罚它正常工作。
+  text_funnel:
+    completeness: {min_score: 0.90, min_coverage: 0.30}
+    accuracy:     {min_score: 0.95, min_coverage: 0.10}
+    consistency:  {min_score: 0.95, min_coverage: 0.30}
+    uniqueness:   {min_coverage: 0.20}
+  finance_funnel:
+    completeness: {min_score: 0.80, min_coverage: 0.30}
+    accuracy:     {min_score: 0.95, min_coverage: 0.10}
+    consistency:  {min_score: 0.95, min_coverage: 0.30}
+    uniqueness:   {min_coverage: 0.20}
+  image_funnel:
+    completeness: {min_score: 0.90, min_coverage: 0.20}
+    accuracy:     {min_score: 0.85, min_coverage: 0.20}
+    consistency:  {min_score: 0.95, min_coverage: 0.20}
+    uniqueness:   {min_coverage: 0.20}
+  fhir_funnel:
+    completeness: {min_score: 0.85, min_coverage: 0.20}
+    accuracy:     {min_score: 0.85, min_coverage: 0.20}
+    consistency:  {min_score: 0.85, min_coverage: 0.20}
+    uniqueness:   {min_coverage: 0.20}

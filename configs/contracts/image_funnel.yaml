@@ -1,0 +1,57 @@
+# 数据契约：image_funnel（图文对，2106 条）
+# 与 text_funnel 的差异点：caption 允许更短，但要求 has_image = 1（图文对不能没有图）。
+
+dataset: image_funnel
+version: 1
+owner: data-quality
+table: stg_samples
+
+fields:
+  id:
+    required: true
+    unique: true
+  dataset:
+    required: true
+  modality:
+    required: true
+    allowed: [image_caption]
+  text_len:
+    required: true
+    min_value: 1          # caption 可以短，但不能空（数值列用 min_value）
+  is_kept:
+    required: true
+    allowed: [0, 1]
+
+checks:
+  - name: attribution_complete
+    sql: |
+      SELECT COUNT(*) FROM stg_samples
+      WHERE dataset = 'image_funnel' AND is_kept = 0
+        AND (dropped_by IS NULL OR CAST(dropped_by AS VARCHAR) = '')
+    expect: 0
+    severity: error
+
+  - name: no_orphan_score
+    sql: |
+      SELECT COUNT(*) FROM stg_scores s
+      WHERE s.dataset = 'image_funnel'
+        AND NOT EXISTS (SELECT 1 FROM stg_samples t WHERE t.dataset = s.dataset AND t.id = s.id)
+    expect: 0
+    severity: error
+
+  - name: image_present
+    # 图文对的核心承诺：每一条都得有图。没有图的「图文对」是上游接入 bug。
+    sql: |
+      SELECT COUNT(*) FROM stg_samples
+      WHERE dataset = 'image_funnel' AND COALESCE(has_image, 0) <> 1
+    expect: 0
+    severity: error
+
+  - name: profile_reconciliation
+    sql: |
+      SELECT ABS(p.n_total - c.n_detail) FROM marts_dataset_profile p
+      JOIN (SELECT dataset, COUNT(*) AS n_detail FROM stg_samples GROUP BY 1) c
+        ON c.dataset = p.dataset
+      WHERE p.dataset = 'image_funnel'
+    expect: 0
+    severity: error

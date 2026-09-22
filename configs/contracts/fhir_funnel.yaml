@@ -1,0 +1,58 @@
+# 数据契约：fhir_funnel（医疗 FHIR 资源，65 条）
+# 数据集最小（65 条），但口径最严：PHI 残留与编码合法性是本数据集的一票否决项。
+
+dataset: fhir_funnel
+version: 1
+owner: data-quality
+table: stg_samples
+
+fields:
+  id:
+    required: true
+    unique: true
+  dataset:
+    required: true
+  modality:
+    required: true
+    allowed: [fhir_resource]
+  text_len:
+    required: true
+    min_value: 1
+  is_kept:
+    required: true
+    allowed: [0, 1]
+
+checks:
+  - name: attribution_complete
+    sql: |
+      SELECT COUNT(*) FROM stg_samples
+      WHERE dataset = 'fhir_funnel' AND is_kept = 0
+        AND (dropped_by IS NULL OR CAST(dropped_by AS VARCHAR) = '')
+    expect: 0
+    severity: error
+
+  - name: no_orphan_score
+    sql: |
+      SELECT COUNT(*) FROM stg_scores s
+      WHERE s.dataset = 'fhir_funnel'
+        AND NOT EXISTS (SELECT 1 FROM stg_samples t WHERE t.dataset = s.dataset AND t.id = s.id)
+    expect: 0
+    severity: error
+
+  - name: profile_reconciliation
+    sql: |
+      SELECT ABS(p.n_total - c.n_detail) FROM marts_dataset_profile p
+      JOIN (SELECT dataset, COUNT(*) AS n_detail FROM stg_samples GROUP BY 1) c
+        ON c.dataset = p.dataset
+      WHERE p.dataset = 'fhir_funnel'
+    expect: 0
+    severity: error
+
+  - name: phi_residual_ceiling
+    # PHI 残留是本数据集唯一不可妥协的指标：允许 warn，不允许沉默。
+    # 这里卡的是「判脏率」而不是「残留率」——残留率需要真值，本项目没有。
+    sql: |
+      SELECT COUNT(*) FROM marts_funnel_stage
+      WHERE dataset = 'fhir_funnel' AND op = 'phi_residual' AND drop_rate > 0.15
+    expect: 0
+    severity: warn

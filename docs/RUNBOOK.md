@@ -610,6 +610,40 @@ python -X utf8 scripts/build_real_data_html.py     # F3：秒级，产 docs/real
   **改版式改它，改数字改 F1**，`build_real_data_html.py` 只负责把 JSON 塞进 `__DATA__`。
 - 「未评」（`score=None`）在页面上**单列**，不并进「通过」：它是「该算子没干活」，不是「通过了」。
 
+## 1.23 SQL 语义层 / 指标字典 / 记分卡 / 血缘契约（`mmc` CLI，2026-09-22）
+
+统一入口 `scripts/mmc.py`（GAP_AUDIT P1-8：仓库 50+ 脚本，入口靠「记」和「找」）。
+**需要可选依赖 duckdb**：`pip install duckdb`（未装时 `connect()` 抛带安装提示的错，不静默退化）。
+
+```bash
+python -X utf8 scripts/mmc.py build                      # 建四层数仓
+python -X utf8 scripts/mmc.py sql "SELECT * FROM marts_dataset_profile"
+python -X utf8 scripts/mmc.py metrics                    # 跑指标字典并与基线比对
+python -X utf8 scripts/mmc.py metrics --freeze           # 口径变更后重冻基线
+python -X utf8 scripts/mmc.py metrics --verify           # 漂移则 exit 1（进 CI）
+python -X utf8 scripts/mmc.py scorecard                  # 质量记分卡 + SLO
+python -X utf8 scripts/mmc.py lineage --impact doc_length
+python -X utf8 scripts/mmc.py lineage --mermaid
+python -X utf8 scripts/mmc.py contracts                  # 数据契约，破坏性变更 exit 1
+```
+
+**验收实点**（改了模型层就用这组数字做回归）：
+
+- `build` → `n_raw 6643 / n_stg 4451 / n_scores 30048`，`sources_skipped: []`
+- `metrics --verify` → 44 条基线全部 `OK`（**重构 `marts_funnel_stage` 后就是靠这条验证语义未变**）
+- `scorecard` → 覆盖率加权健康度 **0.980**、平均覆盖率 **0.371**、破线 0
+- `contracts` → 4 份契约 **52 条断言**全过
+
+**四条纪律**（踩过的坑都在 `ENGINEERING_NOTES.md` #78 / #79）：
+
+1. **基线不回写 `metrics.yaml`** —— `yaml.dump` 会丢口径注释，而注释正是那个文件的价值；
+   基线单独存 `configs/metrics_baseline.json`。
+2. **健康度必须和覆盖率一起引用** —— 0.37 的覆盖率意味着约三分之二规则没跑过，
+   剩下的是 `NOT_EVALUATED` 而不是「通过」（见笔记 #76）。
+3. **数值列不要写 `min_len`** —— 它比的是位数不是大小（笔记 #79）。
+4. **两套表名都在**（`ods_samples`↔`raw_samples`、`dwd_*`↔`stg_*`…），
+   但**实现只有一套**，另一套是别名视图——名字多不是模型多。
+
 ## 2. 演示（10 分钟，面试/展示）
 
 **统一入口（V5 β 起，V6 α 扩到八页签，V6 P2 扩到九页签）**：`streamlit run scripts/showcase_app.py`
