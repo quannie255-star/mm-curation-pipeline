@@ -15,15 +15,35 @@ from mm_curation.lineage import graph as G
 def _rows():
     """三条判决书：doc_length(seq=1) 处理 e1/e2，perplexity(seq=2) 处理 e1。"""
     return [
-        {"run_id": "r", "op": "doc_length", "seq": 1, "decision": "keep",
-         "prov": {"used": "e1", "activity": "doc_length"}},
-        {"run_id": "r", "op": "doc_length", "seq": 1, "decision": "drop",
-         "prov": {"used": "e2", "activity": "doc_length"}},
-        {"run_id": "r", "op": "perplexity", "seq": 2, "decision": "keep",
-         "prov": {"used": "e1", "activity": "perplexity"}},
+        {
+            "run_id": "r",
+            "op": "doc_length",
+            "seq": 1,
+            "decision": "keep",
+            "prov": {"used": "e1", "activity": "doc_length"},
+        },
+        {
+            "run_id": "r",
+            "op": "doc_length",
+            "seq": 1,
+            "decision": "drop",
+            "prov": {"used": "e2", "activity": "doc_length"},
+        },
+        {
+            "run_id": "r",
+            "op": "perplexity",
+            "seq": 2,
+            "decision": "keep",
+            "prov": {"used": "e1", "activity": "perplexity"},
+        },
         # 序号更小但共享实体 → 是上游，不是下游
-        {"run_id": "r", "op": "dedup", "seq": 0, "decision": "keep",
-         "prov": {"used": "e1", "activity": "dedup"}},
+        {
+            "run_id": "r",
+            "op": "dedup",
+            "seq": 0,
+            "decision": "keep",
+            "prov": {"used": "e1", "activity": "dedup"},
+        },
     ]
 
 
@@ -60,7 +80,7 @@ def test_mermaid_quotes_labels():
     g = G.build_lineage(_rows(), run_id="r")
     out = g.to_mermaid()
     assert out.startswith("graph LR")
-    assert 'n0["' in out          # 节点必须走 id["标签"] 形式
+    assert 'n0["' in out  # 节点必须走 id["标签"] 形式
     assert "#" in out and "[" in out
     for line in out.splitlines()[1:]:
         assert line.count('["') == 2
@@ -78,42 +98,63 @@ def test_openlineage_export_shape():
 # 数据契约
 # ---------------------------------------------------------------------------
 
+
 def test_min_len_vs_min_value_on_numeric_column():
     """笔记 #79：min_len 对数值列比的是**位数**。
 
     text_len = 1234 时 LENGTH('1234') = 4，写 min_len: 10 会判 FAIL——
     语义完全不同却不会报错，是最难发现的那一类错误。
     """
-    c = C.Contract(dataset="d", version=1, owner="o", table="t",
-                   fields={"n": {"min_len": 10}, "m": {"min_value": 10}})
+    c = C.Contract(
+        dataset="d",
+        version=1,
+        owner="o",
+        table="t",
+        fields={"n": {"min_len": 10}, "m": {"min_value": 10}},
+    )
     kinds = {name.split(".")[-1] for name, *_ in C.compile_field_checks(c)}
     assert {"min_len", "min_value"} <= kinds
     for name, sql, _expect, _sev in C.compile_field_checks(c):
         if name == "n.min_len":
-            assert "LENGTH" in sql          # 位数
+            assert "LENGTH" in sql  # 位数
         if name == "m.min_value":
-            assert "LENGTH" not in sql      # 数值大小
+            assert "LENGTH" not in sql  # 数值大小
 
 
 def test_field_rules_compile_to_zero_expected_counting_assertions():
     """全部编译成「期望为 0 的计数」：能报出坏了多少条，而不是只说 true/false。"""
-    c = C.Contract(dataset="d", version=1, owner="o", table="t", fields={
-        "id": {"required": True, "unique": True},
-        "modality": {"allowed": ["text"]},
-        "s": {"min_len": 2, "max_len": 9},
-    })
+    c = C.Contract(
+        dataset="d",
+        version=1,
+        owner="o",
+        table="t",
+        fields={
+            "id": {"required": True, "unique": True},
+            "modality": {"allowed": ["text"]},
+            "s": {"min_len": 2, "max_len": 9},
+        },
+    )
     checks = C.compile_field_checks(c)
     assert all(expect == 0 for _n, _s, expect, _sv in checks)
     # id.required / id.unique / modality.allowed / s.min_len / s.max_len
     assert [n for n, *_ in checks] == [
-        "id.required", "id.unique", "modality.allowed", "s.min_len", "s.max_len",
+        "id.required",
+        "id.unique",
+        "modality.allowed",
+        "s.min_len",
+        "s.max_len",
     ]
 
 
 def test_dataset_is_scoped_into_where_clause():
     """契约必须带 dataset 过滤：否则「某数据集唯一」会被全库唯一偷偷满足。"""
-    c = C.Contract(dataset="text_funnel", version=1, owner="o", table="stg_samples",
-                   fields={"id": {"unique": True}})
+    c = C.Contract(
+        dataset="text_funnel",
+        version=1,
+        owner="o",
+        table="stg_samples",
+        fields={"id": {"unique": True}},
+    )
     _n, sql, _e, _s = C.compile_field_checks(c)[0]
     assert "dataset = 'text_funnel'" in sql
 

@@ -203,8 +203,14 @@ class Warehouse:
                 continue
             used.append(f"{src.name}:{src.kind}")
             for r in rows:
-                base = (r["dataset"], r["id"], r["modality"],
-                        r["text_len"], r["chars_han"], r["has_image"])
+                base = (
+                    r["dataset"],
+                    r["id"],
+                    r["modality"],
+                    r["text_len"],
+                    r["chars_han"],
+                    r["has_image"],
+                )
                 if src.kind == "raw":
                     raw_rows.append(base)
                 else:
@@ -219,10 +225,10 @@ class Warehouse:
         self._insert(con, "stg_scores", score_rows)
         self._build_marts(con)
         con.execute(_ALIAS_DDL)
-        con.execute("INSERT OR REPLACE INTO meta_info VALUES ('schema_version', ?)",
-                    [str(SCHEMA_VERSION)])
-        con.execute("INSERT OR REPLACE INTO meta_info VALUES ('sources_used', ?)",
-                    [",".join(used)])
+        con.execute(
+            "INSERT OR REPLACE INTO meta_info VALUES ('schema_version', ?)", [str(SCHEMA_VERSION)]
+        )
+        con.execute("INSERT OR REPLACE INTO meta_info VALUES ('sources_used', ?)", [",".join(used)])
         con.close()
 
         return {
@@ -314,8 +320,14 @@ class Warehouse:
                 """UPDATE marts_funnel_stage
                    SET score_min=?, score_p50=?, score_max=?, score_mean=?
                    WHERE dataset=? AND op=?""",
-                [min(vals), _pct(vals, 0.5), max(vals),
-                 statistics.fmean(vals) if vals else None, ds, op],
+                [
+                    min(vals),
+                    _pct(vals, 0.5),
+                    max(vals),
+                    statistics.fmean(vals) if vals else None,
+                    ds,
+                    op,
+                ],
             )
         con.execute(
             """

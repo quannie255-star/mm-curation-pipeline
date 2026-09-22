@@ -38,12 +38,28 @@ def _print_rows(cols, rows) -> None:
 
 # ---------------------------------------------------------------------------
 
+
 def cmd_build(a) -> int:
     from mm_curation.warehouse.model import build_warehouse
 
     DEFAULT_DB.parent.mkdir(parents=True, exist_ok=True)
     rep = build_warehouse(ROOT, DEFAULT_DB)
     print(json.dumps(rep, ensure_ascii=False, indent=2))
+
+    # 一个数据源都用不上 = 这次构建没有任何意义，必须**显式失败**。
+    # 早先的实现会把 n_raw=0 的报告当作成功打印出来，下一个命令再给出
+    # 「口径返回空行」这种指向错误方向的报错（真问题是没有数据，不是口径错）。
+    # 数据产物不入库（见 .gitignore），所以新克隆的仓库**必然**走到这里。
+    if rep["n_stg"] == 0 and rep["n_raw"] == 0:
+        print(
+            "\n[FAIL] 没有任何数据源可用：data/raw 与 data/processed 下的产物"
+            "都不存在或为空。\n"
+            "       这些是生成产物、不入库（见 .gitignore），新克隆的仓库需要先"
+            "生成一遍。\n"
+            "       生成命令见 docs/RUNBOOK.md §1（完整复现，每步有验收数字）。",
+            file=sys.stderr,
+        )
+        return 2
     return 0
 
 
@@ -53,8 +69,11 @@ def cmd_sql(a) -> int:
     wh = Warehouse(DEFAULT_DB)
     cols, rows = wh.query(a.query)
     if a.json:
-        print(json.dumps({"columns": cols, "rows": [list(r) for r in rows]},
-                         ensure_ascii=False, default=str))
+        print(
+            json.dumps(
+                {"columns": cols, "rows": [list(r) for r in rows]}, ensure_ascii=False, default=str
+            )
+        )
     else:
         _print_rows(cols, rows)
     return 0
@@ -81,10 +100,19 @@ def cmd_metrics(a) -> int:
     else:
         _print_rows(
             ["metric", "dataset", "dim", "value", "denominator", "baseline", "delta", "ok"],
-            [(r.name, r.dataset, r.dim or "-", _fmt(r.value), _fmt(r.denominator),
-              _fmt(r.baseline), _fmt(r.delta),
-              "-" if r.ok is None else ("OK" if r.ok else "DRIFT"))
-             for r in rep.results],
+            [
+                (
+                    r.name,
+                    r.dataset,
+                    r.dim or "-",
+                    _fmt(r.value),
+                    _fmt(r.denominator),
+                    _fmt(r.baseline),
+                    _fmt(r.delta),
+                    "-" if r.ok is None else ("OK" if r.ok else "DRIFT"),
+                )
+                for r in rep.results
+            ],
         )
     if a.verify and not rep.ok:
         print(f"\n[FAIL] {len(rep.failures)} 个指标偏离基线", file=sys.stderr)
@@ -117,14 +145,28 @@ def cmd_scorecard(a) -> int:
     cards = build_scorecard(profile=profile, stages=stages, cfg=cfg)
     summary = summarize(cards)
     if a.json:
-        print(json.dumps({"summary": summary,
-                          "cards": [c.to_dict() for c in cards]},
-                         ensure_ascii=False, indent=2, default=str))
+        print(
+            json.dumps(
+                {"summary": summary, "cards": [c.to_dict() for c in cards]},
+                ensure_ascii=False,
+                indent=2,
+                default=str,
+            )
+        )
         return 1 if summary["breaches"] else 0
     _print_rows(
         ["dataset", "dimension", "ops(eval/total)", "coverage", "score", "status"],
-        [(c.dataset, c.dimension, f"{c.ops_evaluated}/{c.ops_total}",
-          _fmt(c.coverage), _fmt(c.score), c.status) for c in cards],
+        [
+            (
+                c.dataset,
+                c.dimension,
+                f"{c.ops_evaluated}/{c.ops_total}",
+                _fmt(c.coverage),
+                _fmt(c.score),
+                c.status,
+            )
+            for c in cards
+        ],
     )
     # 健康度必须和覆盖率一起报：0.16 覆盖率上的 1.0 分不该被单独引用
     print(
@@ -170,16 +212,21 @@ def cmd_contracts(a) -> int:
     else:
         for r in results:
             flag = "OK " if r["ok"] else "FAIL"
-            print(f"[{flag}] {r['dataset']}@v{r['version']}  "
-                  f"{r['n_checks']} checks, {r['n_fail']} fail, {r['n_error']} error")
+            print(
+                f"[{flag}] {r['dataset']}@v{r['version']}  "
+                f"{r['n_checks']} checks, {r['n_fail']} fail, {r['n_error']} error"
+            )
             for c in r["checks"]:
                 if c["status"] != "PASS":
-                    print(f"        {c['status']:5s} {c['name']}  "
-                          f"actual={c['actual']} expect={c['expect']}")
+                    print(
+                        f"        {c['status']:5s} {c['name']}  "
+                        f"actual={c['actual']} expect={c['expect']}"
+                    )
     return 1 if any(not r["ok"] for r in results) else 0
 
 
 # ---------------------------------------------------------------------------
+
 
 def main() -> int:
     p = argparse.ArgumentParser(prog="mmc", description="mm-curation 数据链路 CLI")

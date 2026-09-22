@@ -411,3 +411,88 @@ grep -n "^#" docs/ENGINEERING_NOTES.md | wc -l
 python -X utf8 -m pytest --collect-only -q
 python -X utf8 -m pytest packages/curation-eval/tests --collect-only -q
 ```
+
+---
+---
+
+# 复审（2026-09-22，DS/DA 四包 + R7–R11 之后）
+
+> **为什么要复审**：上面那份是 09-18 的，之后发生了两轮大改（R1–R11 真实数据判据修复、
+> DS/DA 四包）。**不复审的债务清单会持续说谎**——P0-1 已经修了，P1-8 修了一半，
+> 而文档还写着"全部为零"。这类腐烂在本项目已发生过多次（连着陆门面数字一起）。
+>
+> 本次每条都用命令实点，不引用文档自述。
+
+## 状态总表
+
+| 项 | 09-18 | 09-22 实点 | 判据 |
+|---|---|---|---|
+| P0-1 383 MB 未忽略 | 开 | ✅ **已修** | `git check-ignore` 命中 `.gitignore:26:data/raw/real/` |
+| P0-2 真实数据脚本零测试 | 开 | ❌ 仍开 | `tests/` 无 `test_ingest_real_sensor.py`（只有算子侧的 4 个 `test_sensor_*`） |
+| P0-3 Makefile 裸 `python` | 开 | ❌ 仍开 | Makefile 里裸 `python` **25 处**，`$(PYTHON)` 变量 **0 处** |
+| P1-1 服务层鉴权 | 开 | ❌ 仍开 | `api.py` 里 `auth\|token\|rate\|limit\|Depends` 命中 **0** |
+| P1-2 全内存批处理 | 开 | ❌ 仍开 | `runner.py` 里 `checkpoint/resume/quarantine/dead_letter/yield` 全 **0** |
+| P1-3 锁文件 | 开 | ❌ 仍开 | 24 条依赖 **0 条**精确锁；无 lock 文件 |
+| P1-4 应用侧 Dockerfile | 开 | ❌ 仍开 | 仍只有 `docker/Dockerfile.airflow` |
+| P1-5 协议版本常量 | 开 | ❌ 仍开 | 包内 `PROTOCOL_VERSION\|SCHEMA_VERSION` 命中 **0** |
+| P1-6 版本发布 | 开 | ❌ 仍开 | 主仓 `0.1.0`（项目已到 V6）/ 包 `0.5.0`；无 CHANGELOG；**无 git tag** |
+| P1-7 人工审核队列 | 开 | ❌ 仍开 | `src/` 无 `review_queue` / `approve` / `arbitration` |
+| P1-8 统一 CLI | 开 | 🟡 **半修** | `scripts/mmc.py` 就位（数据链路侧 8 个子命令）；但无 `[project.scripts]`，`scripts/*.py` 反增到 **57** |
+| P1-9 外人可验冒烟路径 | 开 | ❌ 仍开 | QUICKSTART 仍只有路线 A/B/C，无"真实数据 + 纯 CPU + 十分钟" |
+| P2-1 判据对着合成形态写 | 开 | ✅ **已修** | R1–R6；合成门禁逐位锁基线，C-MAPSS `sensor_stuck` 误杀 30.58%→2.44% |
+| P2-2 阈值不可迁移 | 开 | 🟡 部分修 | R4 MAD 档同召回降误杀 75%（MetroPT-3 drift 28.90%→3.98%）；**但见下方新增项** |
+| P2-3 无召回真值 | 开 | 🟡 部分修 | R11 半合成注入造出有效真值（分母=注入集，是唯一可对外讲的召回） |
+| P2-5 单窗视角 | 开 | ❌ 仍开 | **R7 如实未做**；正解是滚动基线，属另一套设计 |
+| P2-6 污染器缺 4 类形态 | 开 | ✅ **已修** | R5 补噪声平坦/采样停顿/信息黑障 + 低脏率档 |
+| P2-7 医疗工业数字全来自合成 | 开 | 🟡 部分修 | 真实轨数字有了，但**定位=适用性证据**，未进 `claims.json` / `PROOF_CHAIN` |
+| P3-1 门面数字腐烂 | 开（第 4 次） | ❌ **仍开且恶化** | README `328 + 67`（实点 **452 + 67**）；ROADMAP 三处旧数；INTERVIEW「59 条」（实点 **80**）→ 第 5、6 次 |
+| P3-4 笔记编号唯一性 | 开 | ❌ 仍开 | `### 65.` 出现两次（80 个标题 / 79 个唯一编号） |
+
+## 新增（09-22 复审查出，两条）
+
+### N-1. CI 从建起来那天就是红的，而"CI 覆盖包侧测试"因此不成立 —— 已定位，未修
+
+- **实点**：把 `git archive HEAD` 导出到临时目录（排除协作方未提交改动），
+  在 CI pin 的 **ruff 0.15.7** 下跑 CI 的第二条门禁：
+  `ruff format --check src tests scripts dags` → **52 个文件不合格**；
+  `... packages` → **4 个**。合计 **56**。
+- **关键**：其中 **43 个是本次改动之前就存在的**（含初始提交里的 `runner.py`、
+  `tests/test_sampling.py`、`scripts/showcase_app.py`）。
+  抽查 HEAD blob 字节：纯 LF、无 CRLF、无 `.gitattributes`
+  → **Linux 上的 CI 看到同样字节，不是换行符造成的假红**。
+- **后果**：`ci.yml` 的步骤顺序是 `Ruff lint → Ruff format check → Run tests`，
+  且无 `continue-on-error`。format 挂掉 → **后面的 pytest 步骤不执行**。
+  所以"CI 覆盖包侧测试""双 CI 工作流"这两句在**执行层面从未成立**。
+  （本结论由本地可复现的门禁状态推得；当时 `github.com` 不可达，未读到 Actions 运行日志。）
+- **为什么能瞒住这么久**：平时只跑 `ruff check`（它是绿的），
+  而 CI 有**两条** ruff 门禁。**跑了命令的子集就等于没跑 CI。**
+- **修法**：等协作方在途改动提交后，全量 `ruff format src tests scripts dags packages`
+  （一次 56 文件的格式化会冲突掉在途工作，属协作顺序问题）；并建议把
+  **测试步骤排到格式之前**——最低价值的检查不该拥有否决最高价值检查的权力。
+
+### N-2. `mmc metrics --verify` 曾是**假绿**门禁 —— 已修
+
+- **实点**：在"新克隆"模拟目录（有代码与入库配置、无 `data/`）上跑
+  `mmc metrics --verify`，**退出码 0**，但 7 条口径里有 **5 条**报
+  `口径返回空行`——一条都没验成。
+- **根因**：`VerifyReport.ok` 只判 `ok is not False`，而跑挂的行 `ok=None`
+  → 跑挂不体现为失败。**与 N-1 是同一类失效：没跑的检查项沉默地"通过"了。**
+- **修法**（本次已改）：
+  1. `ok` 把 `errors` 计入失败 → 空库上 `--verify` 现在退出 **1**；
+  2. `mmc build` 在**零个数据源可用**时退出 **2** 并打印指引
+     （此前它会安静地打印一份 `n_raw: 0` 的报告当成功，
+     下游再给出"口径返回空行"这种**指向错误方向**的报错）。
+  3. 真实仓库上 `--verify` 仍为 0（44 条基线 0 漂移），无假红。
+- **附带**：`duckdb` 补进 `requirements.txt`——不补的话 CI 不装它，
+  `test_warehouse.py` 的 `importorskip` 会让 9 条测试在 CI 上静默消失
+  （同一个坑在包侧 `ray` 上踩过一次，笔记 #65）。
+
+## 复审后的一句话
+
+**工程建设（测试/证据/纪律）这一栏已经明显强于 09-18 的判断：
+判据 ↔ 真实形态的主缺口被 R1–R6 堵上，DS/DA 四包把"数据资产化"补齐。
+但"产品外壳"那一栏 09-18 列的 9 条里，只有 1 条修完、1 条修一半、7 条原封不动。**
+
+**优先级没有变，只是理由更强了**：现在的瓶颈不是"再补一层功能"，
+而是 ①**把已有的门禁变成真门禁**（N-1/N-2/P3-1：三条都是"看起来在拦、其实没拦"），
+②**补一条外人十分钟能跑通的路径**（P1-9，否则前面所有数字都只有作者本人验过）。

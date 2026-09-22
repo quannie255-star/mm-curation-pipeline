@@ -87,9 +87,14 @@ class MetricResult:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "name": self.name, "dataset": self.dataset, "dim": self.dim,
-            "value": self.value, "denominator": self.denominator,
-            "baseline": self.baseline, "delta": self.delta, "ok": self.ok,
+            "name": self.name,
+            "dataset": self.dataset,
+            "dim": self.dim,
+            "value": self.value,
+            "denominator": self.denominator,
+            "baseline": self.baseline,
+            "delta": self.delta,
+            "ok": self.ok,
             "error": self.error,
         }
 
@@ -101,22 +106,36 @@ def load_metrics(path: str | Path = DEFAULT_METRICS_PATH) -> list[MetricSpec]:
     return [MetricSpec.from_dict(m) for m in data.get("metrics", [])]
 
 
-def evaluate(con, spec: MetricSpec,
-             baselines: dict[str, float] | None = None) -> list[MetricResult]:
+def evaluate(
+    con, spec: MetricSpec, baselines: dict[str, float] | None = None
+) -> list[MetricResult]:
     """执行一条口径，返回逐行结果并与基线比对。"""
     try:
         cur = con.execute(spec.sql)
         cols = [str(d[0]).lower() for d in cur.description]
         rows = cur.fetchall()
     except Exception as e:  # noqa: BLE001 - 口径跑挂要变成结果而不是崩溃
-        return [MetricResult(spec.name, None, None, spec.baseline, None, None,
-                             error=f"{type(e).__name__}: {e}")]
+        return [
+            MetricResult(
+                spec.name, None, None, spec.baseline, None, None, error=f"{type(e).__name__}: {e}"
+            )
+        ]
     if not rows:
-        return [MetricResult(spec.name, None, None, spec.baseline, None, None,
-                             error="口径返回空行")]
+        return [
+            MetricResult(spec.name, None, None, spec.baseline, None, None, error="口径返回空行")
+        ]
     if "value" not in cols:
-        return [MetricResult(spec.name, None, None, spec.baseline, None, None,
-                             error=f"口径缺少 value 列（实际返回 {cols}）")]
+        return [
+            MetricResult(
+                spec.name,
+                None,
+                None,
+                spec.baseline,
+                None,
+                None,
+                error=f"口径缺少 value 列（实际返回 {cols}）",
+            )
+        ]
 
     i_val = cols.index("value")
     i_den = cols.index("denominator") if "denominator" in cols else -1
@@ -135,8 +154,11 @@ def evaluate(con, spec: MetricSpec,
             out.append(MetricResult(spec.name, value, denom, bl, None, None, ds, dim))
         else:
             delta = value - bl
-            out.append(MetricResult(spec.name, value, denom, bl, delta,
-                                    abs(delta) <= spec.tolerance, ds, dim))
+            out.append(
+                MetricResult(
+                    spec.name, value, denom, bl, delta, abs(delta) <= spec.tolerance, ds, dim
+                )
+            )
     return out
 
 
@@ -146,6 +168,17 @@ class VerifyReport:
 
     @property
     def ok(self) -> bool:
+        """门禁是否成立。
+
+        ⚠️ **口径跑挂（error）必须算失败**，不能只算「没可比基线」。
+        早先的实现只判 `ok is not False`，而跑挂的行 `ok=None` →
+        在空仓库上 7 条口径有 5 条根本没跑成，`ok` 却是 **True**，
+        `--verify` 返回 0 —— 一个**什么都没验的成功**。
+        这和 `format --check` 挂掉却让 CI 显示绿是同一类失效（笔记 #80）：
+        **没跑的检查项必须显式失败，而不是沉默地通过。**
+        """
+        if self.errors:
+            return False
         return all(r.ok is not False for r in self.results)
 
     @property
@@ -166,8 +199,9 @@ class VerifyReport:
         }
 
 
-def verify(con, specs: list[MetricSpec] | None = None,
-           baselines: dict[str, float] | None = None) -> VerifyReport:
+def verify(
+    con, specs: list[MetricSpec] | None = None, baselines: dict[str, float] | None = None
+) -> VerifyReport:
     """跑全部口径并与基线比对。漂移或口径跑挂都体现在 ok 上。"""
     rep = VerifyReport()
     for s in specs if specs is not None else load_metrics():
@@ -180,6 +214,7 @@ def verify(con, specs: list[MetricSpec] | None = None,
 # ——yaml.dump 会丢掉口径注释，而注释正是那个文件的价值所在。
 # ---------------------------------------------------------------------------
 
+
 def load_baselines(path: str | Path = BASELINE_PATH) -> dict[str, float]:
     p = Path(path)
     if not p.exists():
@@ -188,8 +223,9 @@ def load_baselines(path: str | Path = BASELINE_PATH) -> dict[str, float]:
     return {k: float(v) for k, v in (data.get("baselines") or {}).items()}
 
 
-def freeze(con, specs: list[MetricSpec] | None = None,
-           path: str | Path = BASELINE_PATH) -> dict[str, Any]:
+def freeze(
+    con, specs: list[MetricSpec] | None = None, path: str | Path = BASELINE_PATH
+) -> dict[str, Any]:
     """把当前口径的实际值冻成基线（首次建立或口径变更后重建）。"""
     specs = specs if specs is not None else load_metrics()
     out: dict[str, float] = {}

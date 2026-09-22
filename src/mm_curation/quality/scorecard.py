@@ -148,8 +148,7 @@ def score_dimension(
     evaluated = [
         op
         for op in ops
-        if op in per_op
-        and (per_op[op].get("n_scored", 0) > 0 or per_op[op].get("n_drop", 0) > 0)
+        if op in per_op and (per_op[op].get("n_scored", 0) > 0 or per_op[op].get("n_drop", 0) > 0)
     ]
     n_scored_total = sum(per_op[op]["n_scored"] for op in evaluated)
     n_drop_total = sum(per_op[op].get("n_drop", 0) for op in evaluated)
@@ -198,8 +197,11 @@ def score_dimension(
             "n_scored": n_scored_total,
             "n_pass": n_pass_total,
             "n_drop": n_drop_total,
-            "slo": None if slo is None else {
-                "min_score": slo.min_score, "min_coverage": slo.min_coverage,
+            "slo": None
+            if slo is None
+            else {
+                "min_score": slo.min_score,
+                "min_coverage": slo.min_coverage,
             },
         },
     )
@@ -243,9 +245,7 @@ def summarize(cards: list[DimensionScore]) -> dict[str, Any]:
     scored = [c for c in cards if c.score is not None]
     w = [c.coverage or 0.0 for c in scored]
     wsum = sum(w)
-    health = (
-        sum(c.score * (c.coverage or 0.0) for c in scored) / wsum if wsum > 0 else None
-    )
+    health = sum(c.score * (c.coverage or 0.0) for c in scored) / wsum if wsum > 0 else None
     covs = [c.coverage for c in cards if c.coverage is not None]
     by_status: dict[str, int] = {}
     for c in cards:
@@ -258,14 +258,21 @@ def summarize(cards: list[DimensionScore]) -> dict[str, Any]:
         "mean_coverage": (sum(covs) / len(covs)) if covs else None,
         "by_status": by_status,
         "breaches": [
-            {"dataset": c.dataset, "dimension": c.dimension,
-             "score": c.score, "coverage": c.coverage}
+            {
+                "dataset": c.dataset,
+                "dimension": c.dimension,
+                "score": c.score,
+                "coverage": c.coverage,
+            }
             for c in cards
             if c.status == STATUS_BREACH
         ],
         "not_evaluated": [
-            {"dataset": c.dataset, "dimension": c.dimension,
-             "ops_never_evaluated": c.detail.get("ops_never_evaluated", [])}
+            {
+                "dataset": c.dataset,
+                "dimension": c.dimension,
+                "ops_never_evaluated": c.detail.get("ops_never_evaluated", []),
+            }
             for c in cards
             if c.status == STATUS_NOT_EVALUATED
         ],

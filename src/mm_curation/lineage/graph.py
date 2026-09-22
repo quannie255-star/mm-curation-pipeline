@@ -74,13 +74,9 @@ class LineageGraph:
 
         # 第一步：本作业处理过哪些实体（顺着本作业的裁决找 used 边）
         my_verdicts = {
-            e["from"] for e in self.edges
-            if e["to"] == jid and e["kind"] == EDGE_GENERATED_BY
+            e["from"] for e in self.edges if e["to"] == jid and e["kind"] == EDGE_GENERATED_BY
         }
-        mine = {
-            e["to"] for e in self.edges
-            if e["from"] in my_verdicts and e["kind"] == EDGE_USED
-        }
+        mine = {e["to"] for e in self.edges if e["from"] in my_verdicts and e["kind"] == EDGE_USED}
         if not mine:
             return []
 
@@ -107,8 +103,7 @@ class LineageGraph:
         """
         jid = f"{NODE_JOB}:{job}"
         my_verdicts = {
-            e["from"] for e in self.edges
-            if e["to"] == jid and e["kind"] == EDGE_GENERATED_BY
+            e["from"] for e in self.edges if e["to"] == jid and e["kind"] == EDGE_GENERATED_BY
         }
         return sorted(
             e["to"].split(":", 1)[1]
@@ -129,22 +124,14 @@ class LineageGraph:
 
     def to_openlineage(self) -> dict[str, Any]:
         """导出为 OpenLineage 风格的最小 run event（语义对齐，非完整事件模型）。"""
-        jobs = [
-            {"namespace": "mm-curation", "name": n.split(":", 1)[1]}
-            for n in self.jobs()
-        ]
-        inputs = [
-            {"namespace": "mm-curation", "name": n.split(":", 1)[1]}
-            for n in self.entities()
-        ]
+        jobs = [{"namespace": "mm-curation", "name": n.split(":", 1)[1]} for n in self.jobs()]
+        inputs = [{"namespace": "mm-curation", "name": n.split(":", 1)[1]} for n in self.entities()]
         return {
             "eventType": "COMPLETE",
             "run": {"runId": self.run_id},
             "job": jobs[0] if len(jobs) == 1 else {"name": "curation_funnel", "facets": {}},
             "inputs": inputs,
-            "outputs": [
-                {"namespace": "mm-curation", "name": f"verdict:{self.run_id}"}
-            ],
+            "outputs": [{"namespace": "mm-curation", "name": f"verdict:{self.run_id}"}],
         }
 
     def to_mermaid(self, *, max_nodes: int = 40) -> str:
@@ -207,8 +194,15 @@ def build_lineage(rows: Iterable[dict[str, Any]], *, run_id: str = "") -> Lineag
 
         g.add_node(eid, NODE_ENTITY, label=_label(eid, {"type": NODE_ENTITY}))
         g.add_node(jid, NODE_JOB, seq=seq, label=op)
-        g.add_node(vid, NODE_VERDICT, op=op, seq=seq,
-                   decision=r.get("decision"), rule=r.get("rule"), label=f"{op}#{seq}")
+        g.add_node(
+            vid,
+            NODE_VERDICT,
+            op=op,
+            seq=seq,
+            decision=r.get("decision"),
+            rule=r.get("rule"),
+            label=f"{op}#{seq}",
+        )
         g.add_edge(vid, eid, EDGE_USED)
         g.add_edge(vid, jid, EDGE_GENERATED_BY)
     return g

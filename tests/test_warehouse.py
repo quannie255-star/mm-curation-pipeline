@@ -20,6 +20,7 @@ from mm_curation.warehouse.sources import Source  # noqa: E402
 # 造一份最小语料：cleaned 3 条 + dropped 1 条，带算子分
 # ---------------------------------------------------------------------------
 
+
 def _write(root, rel, rows):
     p = root / rel
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -42,36 +43,92 @@ def _sample(i, *, text="中文测试内容", scores=None, dropped_by=None):
 @pytest.fixture()
 def mini_root(tmp_path, monkeypatch):
     root = tmp_path / "repo"
-    _write(root, "data/processed/t/cleaned.jsonl", [
-        _sample(1, scores={"doc_length": 0.9, "perplexity": 0.8}),
-        _sample(2, scores={"doc_length": 0.7}),
-        _sample(3, scores={"perplexity": 0.4}),
-    ])
-    _write(root, "data/processed/t/dropped.jsonl", [
-        _sample(4, scores={"doc_length": 0.1}, dropped_by="doc_length"),
-    ])
-    monkeypatch.setattr(W, "SOURCES", (
-        Source(name="t", kind="cleaned", path="data/processed/t/cleaned.jsonl",
-               run="t", modality="text_article"),
-        Source(name="t", kind="dropped", path="data/processed/t/dropped.jsonl",
-               run="t", modality="text_article"),
-    ))
+    _write(
+        root,
+        "data/processed/t/cleaned.jsonl",
+        [
+            _sample(1, scores={"doc_length": 0.9, "perplexity": 0.8}),
+            _sample(2, scores={"doc_length": 0.7}),
+            _sample(3, scores={"perplexity": 0.4}),
+        ],
+    )
+    _write(
+        root,
+        "data/processed/t/dropped.jsonl",
+        [
+            _sample(4, scores={"doc_length": 0.1}, dropped_by="doc_length"),
+        ],
+    )
+    monkeypatch.setattr(
+        W,
+        "SOURCES",
+        (
+            Source(
+                name="t",
+                kind="cleaned",
+                path="data/processed/t/cleaned.jsonl",
+                run="t",
+                modality="text_article",
+            ),
+            Source(
+                name="t",
+                kind="dropped",
+                path="data/processed/t/dropped.jsonl",
+                run="t",
+                modality="text_article",
+            ),
+        ),
+    )
     return root
 
 
 def test_build_four_layers(mini_root, tmp_path):
     wh = W.Warehouse(tmp_path / "w.duckdb")
     rep = wh.build(mini_root)
-    assert rep["n_stg"] == 4          # cleaned 3 + dropped 1
+    assert rep["n_stg"] == 4  # cleaned 3 + dropped 1
     assert rep["sources_skipped"] == []
     con = wh.connect()
     n_total, n_kept, n_dropped = con.execute(
-        "SELECT n_total, n_kept, n_dropped FROM marts_dataset_profile").fetchone()
+        "SELECT n_total, n_kept, n_dropped FROM marts_dataset_profile"
+    ).fetchone()
     assert (n_total, n_kept, n_dropped) == (4, 3, 1)
 
     # 两套命名都可用（数仓术语 ODS/DWD 与项目术语 raw/stg），实现只有一套
     assert con.execute("SELECT COUNT(*) FROM ods_samples").fetchone()[0] == 0
     assert con.execute("SELECT COUNT(*) FROM dwd_samples").fetchone()[0] == 4
+
+
+def test_build_with_no_sources_reports_zero_not_fake_success(tmp_path, monkeypatch):
+    """数据产物不入库 → 新克隆的仓库所有源都缺失。
+
+    这时 `build` 必须如实报 `sources_skipped` 全量、行数为 0；
+    **不能**把 0 行当成成功（下游会给出「口径返回空行」这种指向错误方向的报错）。
+    """
+    monkeypatch.setattr(
+        W,
+        "SOURCES",
+        (Source(name="nope", kind="cleaned", path="does/not/exist.jsonl", run="nope"),),
+    )
+    wh = W.Warehouse(tmp_path / "empty.duckdb")
+    rep = wh.build(tmp_path)
+    assert rep["n_stg"] == 0 and rep["n_raw"] == 0
+    assert rep["sources_used"] == []
+    assert len(rep["sources_skipped"]) == 1
+    assert "缺失或为空" in rep["sources_skipped"][0]
+
+    con = wh.connect()
+    # 空库上指标口径必然跑挂——这正是"必须显式失败"的场景
+    spec = M.MetricSpec.from_dict(
+        {
+            "name": "m",
+            "definition": "d",
+            "denominator": "x",
+            "sql": "SELECT dataset, 1.0 AS value, 10 AS denominator FROM marts_dataset_profile",
+        }
+    )
+    rep2 = M.verify(con, [spec], None)
+    assert rep2.errors, "空库上口径应报「返回空行」"
+    assert not rep2.ok
 
 
 def test_score_coverage_is_a_column_not_a_guess(mini_root, tmp_path):
@@ -85,7 +142,8 @@ def test_score_coverage_is_a_column_not_a_guess(mini_root, tmp_path):
     wh.build(mini_root)
     con = wh.connect()
     cov = con.execute(
-        "SELECT score_coverage FROM marts_dataset_profile WHERE dataset='t'").fetchone()[0]
+        "SELECT score_coverage FROM marts_dataset_profile WHERE dataset='t'"
+    ).fetchone()[0]
     assert abs(cov - 5 / 8) < 1e-9
 
 
@@ -97,20 +155,29 @@ def test_batch_dedup_op_drops_without_scoring(tmp_path, monkeypatch):
     """
     root = tmp_path / "repo"
     _write(root, "p/cleaned.jsonl", [_sample(1, scores={"doc_length": 0.9})])
-    _write(root, "p/dropped.jsonl", [
-        _sample(2, dropped_by="md5_exact"),
-        _sample(3, dropped_by="md5_exact"),
-    ])
-    monkeypatch.setattr(W, "SOURCES", (
-        Source(name="p", kind="cleaned", path="p/cleaned.jsonl", run="p", modality="text"),
-        Source(name="p", kind="dropped", path="p/dropped.jsonl", run="p", modality="text"),
-    ))
+    _write(
+        root,
+        "p/dropped.jsonl",
+        [
+            _sample(2, dropped_by="md5_exact"),
+            _sample(3, dropped_by="md5_exact"),
+        ],
+    )
+    monkeypatch.setattr(
+        W,
+        "SOURCES",
+        (
+            Source(name="p", kind="cleaned", path="p/cleaned.jsonl", run="p", modality="text"),
+            Source(name="p", kind="dropped", path="p/dropped.jsonl", run="p", modality="text"),
+        ),
+    )
     wh = W.Warehouse(tmp_path / "w2.duckdb")
     wh.build(root)
     con = wh.connect()
     ns, nd = con.execute(
-        "SELECT n_scored, n_dropped FROM marts_funnel_stage WHERE op='md5_exact'").fetchone()
-    assert (ns, nd) == (0, 2)   # 只丢不打分——这是它的正常工作方式
+        "SELECT n_scored, n_dropped FROM marts_funnel_stage WHERE op='md5_exact'"
+    ).fetchone()
+    assert (ns, nd) == (0, 2)  # 只丢不打分——这是它的正常工作方式
 
 
 # ---------------------------------------------------------------------------
@@ -133,7 +200,7 @@ def test_evaluate_parses_by_column_name():
     assert len(res) == 1
     r = res[0]
     assert (r.dataset, r.dim, r.value, r.denominator) == ("ds", "d", 0.5, 10.0)
-    assert r.ok is None      # 无基线 → 不判漂移，也不假装通过
+    assert r.ok is None  # 无基线 → 不判漂移，也不假装通过
 
 
 def test_baseline_key_includes_dataset_and_dim():
@@ -151,10 +218,12 @@ def test_freeze_then_verify_detects_drift(tmp_path, monkeypatch):
     assert M.verify(con, [spec], M.load_baselines(tmp_path / "b.json")).ok
 
     # 口径没变、数值变了 → 必须被抓到
-    drift = M.MetricSpec.from_dict({
-        **SPEC,
-        "sql": "SELECT 'ds' AS dataset, 'd' AS dim, 0.9 AS value, 10 AS denominator",
-    })
+    drift = M.MetricSpec.from_dict(
+        {
+            **SPEC,
+            "sql": "SELECT 'ds' AS dataset, 'd' AS dim, 0.9 AS value, 10 AS denominator",
+        }
+    )
     rep = M.verify(con, [drift], M.load_baselines(tmp_path / "b.json"))
     assert not rep.ok
     assert len(rep.failures) == 1
@@ -167,6 +236,34 @@ def test_broken_sql_becomes_error_not_crash():
     res = M.evaluate(con, spec)
     assert len(res) == 1 and res[0].error
     assert res[0].value is None
+
+
+def test_verify_fails_when_specs_cannot_run(tmp_path):
+    """口径跑挂 = 门禁不成立（不是「没基线所以跳过」）。
+
+    空仓库上 7 条口径会有多条跑挂。若 `ok` 只看 `ok is not False`
+    （跑挂的行 ok=None），`--verify` 会返回 0 ——
+    **一个什么都没验的成功**，和 format 门禁挂掉却显示 CI 绿是同一类失效（笔记 #80）。
+    """
+    con = duckdb.connect()
+    good = M.MetricSpec.from_dict(SPEC)
+    broken = M.MetricSpec.from_dict({**SPEC, "name": "bad", "sql": "SELECT * FROM 不存在的表"})
+    rep = M.verify(con, [good, broken], None)
+    assert rep.errors, "跑挂的口径必须体现在 errors 里"
+    assert not rep.ok, "口径跑挂时 ok 必须为 False，否则 --verify 会假绿"
+    assert M.verify(con, [good], None).ok, "全部跑成时才允许 ok=True"
+
+
+def test_freeze_skips_broken_specs_instead_of_writing_none(
+    tmp_path,
+):
+    """冻结基线时跑挂的口径不写进基线（写进去就是给自己埋一个无意义的基线）。"""
+    con = duckdb.connect()
+    good = M.MetricSpec.from_dict(SPEC)
+    broken = M.MetricSpec.from_dict({**SPEC, "name": "bad", "sql": "SELECT * FROM 不存在的表"})
+    payload = M.freeze(con, [good, broken], tmp_path / "b.json")
+    assert payload["n_baselines"] == 1
+    assert all(v is not None for v in payload["baselines"].values())
 
 
 def test_spec_requires_definition_and_denominator():

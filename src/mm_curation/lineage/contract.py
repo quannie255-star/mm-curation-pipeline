@@ -125,54 +125,73 @@ def compile_field_checks(c: Contract) -> list[tuple[str, str, Any, str]]:
     for col, rule in (c.fields or {}).items():
         rule = rule or {}
         if rule.get("required"):
-            out.append((
-                f"{col}.required",
-                f"SELECT COUNT(*) FROM {t} {where}"
-                f" AND ({col} IS NULL OR CAST({col} AS VARCHAR) = '')",
-                0, "error",
-            ))
+            out.append(
+                (
+                    f"{col}.required",
+                    f"SELECT COUNT(*) FROM {t} {where}"
+                    f" AND ({col} IS NULL OR CAST({col} AS VARCHAR) = '')",
+                    0,
+                    "error",
+                )
+            )
         if rule.get("unique"):
-            out.append((
-                f"{col}.unique",
-                f"SELECT COUNT(*) - COUNT(DISTINCT {col}) FROM {t} {where}",
-                0, "error",
-            ))
+            out.append(
+                (
+                    f"{col}.unique",
+                    f"SELECT COUNT(*) - COUNT(DISTINCT {col}) FROM {t} {where}",
+                    0,
+                    "error",
+                )
+            )
         if rule.get("allowed"):
             vals = ", ".join(_q(v) for v in rule["allowed"])
-            out.append((
-                f"{col}.allowed",
-                f"SELECT COUNT(*) FROM {t} {where} AND CAST({col} AS VARCHAR) NOT IN ({vals})",
-                0, "error",
-            ))
+            out.append(
+                (
+                    f"{col}.allowed",
+                    f"SELECT COUNT(*) FROM {t} {where} AND CAST({col} AS VARCHAR) NOT IN ({vals})",
+                    0,
+                    "error",
+                )
+            )
         if rule.get("min_len") is not None:
             n = int(rule["min_len"])
-            out.append((
-                f"{col}.min_len",
-                f"SELECT COUNT(*) FROM {t} {where}"
-                f" AND LENGTH(CAST({col} AS VARCHAR)) < {n}",
-                0, "error",
-            ))
+            out.append(
+                (
+                    f"{col}.min_len",
+                    f"SELECT COUNT(*) FROM {t} {where} AND LENGTH(CAST({col} AS VARCHAR)) < {n}",
+                    0,
+                    "error",
+                )
+            )
         if rule.get("max_len") is not None:
             n = int(rule["max_len"])
-            out.append((
-                f"{col}.max_len",
-                f"SELECT COUNT(*) FROM {t} {where}"
-                f" AND LENGTH(CAST({col} AS VARCHAR)) > {n}",
-                0, "warn",
-            ))
+            out.append(
+                (
+                    f"{col}.max_len",
+                    f"SELECT COUNT(*) FROM {t} {where} AND LENGTH(CAST({col} AS VARCHAR)) > {n}",
+                    0,
+                    "warn",
+                )
+            )
         # 数值区间：不 CAST、不 LENGTH——数值列用 min_len 比的是位数不是大小（笔记 #79）
         if rule.get("min_value") is not None:
-            out.append((
-                f"{col}.min_value",
-                f"SELECT COUNT(*) FROM {t} {where} AND {col} < {float(rule['min_value'])}",
-                0, "error",
-            ))
+            out.append(
+                (
+                    f"{col}.min_value",
+                    f"SELECT COUNT(*) FROM {t} {where} AND {col} < {float(rule['min_value'])}",
+                    0,
+                    "error",
+                )
+            )
         if rule.get("max_value") is not None:
-            out.append((
-                f"{col}.max_value",
-                f"SELECT COUNT(*) FROM {t} {where} AND {col} > {float(rule['max_value'])}",
-                0, "warn",
-            ))
+            out.append(
+                (
+                    f"{col}.max_value",
+                    f"SELECT COUNT(*) FROM {t} {where} AND {col} > {float(rule['max_value'])}",
+                    0,
+                    "warn",
+                )
+            )
     return out
 
 
@@ -182,18 +201,19 @@ def check_contract(wh, c: Contract) -> dict[str, Any]:
     for name, sql, expect, sev in compile_field_checks(c):
         items.append(_run(wh, name, sql, expect, sev))
     for chk in c.checks:
-        items.append(_run(
-            wh,
-            str(chk.get("name") or "unnamed"),
-            str(chk.get("sql") or ""),
-            chk.get("expect", 0),
-            str(chk.get("severity") or "error"),
-        ))
+        items.append(
+            _run(
+                wh,
+                str(chk.get("name") or "unnamed"),
+                str(chk.get("sql") or ""),
+                chk.get("expect", 0),
+                str(chk.get("severity") or "error"),
+            )
+        )
     n_fail = sum(1 for i in items if i.status == STATUS_FAIL)
     n_err = sum(1 for i in items if i.status == STATUS_ERROR)
     blocking = [
-        i.name for i in items
-        if i.status in (STATUS_FAIL, STATUS_ERROR) and i.severity == "error"
+        i.name for i in items if i.status in (STATUS_FAIL, STATUS_ERROR) and i.severity == "error"
     ]
     return {
         "dataset": c.dataset,

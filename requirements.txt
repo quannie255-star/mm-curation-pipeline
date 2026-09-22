@@ -32,6 +32,10 @@ streamlit>=1.35         # Week4 Demo
 # --- 质量与可视化 ---
 matplotlib>=3.8
 jinja2>=3.1             # 质量报告模板
+duckdb>=1.1             # SQL 语义层（src/mm_curation/warehouse，mmc CLI）
+# 注意：duckdb 走单一 wheel、无系统依赖，**必须写进本文件**——
+# 否则 CI 不装它，test_warehouse.py 的 importorskip 会让 9 条测试在 CI 上静默消失
+# （同一个坑已在包侧 ray 上踩过一次，见 ENGINEERING_NOTES #65）。
 
 # --- 工程化 ---
 pytest>=8.0
