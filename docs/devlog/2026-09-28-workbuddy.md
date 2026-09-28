@@ -49,3 +49,52 @@
    `scripts/{gen_lock,ci_seed_sources,smoke_container}.py`）**至今全部未提交**，建议拆 3 个 commit。
 3. **glm 不要直接改 `docs/DEV_PLAN.md`**（单写者文件，见 COLLAB_PLAN §四）。
 4. **推送前**：`git fetch` + `git log --oneline origin/main..HEAD` 逐条确认是自己的提交。
+
+---
+
+## 追加：R0 解锁轮已执行（同日第二轮）
+
+用户指令：「你先做你能够做的，剩下的交给 glm」。
+
+**做了**（R0-2 / R0-3 / R0-4 / R0-6）：
+
+1. **先实点再动手**：`--junitxml` 落文件解析得 **616+67=683**（0 失败/0 错误/0 跳过；
+   主仓 305.6s / 包 33.4s），与文档一致才允许提交——上一轮刚抓到三处腐烂数字。
+2. **R0-2**：平台轨 S0–S6 拆 **3 个 commit** —— `cd3072b` 核心（`platform/` 十模块 + `cli.py` +
+   configs + 生成 DAG + 8 个平台测试 + `conftest.py` + `mmc.py` + `pyproject.toml`）、
+   `3ad0be8` 交付（lock 21 pin + `Dockerfile.app` + 三个 workflow + 三个脚本 + 其测试）、
+   `ed89d03` 文档（`PLATFORM.md` + `DATA_SYSTEM_TRACK.md` + `ENGINEERING_NOTES` #81–#89 +
+   `.gitignore` + `test_lock_file.py`）。
+   **提交脚本里写死了两条护栏**：只 `git add <具体路径>`；每次提交前断言 staged 清单里
+   **不出现** glm 在途的 13 个文件。
+3. **R0-3**：worktree `../mmc-doc-frontend`（分支 `workbuddy/doc-frontend`）已建；
+   **主工作区仍在 `main`、HEAD 未动**——`git worktree add` 不碰别人的工作区。
+4. **R0-6**：`510462a`（`DEV_PLAN.md` + `AGENTS.md`）。
+5. **R0-4**：推送 7 个提交（`b491ffd`/`b5ff1fb`/`bee5c45` + 本轮 4 个）。
+
+**实测推翻了我自己的一个猜想**（这条值得记）：我以为 `core.autocrlf=true` 会让 worktree 里
+「生成物逐字节一致」那条门禁假红。**实测：文件确实是 CRLF（3838 B → 3963 B），但门禁仍然绿**——
+因为它用 `read_text()` 比较，通用换行模式会归一。所以那条门禁**覆盖内容漂移、不覆盖 EOL 漂移**，
+而 CI 在 Linux 上检出就是 LF 也看不见。已写进 `ENGINEERING_NOTES` #82 补注。
+**没顺手加 `.gitattributes`**：它属共享配置域，单方面改会与并行的一方冲突。
+
+**没做（= 交给 glm）**：R0-1（glm 收口，整条链唯一的闸门）、R0-5（全量 `ruff format`，实点
+**55** 文件，必须等 R0-1，否则会改写 glm 正在改的文件）。
+
+**两个未认领项刻意没提交**：`scripts/findata_health_stage.py` 与
+`docs_archive/v4-alpha-fhir/tasks.md`（mtime 均 09-17，落在 glm 在途窗口内，但两边清单都没有）。
+按「宁可欠着、不可猜着提交」处理。
+
+**本轮未改任何代码、未降低任何门禁**（基线 683 一分未动）。
+
+## 交接给 glm 的三件事
+
+1. **R0-1 优先**：收口那 13 个在途文件（`Makefile`、`benchmarks/capability_matrix.json`、
+   `docs/PROOF_CHAIN.md`、`runs/experiments.jsonl`、
+   `scripts/eval_{fhir,industrial,judge,random_drop_baseline}.py`、`scripts/finetune_clip.py`、
+   `src/mm_curation/tuning/extraction.py`、`docs/claims.json`、`scripts/verify_claims.py`、
+   `tests/test_verify_claims.py`）。⚠️ 收口后按 `COLLAB_PLAN.md` §三 的移交条款，
+   **`claims.json` + `verify_claims.py` + 它的测试归我维护**。
+2. **R0-5**：全量 `ruff format`（55 文件）+ 提交。
+3. **共享配置域**（`.gitignore` / `pyproject.toml` / workflow / `.gitattributes`）由 glm 定；
+   我需要改时走交接请求。
