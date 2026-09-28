@@ -157,10 +157,28 @@ def retrieval_eval(model, processor, device, index_paths, queries, k_list=(1, 5,
     }
 
 
+def _set_seed(seed: int) -> None:
+    import random
+
+    import numpy as np
+    import torch
+
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--steps", type=int, default=100)
+    parser.add_argument(
+        "--seed", type=int, default=None,
+        help="训练随机种子（V5 β 补：历史报告未记录 seed，单 seed 局限见 PROOF_CHAIN §九）",
+    )
     args = parser.parse_args()
+    if args.seed is not None:
+        _set_seed(args.seed)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
     if not CLEAN.exists() or not DIRTY.exists():
@@ -204,7 +222,20 @@ def main() -> None:
 
     REPORT.parent.mkdir(parents=True, exist_ok=True)
     REPORT.write_text(
-        json.dumps({"steps": args.steps, "results": results}, ensure_ascii=False, indent=2),
+        json.dumps(
+            {
+                "steps": args.steps,
+                "seed": args.seed,
+                "note": (
+                    "seed 记录自 V5 β 起；历史报告未记录 seed（单 seed 局限，PROOF_CHAIN §九）"
+                    if args.seed is None
+                    else None
+                ),
+                "results": results,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
         encoding="utf-8",
     )
     md = [

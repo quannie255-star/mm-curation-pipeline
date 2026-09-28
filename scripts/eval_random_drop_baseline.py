@@ -33,26 +33,51 @@ CONFIG = "configs/pipeline.example.yaml"
 
 def summarize(rows: list[dict]) -> dict:
     """随机子集结果的聚合统计（均值 + 最差值，n 小不做伪置信区间）。"""
+    import math
+
     r1 = [r["recall_at_k"][1] for r in rows]
+    n = len(r1)
+    mean = sum(r1) / n
+    std = (sum((v - mean) ** 2 for v in r1) / (n - 1)) ** 0.5 if n > 1 else 0.0
+    ci_half = 1.96 * std / math.sqrt(n) if n > 1 else 0.0
     return {
-        "random_r1_mean": round(sum(r1) / len(r1), 4),
+        "random_r1_mean": round(mean, 4),
+        "random_r1_std": round(std, 4),
+        "random_r1_ci95": [round(mean - ci_half, 4), round(mean + ci_half, 4)],
         "random_r1_min": round(min(r1), 4),
         "random_r1_max": round(max(r1), 4),
-        "n_random_seeds": len(rows),
+        "n_random_seeds": n,
     }
 
 
-def build_report(funnel_m: dict, random_rows: list[dict], n_drop: int) -> dict:
+def build_report(
+    funnel_m: dict,
+    random_rows: list[dict],
+    n_drop: int,
+    clean_control_rows: list[dict] | None = None,
+) -> dict:
     stats = summarize(random_rows)
-    margin = round(funnel_m["recall_at_k"][1] - stats["random_r1_mean"], 4)
+    funnel_r1 = funnel_m["recall_at_k"][1]
+    margin = round(funnel_r1 - stats["random_r1_mean"], 4)
+    clean_control = None
+    if clean_control_rows:
+        cc = summarize(clean_control_rows)
+        # 脏残留剂量对照（保留全部脏样本、库大小同漏斗）：若 R@1 接近漏斗，
+        # 说明提升只是「库变小」；实测显著低于漏斗 → 提升来自「脏样本被移出库」
+        clean_control = {
+            "rows": clean_control_rows,
+            **cc,
+            "margin_over_clean_control": round(funnel_r1 - cc["random_r1_mean"], 4),
+        }
     return {
         "question": "清洗增益是「洗对了」还是「删了样本」？",
         "n_input": funnel_m["n_input"],
         "n_drop": n_drop,
         "funnel": funnel_m,
         "random": {"rows": random_rows, **stats},
+        "clean_control": clean_control,
         "verdict": {
-            "funnel_r1": funnel_m["recall_at_k"][1],
+            "funnel_r1": funnel_r1,
             "random_r1_mean": stats["random_r1_mean"],
             "margin_over_random": margin,
             "interpretation": (
@@ -101,7 +126,21 @@ def main() -> None:
         m["seed"] = seed
         random_rows.append(m)
 
-    report = build_report(funnel_m, random_rows, n_drop)
+    # 脏残留剂量对照：库大小与漏斗相同（1585），但保留全部脏样本、只删干净
+    # ——与「均匀随机删（残留 ~363 脏）」「漏斗（残留 0 脏）」构成剂量-响应三对照
+    dirty_ids = [s.id for s in samples if s.labels]
+    clean_ids = [s.id for s in samples if not s.labels]
+    n_keep_clean = len(kept_ids) - len(dirty_ids)
+    assert n_keep_clean > 0, "漏斗保留量不足以容纳全部脏样本"
+    dirty_preserve_rows = []
+    for seed in range(args.n_seeds):
+        rng = random.Random(1000 + seed)
+        subset = dirty_ids + rng.sample(clean_ids, n_keep_clean)
+        m = evaluate_subset(searcher, queries, vecs, subset)
+        m["seed"] = seed
+        dirty_preserve_rows.append(m)
+
+    report = build_report(funnel_m, random_rows, n_drop, dirty_preserve_rows)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -113,8 +152,16 @@ def main() -> None:
     )
     print(
         f"随机子集 ×{args.n_seeds}:  R@1 均值 {v['random_r1_mean']:.3f}"
-        f"（区间 {report['random']['random_r1_min']:.3f}~{report['random']['random_r1_max']:.3f}）"
+        f"（95%CI {report['random']['random_r1_ci95']}"
+        f"，std {report['random']['random_r1_std']:.3f}）"
     )
+    if report["clean_control"]:
+        cc_mean = report["clean_control"]["random_r1_mean"]
+        print(
+            f"脏残留对照 ×{args.n_seeds}:  R@1 均值 {cc_mean:.3f}"
+            f"（库同漏斗，全部脏样本保留在库中）"
+        )
+        print(f"漏斗 - 脏残留对照: {report['clean_control']['margin_over_clean_control']:+.3f}")
     print(f"清洗净贡献（漏斗 - 随机均值）: {v['margin_over_random']:+.3f}")
     out.with_suffix(".md").write_text(_markdown(report), encoding="utf-8")
     print("报告:", out, "(+ .md)")
@@ -142,6 +189,14 @@ def _markdown(report: dict) -> str:
         )
     lines += [
         f"| 随机删均值 | {v['random_r1_mean']:.3f} | — |",
+    ]
+    if report.get("clean_control"):
+        cc = report["clean_control"]
+        lines += [
+            f"| 脏残留对照（486 脏全保留，库同漏斗） | {cc['random_r1_mean']:.3f} | — |",
+            f"| 漏斗 − 脏残留对照 | **{cc['margin_over_clean_control']:+.3f}** | — |",
+        ]
+    lines += [
         "",
         f"**清洗净贡献 = 漏斗 − 随机均值 = {v['margin_over_random']:+.3f}**。"
         f"{v['interpretation']}。",

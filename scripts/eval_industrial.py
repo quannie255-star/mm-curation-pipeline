@@ -61,6 +61,22 @@ def worst_case_gate(runs: list[dict]) -> dict:
         "n_clean": runs[-1]["n_clean"],
         "passed": all(r["passed"] for r in runs),
         "n_seeds": len(runs),
+        "worst_seed": min(runs, key=lambda r: (r["recall"], -r["false_kill_rate"]))["seed"],
+        "recall_mean": round(sum(r["recall"] for r in runs) / len(runs), 4),
+        "recall_std": round(
+            (
+                sum(
+                    (r["recall"] - sum(x["recall"] for x in runs) / len(runs)) ** 2
+                    for r in runs
+                )
+                / (len(runs) - 1 if len(runs) > 1 else 1)
+            )
+            ** 0.5,
+            4,
+        ),
+        "false_kill_mean": round(
+            sum(r["false_kill_rate"] for r in runs) / len(runs), 4
+        ),
     }
 
 

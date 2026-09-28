@@ -35,6 +35,15 @@ eval-fhir: ## 医疗 FHIR 模态 P/R + 漏斗门禁（合成语料，确定性 s
 eval-industrial: ## 工业传感器模态 P/R + 漏斗门禁（合成语料，确定性 seed）
 	python -X utf8 scripts/eval_industrial.py
 
+verify-claims: ## 简历/文档数字版本锁定校验（漂移 exit 1，可进 CI）
+	python -X utf8 scripts/verify_claims.py
+
+repro: ## 一键复现证明链轻量数字（双领域多 seed 门禁 + 随机删 baseline + claims 校验）
+	python -X utf8 scripts/eval_fhir.py --seeds 42,7,2026
+	python -X utf8 scripts/eval_industrial.py --seeds 42,7,2026
+	python -X utf8 scripts/eval_random_drop_baseline.py --n-seeds 10
+	python -X utf8 scripts/verify_claims.py
+
 threshold-scan: ## 阈值敏感性扫描（含 matplotlib 图表）
 	python scripts/threshold_scan.py
 

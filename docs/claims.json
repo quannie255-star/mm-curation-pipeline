@@ -1,0 +1,144 @@
+{
+  "meta": {
+    "purpose": "简历/文档数字版本锁定：每条 claim 绑定 报告文件+json 指针+期望值+容差，verify_claims.py 逐条校验，漂移即红。",
+    "updated": "2026-09-18",
+    "data_fingerprints": {
+      "data/interim/contaminated/samples.jsonl": {
+        "md5": "e1dfdae8e04818a599f5e84f81106089",
+        "rows": 2106
+      }
+    },
+    "tolerance_note": "浮点 claim 用 approx（绝对差 ≤ tol）；计数与比率类用 exact。历史数字无法从落盘报告复核的，标 historical=true，不参与校验（如实标注）。"
+  },
+  "claims": [
+    {
+      "id": "soul_dirty_r1",
+      "desc": "灵魂实验：脏索引 R@1（1585 查询，dirty_raw 索引）",
+      "file": "data/reports/retrieval_eval.json",
+      "pointer": "others[0].result.recall_at_k.1",
+      "expected": 0.45930599369085173,
+      "tol": 0.0,
+      "comparator": "approx"
+    },
+    {
+      "id": "soul_clean_r1",
+      "desc": "灵魂实验：净索引 R@1（简历主数字 0.556 的来源）",
+      "file": "data/reports/retrieval_eval.json",
+      "pointer": "base.recall_at_k.1",
+      "expected": 0.5558359621451104,
+      "tol": 0.0,
+      "comparator": "approx"
+    },
+    {
+      "id": "clip_clean_ft_r1",
+      "desc": "干净集微调 R@1（0.688）",
+      "file": "data/reports/finetune_eval.json",
+      "pointer": "results.clean_ft.recall_at_k.1",
+      "expected": 0.6883280757097792,
+      "tol": 0.0,
+      "comparator": "approx"
+    },
+    {
+      "id": "clip_dirty_ft_r1",
+      "desc": "脏集微调 R@1（0.636；单 seed，无训练方差——PROOF_CHAIN §九）",
+      "file": "data/reports/finetune_eval.json",
+      "pointer": "results.dirty_ft.recall_at_k.1",
+      "expected": 0.63596214511041,
+      "tol": 0.0,
+      "comparator": "approx"
+    },
+    {
+      "id": "ppl_clean",
+      "desc": "GPT-2 干净数据微调困惑度 7.16",
+      "file": "data/reports/finetune_text_eval.json",
+      "pointer": "ppl.clean_ft",
+      "expected": 7.1622090339660645,
+      "tol": 0.0,
+      "comparator": "approx"
+    },
+    {
+      "id": "ppl_dirty",
+      "desc": "GPT-2 脏数据微调困惑度 7.70",
+      "file": "data/reports/finetune_text_eval.json",
+      "pointer": "ppl.dirty_ft",
+      "expected": 7.698471546173096,
+      "tol": 0.0,
+      "comparator": "approx"
+    },
+    {
+      "id": "fhir_gate_recall_worst",
+      "desc": "医疗门禁召回（3 seeds 最差口径）",
+      "file": "data/reports/operator_pr_fhir.json",
+      "pointer": "funnel_gate.recall",
+      "expected": 1.0,
+      "tol": 0.0,
+      "comparator": "approx"
+    },
+    {
+      "id": "fhir_gate_fk_worst",
+      "desc": "医疗门禁误杀率（3 seeds 最差口径，0/500）",
+      "file": "data/reports/operator_pr_fhir.json",
+      "pointer": "funnel_gate.false_kill_rate",
+      "expected": 0.0,
+      "tol": 0.0,
+      "comparator": "approx"
+    },
+    {
+      "id": "ind_gate_recall_worst",
+      "desc": "工业门禁召回（3 seeds 最差口径）",
+      "file": "data/reports/operator_pr_industrial.json",
+      "pointer": "funnel_gate.recall",
+      "expected": 1.0,
+      "tol": 0.0,
+      "comparator": "approx"
+    },
+    {
+      "id": "ind_gate_fk_worst",
+      "desc": "工业门禁误杀率（3 seeds 最差口径，13/1056=1.23%）",
+      "file": "data/reports/operator_pr_industrial.json",
+      "pointer": "funnel_gate.false_kill_rate",
+      "expected": 0.0123,
+      "tol": 0.0005,
+      "comparator": "approx"
+    },
+    {
+      "id": "random_drop_margin",
+      "desc": "清洗净贡献（漏斗 R@1 − 随机删均值）",
+      "file": "data/reports/random_drop_baseline.json",
+      "pointer": "verdict.margin_over_random",
+      "expected": 0.1308,
+      "tol": 0.03,
+      "comparator": "approx",
+      "note": "随机种子数变化会让均值小幅漂移，容差放宽到 ±0.03；方向性（>0.05）才是 claim 核心"
+    },
+    {
+      "id": "random_drop_clean_control",
+      "desc": "只删干净样本对照（同数量，保留全部脏样本）的 R@1 均值——应显著低于漏斗",
+      "file": "data/reports/random_drop_baseline.json",
+      "pointer": "clean_control.random_r1_mean",
+      "expected": 0.4133,
+      "tol": 0.03,
+      "comparator": "approx",
+      "note": "脏残留剂量对照（486 脏全保留、库同漏斗）；claim 方向 = 漏斗 − 本对照 ≥ 0.05"
+    },
+    {
+      "id": "text_dedup_exact_10k",
+      "desc": "文本去重 10 万档 exact 召回（V2 β 基准）",
+      "file": "data/reports/text_dedup_benchmark.json",
+      "pointer": "[2].exact_recall",
+      "expected": 1.0,
+      "tol": 0.0,
+      "comparator": "approx"
+    },
+    {
+      "id": "ablation_dedup_group",
+      "desc": "去重组 ΔR@1 -0.017（Week4 分组消融历史结论）",
+      "file": null,
+      "pointer": null,
+      "expected": -0.017,
+      "tol": null,
+      "comparator": "historical",
+      "note": "分组结果未落盘（现有 ablation_eval.json 为逐算子口径，单算子 Δ=0）；引用时必须标注为历史数字，重跑分组口径进 backlog"
+    }
+  ]
+}

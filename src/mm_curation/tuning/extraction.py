@@ -216,3 +216,133 @@ def write_benchmark(items: list[dict], out_dir: Path, *, train_jsonl: Path | Non
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     return manifest
+
+
+# ---- η-b'：分解式逐条忠实性判官（任务重设计，绕整体裁决能力悬崖）----
+
+FACT_PROMPT = (
+    "你是数据抽取的忠实性审核员。判断下面的事实陈述是否能从原文中找到直接依据。\n"
+    "判定规则：陈述中的每个细节（数字、引语、主体、结论）都必须与原文一致。\n\n"
+    "【原文】\n{source}\n\n【事实陈述】\n{fact}\n\n"
+    '只输出 JSON：{{"supported": true, "reason": "依据比对"}}'
+)
+
+
+def completion_for_fact(supported: bool) -> str:
+    return json.dumps({"supported": supported, "reason": "依据比对"}, ensure_ascii=False)
+
+
+def build_fact_items(
+    corpus_texts: list[dict],
+    *,
+    n_train_docs: int = 250,
+    n_eval_docs: int = 80,
+    seed: int = 47,
+) -> tuple[list[dict], list[dict]]:
+    """逐条忠实性数据：每文档 1 supported 三元组 + 1 corrupted 三元组（训练）；
+    评测题 = supported 与 corrupted（number_swap / cross_doc 交替）各一。"""
+    rng = random.Random(seed)
+    docs = []
+    for d in corpus_texts:
+        source, facts = extract_facts(d["text"])
+        if len(facts) >= 2:
+            docs.append({"id": d["id"], "source": source, "facts": facts})
+    need = n_train_docs + n_eval_docs
+    if len(docs) < need:
+        raise ValueError(f"可构造文档不足：需 {need}，只有 {len(docs)}")
+    rng.shuffle(docs)
+    train_docs = docs[:n_train_docs]
+    eval_docs = docs[n_train_docs:need]
+    foreign_pool = [f for d in docs[-30:] for f in d["facts"][1:3]]
+
+    triples: list[dict] = []
+    for n, d in enumerate(train_docs):
+        supported_fact = rng.choice(d["facts"][:2])
+        other_fact = rng.choice([f for f in d["facts"] if f != supported_fact])
+        # supported 三元组
+        triples.append(_fact_triple(d, supported_fact, True, rng, "supported"))
+        # unsupported 三元组：偶数序号数字篡改，奇数序号他文幻觉
+        bad = _swap_number(other_fact, rng) if n % 2 == 0 else rng.choice(foreign_pool)
+        kind = "number_swap" if n % 2 == 0 else "cross_doc"
+        triples.append(_fact_triple(d, bad, False, rng, kind))
+    rng.shuffle(triples)
+
+    items: list[dict] = []
+    for n, d in enumerate(eval_docs):
+        supported_fact = rng.choice(d["facts"][:2])
+        items.append(_fact_item(d, supported_fact, True, rng, "supported", n))
+        other_fact = rng.choice([f for f in d["facts"] if f != supported_fact])
+        if n % 2 == 0:
+            bad, kind = _swap_number(other_fact, rng), "number_swap"
+        else:
+            bad, kind = rng.choice(foreign_pool), "cross_doc"
+        items.append(_fact_item(d, bad, False, rng, kind, n))
+    return triples, items
+
+
+def _place_pair(chosen: str, rejected: str, rng: random.Random):
+    """50/50 决定 chosen 在甲/乙位；返回 (槽位字典, chosen 位)。"""
+    if rng.randrange(2) == 0:
+        return {"甲": chosen, "乙": rejected}, "甲"
+    return {"甲": rejected, "乙": chosen}, "乙"
+
+
+def _fact_triple(d: dict, fact: str, supported: bool, rng: random.Random, kind: str) -> dict:
+    slots, gold_pos = _place_pair(
+        completion_for_fact(supported), completion_for_fact(not supported), rng
+    )
+    wrong = "乙" if gold_pos == "甲" else "甲"
+    return {
+        "persona": "EXTF",
+        "kind": kind,
+        "prompt": FACT_PROMPT.format(source=d["source"], fact=fact),
+        "chosen": slots[gold_pos],
+        "rejected": slots[wrong],
+        "gold": str(supported),
+        "source_id": d["id"],
+    }
+
+
+def _fact_item(d: dict, fact: str, supported: bool, rng: random.Random, kind: str, n: int) -> dict:
+    return {
+        "id": f"fact-{_fingerprint(fact + str(n))}",
+        "persona": "EXTF",
+        "kind": kind,
+        "prompt": FACT_PROMPT.format(source=d["source"], fact=fact),
+        "gold": str(supported).lower(),
+        "source_id": d["id"],
+    }
+
+
+def write_fact_benchmark(items: list[dict], out_dir: Path, *, train_jsonl: Path | None) -> dict:
+    from mm_curation.benchmarks.builder import _leak_check
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "items.jsonl").write_text(
+        "\n".join(json.dumps(it, ensure_ascii=False) for it in items) + "\n",
+        encoding="utf-8",
+    )
+    if train_jsonl and Path(train_jsonl).exists():
+        leak = _leak_check(items, Path(train_jsonl))
+    else:
+        leak = {"train_file": str(train_jsonl) if train_jsonl else None,
+                "md5_leaks": [], "minhash_leaks": [], "note": "训练文件未产出"}
+    manifest = {
+        "benchmark": "fact_ext_v1",
+        "version": "v1",
+        "domain": "中文新闻原文的单条事实忠实性判定（分解式，客观 oracle）",
+        "n_items": len(items),
+        "balance": {
+            key: sum(1 for it in items if f"EXTF/{it['kind']}" == key)
+            for key in sorted({f"EXTF/{it['kind']}" for it in items})
+        },
+        "seed": 47,
+        "leakage_check": leak,
+        "label_protocol": "gold=supported(逐字原文) 的真假；number_swap=相近数字篡改；"
+                          "cross_doc=他文事实（纯幻觉）；源文档复用 ext 任务占用（任务不同"
+                          "标签独立，不构成泄漏），judge/pref 占用仍全数排除",
+    }
+    (out_dir / "manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    return manifest
