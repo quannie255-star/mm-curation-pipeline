@@ -54,13 +54,13 @@ def test_plan_deterministic_same_seed():
 def test_originals_never_modified():
     mixed, _ = _contaminate(42)
     assert [s.to_dict() for s in mixed[: len(CORPUS)]] == [s.to_dict() for s in CORPUS]
-    injected = mixed[len(CORPUS):]
+    injected = mixed[len(CORPUS) :]
     assert injected and all(s.labels.get("dirty") in KINDS for s in injected)
 
 
 def test_five_kinds_present_and_hit_primary_operator():
     mixed, manifest = _contaminate(42)
-    injected = mixed[len(CORPUS):]
+    injected = mixed[len(CORPUS) :]
     assert set(manifest["counts"]) == set(KINDS)  # inject_rate 足够大 + 等权 → 五类齐
 
     for kind, op in SINGLE_OPS.items():

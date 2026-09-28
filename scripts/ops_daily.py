@@ -149,9 +149,7 @@ def run_step(step: Step, log_dir: Path, date_tag: str) -> StepResult:
     if proc.returncode != 0:
         return StepResult(step.name, ok=False, detail=f"exit={proc.returncode}", log_tail=tail)
     if step.check_path is not None and not step.check_path.exists():
-        return StepResult(
-            step.name, ok=False, detail=f"产物缺失 {step.check_path}", log_tail=tail
-        )
+        return StepResult(step.name, ok=False, detail=f"产物缺失 {step.check_path}", log_tail=tail)
     return StepResult(step.name, ok=True, detail="ok", log_tail=tail)
 
 
@@ -309,8 +307,16 @@ def main() -> int:
         if not r.ok
     ]
     report = render_report(
-        date_str, abnormal, findata_detail, text_total_after, text_new, band_alert,
-        text_total_after, funnel_kept, audit, disk_used_pct,
+        date_str,
+        abnormal,
+        findata_detail,
+        text_total_after,
+        text_new,
+        band_alert,
+        text_total_after,
+        funnel_kept,
+        audit,
+        disk_used_pct,
     )
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     report_path = REPORT_DIR / f"{date_str}.md"

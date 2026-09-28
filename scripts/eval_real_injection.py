@@ -279,7 +279,9 @@ def main() -> int:
     parser.add_argument("--config", default="configs/funnel_industrial_real.yaml")
     parser.add_argument("--inject-rate", type=float, default=0.1)
     parser.add_argument(
-        "--ref-frac", type=float, default=0.3,
+        "--ref-frac",
+        type=float,
+        default=0.3,
         help="每组最早这个比例的窗视为参考段，不注入（避免同时改模型；与 MSPC 口径一致）",
     )
     parser.add_argument("--seed", type=int, default=42)
@@ -411,9 +413,7 @@ def main() -> int:
     f_caught = sum(1 for s in injected if s.id in f_all)
     f_coll = len((f_all & base_ids) - f_base)
     f_by_kind = {
-        k: round(
-            sum(1 for s in injected if s.labels["dirty"] == k and s.id in f_all) / v, 4
-        )
+        k: round(sum(1 for s in injected if s.labels["dirty"] == k and s.id in f_all) / v, 4)
         for k, v in sorted(inj_by_kind.items())
     }
     summary = {

@@ -32,7 +32,8 @@ def main() -> None:
     parser.add_argument("--out", default="data/annot/pref_labels_oracle.jsonl")
     parser.add_argument("--seed", type=int, default=53)
     parser.add_argument(
-        "--exclude-from", default=None,
+        "--exclude-from",
+        default=None,
         help="标注文件：其中已出现的 source_id 不再生成（追加批次用，避免与旧批次重叠）",
     )
     args = parser.parse_args()

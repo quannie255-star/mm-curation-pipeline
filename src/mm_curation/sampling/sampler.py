@@ -231,9 +231,7 @@ class SemanticPruneSampler(Sampler):
             stats["n_pruned"] = 0
             return list(samples), stats
 
-        mat = np.stack(
-            [np.asarray(self.vectors[s.id], dtype="float32") for s in clustered]
-        )
+        mat = np.stack([np.asarray(self.vectors[s.id], dtype="float32") for s in clustered])
         faiss.normalize_L2(mat)
         k = min(self.n_clusters, len(clustered))
         km = faiss.Kmeans(mat.shape[1], k, niter=20, seed=seed % (2**31), spherical=True)

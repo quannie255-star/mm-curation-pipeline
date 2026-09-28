@@ -77,11 +77,7 @@ def test_clean_corpus_zero_phi_patterns_and_temporal_consistent():
         for r in resources
         if r["resourceType"] == "Patient"
     }
-    periods = {
-        r["id"]: r.get("period", {})
-        for r in resources
-        if r["resourceType"] == "Encounter"
-    }
+    periods = {r["id"]: r.get("period", {}) for r in resources if r["resourceType"] == "Encounter"}
     n_checked = 0
     for r in resources:
         if r["resourceType"] != "Observation":

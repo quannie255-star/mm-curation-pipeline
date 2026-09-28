@@ -78,9 +78,9 @@ def main() -> None:
     parser.add_argument("--model", default="Qwen/Qwen2.5-0.5B-Instruct")
     parser.add_argument("--adapters", default="PA=models/judge_pref_PA,PB=models/judge_pref_PB")
     parser.add_argument(
-        "--generic", action="store_true",
-        help="附加跑通用基线（可与 --adapters 同用；θ 语义修正：旧版带此 flag"
-        "会静默跳过 adapters）",
+        "--generic",
+        action="store_true",
+        help="附加跑通用基线（可与 --adapters 同用；θ 语义修正：旧版带此 flag会静默跳过 adapters）",
     )
     parser.add_argument("--max-length", type=int, default=704)
     args = parser.parse_args()
@@ -114,8 +114,7 @@ def main() -> None:
             model = PeftModel.from_pretrained(model, adapter)
             logging.info("已加载 adapter %s", adapter)
         model.eval()
-        choices = answer_all(prompts, model, tok, device,
-                             max_length=args.max_length)
+        choices = answer_all(prompts, model, tok, device, max_length=args.max_length)
         result: dict[str, dict] = {}
         for it, ch in zip(items, choices):
             result[f"{it['persona']}/{it['kind']}/{it['id']}"] = {

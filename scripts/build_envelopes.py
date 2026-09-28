@@ -68,9 +68,7 @@ def build(
     ref_frac: float,
     margin: float,
     max_holdout_violation: float = 0.05,
-) -> tuple[
-    dict[tuple[str, str], dict], int, int, int, dict[tuple[str, str], list[float]]
-]:
+) -> tuple[dict[tuple[str, str], dict], int, int, int, dict[tuple[str, str], list[float]]]:
     """按 `(device_type, channel)` 生成包络。
 
     返回 `(包络, 参考窗总数, 无法定界的组数, 留出集自检被拒的组数, 被拒明细)`。
@@ -83,9 +81,9 @@ def build(
         p = json.loads(s.text)
         if p.get("record_type") != "reading_window":
             continue
-        groups[
-            (p["device_type"], p["channel"], p.get("operating_mode"), p["device_id"])
-        ].append((p["window_start"], p["readings"]))
+        groups[(p["device_type"], p["channel"], p.get("operating_mode"), p["device_id"])].append(
+            (p["window_start"], p["readings"])
+        )
 
     env: dict[tuple[str, str], dict] = {}
     n_ref_windows = 0
@@ -220,10 +218,7 @@ def main() -> int:
             ((f"{dt}/{ch}", max(vs)) for (dt, ch), vs in rejected.items()),
             key=lambda t: -t[1],
         )[:3]
-        print(
-            "    被拒最严重的通道: "
-            + "；".join(f"{name} {rate:.1%}" for name, rate in worst)
-        )
+        print("    被拒最严重的通道: " + "；".join(f"{name} {rate:.1%}" for name, rate in worst))
     if n_refs:
         below = sum(1 for n in n_refs if n < 15)
         print(

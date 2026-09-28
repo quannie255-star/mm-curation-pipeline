@@ -191,9 +191,7 @@ def test_semde_dup_budget_conserved_and_unique():
 
     rng = np.random.default_rng(11)
     pool = _vec_samples("s", 40)
-    vectors = {
-        s.id: rng.normal(0, 1, 8).astype("float32").tolist() for s in pool
-    }
+    vectors = {s.id: rng.normal(0, 1, 8).astype("float32").tolist() for s in pool}
     recipe = SemanticPruneSampler(vectors, n_clusters=8, prune_frac=0.2).sample(
         pool, SamplingConfig(budget=10)
     )
@@ -207,9 +205,9 @@ def test_semde_dup_all_identical_survivors_below_budget():
 
     pool = _vec_samples("s", 10)
     vec = np.ones(8, dtype="float32").tolist()
-    recipe = SemanticPruneSampler(
-        {s.id: vec for s in pool}, n_clusters=4, prune_frac=0.5
-    ).sample(pool, SamplingConfig(budget=20))
+    recipe = SemanticPruneSampler({s.id: vec for s in pool}, n_clusters=4, prune_frac=0.5).sample(
+        pool, SamplingConfig(budget=20)
+    )
     assert recipe.n_sampled == 5
     assert recipe.extra["n_pruned"] == 5
 

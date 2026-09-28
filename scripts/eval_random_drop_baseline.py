@@ -158,8 +158,7 @@ def main() -> None:
     if report["clean_control"]:
         cc_mean = report["clean_control"]["random_r1_mean"]
         print(
-            f"脏残留对照 ×{args.n_seeds}:  R@1 均值 {cc_mean:.3f}"
-            f"（库同漏斗，全部脏样本保留在库中）"
+            f"脏残留对照 ×{args.n_seeds}:  R@1 均值 {cc_mean:.3f}（库同漏斗，全部脏样本保留在库中）"
         )
         print(f"漏斗 - 脏残留对照: {report['clean_control']['margin_over_clean_control']:+.3f}")
     print(f"清洗净贡献（漏斗 - 随机均值）: {v['margin_over_random']:+.3f}")

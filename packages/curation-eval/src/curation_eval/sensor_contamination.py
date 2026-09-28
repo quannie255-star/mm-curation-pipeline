@@ -232,9 +232,7 @@ class SensorNoisyFlatline(Contaminator):
         std = max(1e-9, (sum((v - mean) ** 2 for v in readings) / len(readings)) ** 0.5)
         amp = std * self.noise_ratio
         frozen = mean
-        payload["readings"] = [
-            round(frozen + ctx.rng.uniform(-amp, amp), 6) for _ in readings
-        ]
+        payload["readings"] = [round(frozen + ctx.rng.uniform(-amp, amp), 6) for _ in readings]
         _store(sample, payload)
         return sample
 
@@ -267,9 +265,7 @@ class SensorSamplingStall(Contaminator):
         hz = payload["sampling_hz"]
         start = datetime.fromisoformat(payload["window_start"])
         expected = (len(payload["readings"]) - 1) / hz
-        payload["window_end"] = (
-            start + timedelta(seconds=expected * self.ratio)
-        ).isoformat()
+        payload["window_end"] = (start + timedelta(seconds=expected * self.ratio)).isoformat()
         _store(sample, payload)
         return sample
 
@@ -300,4 +296,3 @@ class SensorInformationalBlackout(Contaminator):
         payload["readings"] = [round(readings[0], 6)] * len(readings)
         _store(sample, payload)
         return sample
-

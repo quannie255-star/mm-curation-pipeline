@@ -41,12 +41,16 @@ def test_evaluate_gate_thresholds():
 def test_smoke_run_end_to_end(tmp_path, monkeypatch):
     out = tmp_path / "operator_pr_fhir.json"
     monkeypatch.setattr(
-        sys, "argv",
+        sys,
+        "argv",
         [
             "eval_fhir.py",
-            "--scale", "0.1",
-            "--seed", "7",
-            "--out", str(out),
+            "--scale",
+            "0.1",
+            "--seed",
+            "7",
+            "--out",
+            str(out),
         ],
     )
     rc = eval_fhir.main()

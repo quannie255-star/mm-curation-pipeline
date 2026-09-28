@@ -26,10 +26,7 @@ RUN_TIME = "20:00"
 
 def build_command(python_exe: str) -> list[str]:
     log_path = REPO / "data" / "ops" / "schtasks.log"
-    inner = (
-        f"cd /d {REPO} && \"{python_exe}\" -X utf8 scripts\\ops_daily.py "
-        f">> \"{log_path}\" 2>&1"
-    )
+    inner = f'cd /d {REPO} && "{python_exe}" -X utf8 scripts\\ops_daily.py >> "{log_path}" 2>&1'
     return [
         "schtasks",
         "/create",
@@ -40,7 +37,7 @@ def build_command(python_exe: str) -> list[str]:
         "/st",
         RUN_TIME,
         "/tr",
-        f"cmd /c \"{inner}\"",
+        f'cmd /c "{inner}"',
         "/f",
     ]
 

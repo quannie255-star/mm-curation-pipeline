@@ -70,9 +70,7 @@ def test_phi_boundary_identifier_ssn_and_email():
         identifier=[{"system": "http://hl7.org/fhir/sid/us-ssn", "value": "123-45-6789"}]
     )
     assert op(FHIRSample.from_resource(ssn)) is None
-    mail = _patient(
-        telecom=[{"system": "email", "value": "real.person@example.com"}]
-    )
+    mail = _patient(telecom=[{"system": "email", "value": "real.person@example.com"}])
     assert op(FHIRSample.from_resource(mail)) is None
 
 
@@ -201,9 +199,7 @@ def test_temporal_inverted_dropped():
 
 def test_temporal_missing_reference_scores_none_kept():
     """边界：subject 指向不存在的 Patient → None 不误杀（断链归 referential 管）。"""
-    orphan = FHIRSample.from_resource(
-        _observation(subject={"reference": "Patient/888888"})
-    )
+    orphan = FHIRSample.from_resource(_observation(subject={"reference": "Patient/888888"}))
     _, kept = _run_temporal(CORPUS + [orphan])
     assert orphan.id in kept
     assert kept[orphan.id].meta["score:temporal_consistency"] is None
@@ -244,9 +240,7 @@ def test_referential_broken_subject_dropped():
 
 def test_referential_patient_without_refs_passes():
     _, kept = _run_referential(CORPUS)
-    patients = [
-        s for s in kept.values() if s.meta["fhir_resource_type"] == "Patient"
-    ]
+    patients = [s for s in kept.values() if s.meta["fhir_resource_type"] == "Patient"]
     assert patients and all(s.meta["score:referential_integrity_fhir"] == 1.0 for s in patients)
 
 

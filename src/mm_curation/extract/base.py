@@ -150,9 +150,7 @@ class ExtractionChain:
         for ex in self.extractors:
             if not type(ex).available():
                 missing = ", ".join(type(ex).requires)
-                attempts.append(
-                    ExtractAttempt(ex.name, False, f"unavailable(缺 {missing})")
-                )
+                attempts.append(ExtractAttempt(ex.name, False, f"unavailable(缺 {missing})"))
                 continue
             art = ex.extract(html)
             if art is None:
@@ -162,9 +160,7 @@ class ExtractionChain:
                 attempts.append(ExtractAttempt(ex.name, False, "no_paragraphs"))
                 continue
             if art.n_chars < self.min_chars:
-                attempts.append(
-                    ExtractAttempt(ex.name, False, "too_short", art.n_chars)
-                )
+                attempts.append(ExtractAttempt(ex.name, False, "too_short", art.n_chars))
                 continue
             attempts.append(ExtractAttempt(ex.name, True, "", art.n_chars))
             return ExtractedArticle(art.title, art.paragraphs, art.extractor or ex.name), attempts

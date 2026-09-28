@@ -70,9 +70,7 @@ def test_aggregate_drops() -> None:
 
 
 def test_render_report_normal_and_abnormal() -> None:
-    normal = render_report(
-        "2026-09-16", [], "ok", 500, 120, None, 500, 480, {}, 40.0
-    )
+    normal = render_report("2026-09-16", [], "ok", 500, 120, None, 500, 480, {}, 40.0)
     assert "## 今日异常" in normal and "- 无" in normal
     assert "库内 500 条（今日新增 120）" in normal
     assert "保留率 96.0%" in normal

@@ -69,7 +69,8 @@ def main() -> None:
     REPORT.with_suffix(".json").write_text(
         json.dumps(
             [r.__dict__ for r in table] + [{"assumptions": a.__dict__}],
-            ensure_ascii=False, indent=2,
+            ensure_ascii=False,
+            indent=2,
         ),
         encoding="utf-8",
     )

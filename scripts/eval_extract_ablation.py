@@ -67,8 +67,14 @@ def _evaluate(extractor, html: str) -> dict:
     """跑一档，压成可比的一行。长度政策与链条一致（`MIN_CHARS_DEFAULT`）。"""
     art = extractor.extract(html)
     if art is None:
-        return {"status": "none", "n_chars": 0, "n_paragraphs": 0, "title": "", "text": "",
-                "paragraphs": ()}
+        return {
+            "status": "none",
+            "n_chars": 0,
+            "n_paragraphs": 0,
+            "title": "",
+            "text": "",
+            "paragraphs": (),
+        }
     if not art.paragraphs:
         return {
             "status": "no_paragraphs",

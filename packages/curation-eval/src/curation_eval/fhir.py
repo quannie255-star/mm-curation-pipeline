@@ -19,9 +19,7 @@ from .schema import Sample
 MODALITY = "fhir_resource"
 
 # 本适配器承诺 roundtrip 的资源类型（评测语料与污染器的定义域）。
-KNOWN_RESOURCE_TYPES = frozenset(
-    {"Patient", "Observation", "Encounter", "MedicationRequest"}
-)
+KNOWN_RESOURCE_TYPES = frozenset({"Patient", "Observation", "Encounter", "MedicationRequest"})
 
 
 class FHIRSample:

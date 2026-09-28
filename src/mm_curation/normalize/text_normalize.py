@@ -81,16 +81,16 @@ def _r_newline(text: str) -> str:
 
 
 def _r_zero_width(text: str) -> str:
-    return "".join(ch for ch in text if ch not in _ZERO_WIDTH) if any(
-        ch in _ZERO_WIDTH for ch in text
-    ) else text
+    return (
+        "".join(ch for ch in text if ch not in _ZERO_WIDTH)
+        if any(ch in _ZERO_WIDTH for ch in text)
+        else text
+    )
 
 
 def _r_control_chars(text: str) -> str:
     return "".join(
-        ch
-        for ch in text
-        if ch in _CONTROL_KEEP or unicodedata.category(ch) not in ("Cc", "Cf")
+        ch for ch in text if ch in _CONTROL_KEEP or unicodedata.category(ch) not in ("Cc", "Cf")
     )
 
 

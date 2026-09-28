@@ -119,9 +119,7 @@ class SourceConnector(ABC):
         分开可测；一刀切走链条会让源之间的对比混入抽取器差异。
         """
         if self.extractor:
-            return ExtractionChain(
-                [get_extractor(self.extractor)()], min_chars=MIN_CHARS_DEFAULT
-            )
+            return ExtractionChain([get_extractor(self.extractor)()], min_chars=MIN_CHARS_DEFAULT)
         return default_extract_chain()
 
     @abstractmethod

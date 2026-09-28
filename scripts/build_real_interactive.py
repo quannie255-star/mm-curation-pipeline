@@ -37,7 +37,7 @@ from mm_curation.pipeline import PipelineConfig  # noqa: E402
 REPORTS = REPO / "data" / "reports"
 OUT = REPORTS / "real_sensor_interactive.json"
 
-CONFIG_OLD = "configs/funnel_industrial.yaml"       # pooled 尺度（合成门禁档）
+CONFIG_OLD = "configs/funnel_industrial.yaml"  # pooled 尺度（合成门禁档）
 CONFIG_NEW = "configs/funnel_industrial_real.yaml"  # mad 尺度（真实数据档）
 
 DATASETS: list[dict] = [
@@ -93,8 +93,7 @@ def _verdict_arrays(specs, samples) -> dict:
     results, dropped_all, dirty_totals, n_clean = ers.evaluate_independently(specs, samples)
     dropped_ids = {s.id for group in dropped_all for s in group}
     unscored = {
-        s.id: sum(1 for sp in specs if s.meta.get(f"score:{sp.op}") is None)
-        for s in samples
+        s.id: sum(1 for sp in specs if s.meta.get(f"score:{sp.op}") is None) for s in samples
     }
     return {
         "results": results,
@@ -137,9 +136,7 @@ def _op_rows(result, results_pooled, samples, spec, n_clean) -> dict:
         "old": {
             "n_dropped": results_pooled[result.op].n_dropped,
             "clean_killed": results_pooled[result.op].clean_killed,
-            "kill_rate": (
-                results_pooled[result.op].clean_killed / n_clean if n_clean else None
-            ),
+            "kill_rate": (results_pooled[result.op].clean_killed / n_clean if n_clean else None),
             "n_dirty_caught": sum(results_pooled[result.op].dirty_caught.values()),
         },
     }
@@ -204,8 +201,9 @@ def build_dataset(entry: dict) -> dict:
             for row in g["rows"]:
                 pts.append(
                     {
-                        "label": " · ".join(f"{k}={v}" for k, v in row["params"].items()
-                                             if k not in {"min"}),
+                        "label": " · ".join(
+                            f"{k}={v}" for k, v in row["params"].items() if k not in {"min"}
+                        ),
                         "recall": row["recall"],
                         "kill_rate": row["kill_rate"],
                         "n_dropped": row["n_dropped"],
@@ -237,12 +235,8 @@ def build_dataset(entry: dict) -> dict:
         "funnel": {
             "n_kept": len(samples) - len(new["dropped_ids"]),
             "n_dropped": len(new["dropped_ids"]),
-            "n_clean_killed": sum(
-                1 for i in new["dropped_ids"] if not by_id[i].labels
-            ),
-            "n_dirty_caught": sum(
-                1 for i in new["dropped_ids"] if by_id[i].labels
-            ),
+            "n_clean_killed": sum(1 for i in new["dropped_ids"] if not by_id[i].labels),
+            "n_dirty_caught": sum(1 for i in new["dropped_ids"] if by_id[i].labels),
             "old_n_dropped": len(old["dropped_ids"]),
         },
         "channels": channels,
@@ -286,8 +280,7 @@ def main() -> int:
             f"  曲线 {list(d['curves'])}"
         )
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps(report, ensure_ascii=False, separators=(",", ":")),
-                   encoding="utf-8")
+    OUT.write_text(json.dumps(report, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"\n产出: {OUT}（{OUT.stat().st_size / 1e6:.2f} MB）")
     return 0
 

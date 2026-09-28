@@ -34,9 +34,7 @@ from pathlib import Path
 
 # 把 findata 加进 sys.path（包外引用，最轻量的"模块化"形态）
 _DEFAULT_FINDATA = Path("~/WorkBuddy/Worktrees/FinData-Agent/master-975715f9").expanduser()
-_FINDATA_SRC = Path(
-    os.environ.get("FINDATA_PATH", str(_DEFAULT_FINDATA)) + "/src"
-)
+_FINDATA_SRC = Path(os.environ.get("FINDATA_PATH", str(_DEFAULT_FINDATA)) + "/src")
 
 
 def _bootstrap_findata() -> None:

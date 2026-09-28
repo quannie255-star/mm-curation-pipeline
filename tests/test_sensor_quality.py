@@ -47,8 +47,7 @@ def _win(**overrides):
     return SensorSample.from_payload(_window(**overrides))
 
 
-def _seq(n, *, channel="pressure", device_id="pump99", readings=None,
-         mode="run", offset_minutes=0):
+def _seq(n, *, channel="pressure", device_id="pump99", readings=None, mode="run", offset_minutes=0):
     """同 `(device, channel)` 的 n 个连续窗（window_start 每分钟递进）。
 
     批量算子的判据全部建立在**组内多窗**之上，单窗测不出任何东西——这是 R1
@@ -58,7 +57,9 @@ def _seq(n, *, channel="pressure", device_id="pump99", readings=None,
     for i in range(n):
         start = _EPOCH + timedelta(minutes=offset_minutes + i)
         base = _window(
-            channel=channel, device_id=device_id, operating_mode=mode,
+            channel=channel,
+            device_id=device_id,
+            operating_mode=mode,
             window_start=start.isoformat(),
             window_end=(start + timedelta(seconds=256)).isoformat(),
         )
@@ -134,8 +135,9 @@ def test_stuck_device_stop_excludes_sentinel_form():
     否则 `fault_vs_maintenance` 的合成召回直接掉——这是 R3 的一条红线。
     """
     sentinel = [SENTINEL] * 256
-    payloads = _seq(2, channel="pressure") + _seq(1, channel="pressure",
-                                                  readings=sentinel, offset_minutes=3)
+    payloads = _seq(2, channel="pressure") + _seq(
+        1, channel="pressure", readings=sentinel, offset_minutes=3
+    )
     ss = _payloads_to_samples(payloads)
     assert _scores(ss, SensorStuckOp(**MIN))[2] == 0.0  # 没有被豁免
 
@@ -150,9 +152,7 @@ def test_stuck_idle_flat_passes():
 
 def test_stuck_near_flat_not_exact_passes():
     """边界：极差 1e-6 —— 不是严格平坦，且单窗塌陷不够连续性门槛。"""
-    ss = _payloads_to_samples(
-        _seq(3) + _seq(1, readings=[1.0, 1.0 + 1e-6] * 128, offset_minutes=3)
-    )
+    ss = _payloads_to_samples(_seq(3) + _seq(1, readings=[1.0, 1.0 + 1e-6] * 128, offset_minutes=3))
     assert _scores(ss, SensorStuckOp(**MIN))[3] == 1.0
 
 
@@ -252,7 +252,8 @@ def test_drift_cal_offset_dropped():
 
     corpus = sorted(CORPUS, key=lambda s: s.id)
     wins = [
-        s for s in corpus
+        s
+        for s in corpus
         if s.meta["sensor_record_type"] == "reading_window"
         and s.meta["device_id"] == "pump01"
         and s.meta["channel"] == "flow"
@@ -274,7 +275,8 @@ def test_drift_changeover_offset_not_flagged():
 
     corpus = sorted(CORPUS, key=lambda s: s.id)
     wins = [
-        s for s in corpus
+        s
+        for s in corpus
         if s.meta["sensor_record_type"] == "reading_window"
         and s.meta["device_id"] == "pump01"
         and s.meta["channel"] == "flow"
@@ -323,7 +325,8 @@ def test_unit_swap_dropped():
 
     corpus = sorted(CORPUS, key=lambda s: s.id)
     target = next(
-        s for s in corpus
+        s
+        for s in corpus
         if s.meta["sensor_record_type"] == "reading_window"
         and s.meta["channel"] == "pressure"
         and s.meta["device_type"] == "pump"
@@ -336,9 +339,7 @@ def test_unit_swap_dropped():
 
 
 def test_unit_event_sample_passes():
-    events = [
-        s for s in CORPUS if s.meta["sensor_record_type"] == "maintenance_event"
-    ]
+    events = [s for s in CORPUS if s.meta["sensor_record_type"] == "maintenance_event"]
     assert events
     _, kept = _run_unit(events)
     assert all(s.meta["score:unit_consistency"] == 1.0 for s in kept.values())
@@ -375,10 +376,7 @@ def test_fault_unplanned_silence_dropped():
     import json
 
     corpus = sorted(CORPUS, key=lambda s: s.id)
-    target = next(
-        s for s in corpus
-        if s.meta["sensor_record_type"] == "reading_window"
-    )
+    target = next(s for s in corpus if s.meta["sensor_record_type"] == "reading_window")
     p = json.loads(target.text)
     p["readings"] = [SENTINEL] * len(p["readings"])
     silent = SensorSample.from_payload(p)
@@ -452,10 +450,14 @@ def test_fault_machine_stop_passes_with_evidence():
     上白丢 1337 条合法记录（故障标签 0/191、计划内 0/191）。
     """
     frozen = [1.2] * 256
-    ss = _fault_scores(_payloads_to_samples([
-        _window(channel="pressure", readings=frozen),
-        _window(channel="flow", readings=frozen),
-    ]))
+    ss = _fault_scores(
+        _payloads_to_samples(
+            [
+                _window(channel="pressure", readings=frozen),
+                _window(channel="flow", readings=frozen),
+            ]
+        )
+    )
     assert [s.meta["score:fault_vs_maintenance"] for s in ss] == [1.0, 1.0]
     assert ss[0].meta["evidence:sensor_fault_vs_maintenance"]["rule"] == "machine_stop"
 
@@ -473,9 +475,7 @@ def test_fault_single_channel_freeze_is_not_machine_stop():
 def test_range_external_table_overrides_and_misses(tmp_path):
     """外接量程表覆盖内嵌表同名键；表外通道仍记 None（留空 = 没评，不是通过）。"""
     p = tmp_path / "ranges.yaml"
-    p.write_text(
-        "pump:\n  torque: [0.0, 500.0]\n", encoding="utf-8"
-    )
+    p.write_text("pump:\n  torque: [0.0, 500.0]\n", encoding="utf-8")
     op = SensorRangeOp(min=1.0, ranges_path=str(p))
     ok = op(_win(channel="torque", readings=[10.0] * 256))
     assert ok is not None and ok.meta["score:sensor_range"] == 1.0
@@ -508,11 +508,13 @@ def _inject(kind, rate, corpus=None, **params):
 
     corpus = corpus if corpus is not None else FORMS_CORPUS
     plan = ContaminationPlan(
-        inject_rate=rate, seed=42, kinds={kind: 1.0},
+        inject_rate=rate,
+        seed=42,
+        kinds={kind: 1.0},
         params={kind: params} if params else {},
     )
     mixed, manifest = plan.run(corpus, Path("data/tmp_sensor_forms"))
-    return mixed, mixed[len(corpus):], manifest
+    return mixed, mixed[len(corpus) :], manifest
 
 
 def _std_of(values):
@@ -528,10 +530,7 @@ def _channel_ref(corpus):
         if p.get("record_type") != "reading_window":
             continue
         groups.setdefault((p["device_id"], p["channel"]), []).append(_std_of(p["readings"]))
-    return {
-        k: sorted(v)[int(0.75 * (len(v) - 1))]
-        for k, v in groups.items()
-    }
+    return {k: sorted(v)[int(0.75 * (len(v) - 1))] for k, v in groups.items()}
 
 
 def test_r5_noisy_flatline_is_near_flat_but_not_exact():
@@ -727,9 +726,7 @@ def test_range_envelope_below_min_ref_is_still_unscored(tmp_path):
     import json
 
     p = tmp_path / "env.json"
-    p.write_text(
-        json.dumps({"pump/torque": {"lo": 1.0, "hi": 1.5, "n_ref": 3}}), encoding="utf-8"
-    )
+    p.write_text(json.dumps({"pump/torque": {"lo": 1.0, "hi": 1.5, "n_ref": 3}}), encoding="utf-8")
     op = SensorRangeOp(min=1.0, envelope_path=str(p))
     s = _win(channel="torque", readings=[9.9] * 256)
     assert op(s) is not None  # 未评 → 保留（既不伪装成通过，也不误丢）
@@ -800,18 +797,14 @@ def test_build_envelopes_unions_devices_and_skips_zero_dispersion():
     mod = _load_build_envelopes()
     narrow = _env_samples([1.0 + 0.0001 * (i % 3) for i in range(10)], device_id="d1")
     wide = _env_samples([1.0 + 3.0 * (i % 3) for i in range(10)], device_id="d2")
-    env, n_ref, _skipped, n_rejected, _rejected = mod.build(
-        narrow + wide, 0.3, 6.0, 1.0
-    )
+    env, n_ref, _skipped, n_rejected, _rejected = mod.build(narrow + wide, 0.3, 6.0, 1.0)
     assert n_rejected == 0
     acc = env[("pump", "pressure")]
     assert acc["devices"] == 2
     assert n_ref == 6  # 两台各 3 个参考窗（窗才是独立单位，不按读数计）
     assert acc["lo"] <= 1.0 and acc["hi"] >= 4.0  # 并集覆盖了宽的那台
     # 完全恒定的通道：定不出边界 → 跳过（不猜）
-    flat, n_ref_flat, n_skipped, _r, _rej = mod.build(
-        _env_samples([2.0] * 10), 0.3, 6.0, 0.05
-    )
+    flat, n_ref_flat, n_skipped, _r, _rej = mod.build(_env_samples([2.0] * 10), 0.3, 6.0, 0.05)
     assert flat == {} and n_ref_flat == 0 and n_skipped == 1
 
 
@@ -845,4 +838,3 @@ def test_envelope_roundtrip_build_to_operator(tmp_path):
     assert op(inside) is not None and inside.meta["score:sensor_range"] == 1.0
     assert op.explain(inside, 1.0)["bounds_source"] == "data_envelope"
     assert op(_win(channel="torque", readings=[99.0] * 256)) is None
-

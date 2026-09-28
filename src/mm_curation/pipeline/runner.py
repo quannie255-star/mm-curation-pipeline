@@ -62,8 +62,7 @@ def run_funnel(
     ops = [spec.build() for spec in config.operators]
     if verdict_ledger is not None:
         ops = [
-            wrap_for_verdict(op, seq=i, ledger=verdict_ledger)
-            for i, op in enumerate(ops, start=1)
+            wrap_for_verdict(op, seq=i, ledger=verdict_ledger) for i, op in enumerate(ops, start=1)
         ]
     if ops and samples:
         batch_modalities = {s.modality for s in samples}

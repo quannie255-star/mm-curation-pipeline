@@ -15,8 +15,7 @@ from ops_dashboard import load_corpus, load_stats, report_dates  # noqa: E402
 def test_load_stats_tolerates_bad_lines(tmp_path: Path) -> None:
     p = tmp_path / "stats.jsonl"
     p.write_text(
-        json.dumps({"date": "2026-09-16", "text_new": 5}, ensure_ascii=False)
-        + "\n{bad\n\n",
+        json.dumps({"date": "2026-09-16", "text_new": 5}, ensure_ascii=False) + "\n{bad\n\n",
         encoding="utf-8",
     )
     stats = load_stats(p)

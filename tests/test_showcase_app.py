@@ -69,8 +69,14 @@ def test_pr_rows_formats_primary_recall():
                 "primary_target": ["fhir_phi_leak"],
                 "primary_recall": {"fhir_phi_leak": 1.0},
             },
-            {"op": "llm_judge", "n_dropped": 0, "clean_killed": 0,
-             "precision": None, "primary_target": [], "primary_recall": {}},
+            {
+                "op": "llm_judge",
+                "n_dropped": 0,
+                "clean_killed": 0,
+                "precision": None,
+                "primary_target": [],
+                "primary_recall": {},
+            },
         ]
     }
     rows = pr_rows(report)
@@ -93,20 +99,34 @@ def test_gate_cards_with_and_without_funnel_gate():
 
 
 def test_dedup_rows_and_ft_rows_and_ablation_rows():
-    dedup = dedup_rows([{"scale": 10000, "n_total": 11000, "exact_recall": 1.0,
-                         "near_recall": 0.97, "seconds_total": 21}])
+    dedup = dedup_rows(
+        [
+            {
+                "scale": 10000,
+                "n_total": 11000,
+                "exact_recall": 1.0,
+                "near_recall": 0.97,
+                "seconds_total": 21,
+            }
+        ]
+    )
     assert dedup[0]["规模档"] == 10000 and dedup[0]["near召回"] == 0.97
     assert dedup_rows(None) == []
 
-    ft = ft_rows({"results": {"base": {"recall_at_k": {"1": 0.5558, "5": 0.824, "10": 0.9},
-                                       "mrr": 0.675}}})
+    ft = ft_rows(
+        {"results": {"base": {"recall_at_k": {"1": 0.5558, "5": 0.824, "10": 0.9}, "mrr": 0.675}}}
+    )
     assert ft[0]["配置"] == "基线（未微调）" and ft[0]["R@1"] == 0.556
     assert ft_rows(None) == []
 
-    abl = ablation_rows({"ablations": [
-        {"name": "no_b", "n_kept": 2, "recall_at_k": {"1": 0.55}, "delta_r1": -0.017},
-        {"name": "no_a", "n_kept": 2, "recall_at_k": {"1": 0.56}, "delta_r1": 0.0},
-    ]})
+    abl = ablation_rows(
+        {
+            "ablations": [
+                {"name": "no_b", "n_kept": 2, "recall_at_k": {"1": 0.55}, "delta_r1": -0.017},
+                {"name": "no_a", "n_kept": 2, "recall_at_k": {"1": 0.56}, "delta_r1": 0.0},
+            ]
+        }
+    )
     assert [r["配置"] for r in abl] == ["no_b", "no_a"]  # 按影响排序（ΔR@1 升序）
     assert ablation_rows(None) == []
 
@@ -114,8 +134,7 @@ def test_dedup_rows_and_ft_rows_and_ablation_rows():
 # --- V6 清洗过程页签（判决台账 + 阈值沙盘）--------------------------------
 
 
-def _vrow(op, decision, score=None, *, seq=1, threshold=None,
-          rule="within_threshold", fp=None):
+def _vrow(op, decision, score=None, *, seq=1, threshold=None, rule="within_threshold", fp=None):
     """一条判决书记录（形状对齐 mm_curation.verdict.build_verdict 的落盘结果）。"""
     return {
         "v": 1,
@@ -142,8 +161,8 @@ def test_load_verdicts_skips_blank_and_corrupt_lines(tmp_path, monkeypatch):
 
     (tmp_path / "v.jsonl").write_text(
         '{"op": "a", "decision": "drop"}\n'
-        "\n"                      # 空行跳过
-        "{bad json\n"             # 半行跳过（不因一条坏数据让整页空转）
+        "\n"  # 空行跳过
+        "{bad json\n"  # 半行跳过（不因一条坏数据让整页空转）
         '{"op": "b", "decision": "keep"}\n',
         encoding="utf-8",
     )
@@ -156,8 +175,14 @@ def test_waterfall_rows_degrades_and_shapes():
     rep = {
         "comparison": {
             "per_op": [
-                {"op": "text_minhash", "dropped_A": 29, "dropped_B": 30,
-                 "delta_dropped": 1, "n_in_A": 2066, "n_in_B": 2066},
+                {
+                    "op": "text_minhash",
+                    "dropped_A": 29,
+                    "dropped_B": 30,
+                    "delta_dropped": 1,
+                    "n_in_A": 2066,
+                    "n_in_B": 2066,
+                },
             ]
         }
     }
@@ -168,8 +193,9 @@ def test_waterfall_rows_degrades_and_shapes():
 
 def test_verdict_table_filter_limit_and_blank_threshold():
     rows = [
-        _vrow("chinese_ratio", "drop", 0.123456, seq=1,
-              threshold={"min": 0.3}, rule="score_below_min"),
+        _vrow(
+            "chinese_ratio", "drop", 0.123456, seq=1, threshold={"min": 0.3}, rule="score_below_min"
+        ),
         _vrow("chinese_ratio", "keep", 0.8154, seq=1, threshold={"min": 0.3}),
         _vrow("text_minhash", "drop", None, seq=7),  # 批量算子：无分数、无门限
     ]
@@ -196,7 +222,7 @@ def test_score_values_and_histogram():
         _vrow("a", "keep", 1.0),
         _vrow("a", "keep", 0.5),
         _vrow("a", "drop", None),  # 无分数不入分布
-        _vrow("b", "keep", 9.9),   # 别的滤级不入
+        _vrow("b", "keep", 9.9),  # 别的滤级不入
     ]
     assert score_values(rows, "a") == [0.0, 1.0, 0.5]
     assert score_values(rows, "nope") == []
@@ -219,7 +245,7 @@ def test_recommend_threshold_from_drop_budget():
 
     lo = recommend_threshold(scores, side="min", max_drop_rate=0.1)
     assert lo["n"] == 100 and lo["score_min"] == 0.0 and lo["score_max"] == 99.0
-    assert lo["threshold"] == 10.0           # k = round(0.1 × 100)
+    assert lo["threshold"] == 10.0  # k = round(0.1 × 100)
     assert abs(lo["drop_rate"] - 0.10) <= tol
 
     hi = recommend_threshold(scores, side="max", max_drop_rate=0.1)
@@ -233,7 +259,7 @@ def test_recommend_threshold_from_drop_budget():
 
 def test_current_threshold_picks_only_matching_op_with_threshold():
     rows = [_vrow("a", "drop", 0.1), _vrow("b", "drop", 7.0, threshold={"max": 6.0})]
-    assert current_threshold(rows, "a") == {}      # 无门限字段 → 空
+    assert current_threshold(rows, "a") == {}  # 无门限字段 → 空
     assert current_threshold(rows, "b") == {"max": 6.0}
     assert current_threshold(rows, "missing") == {}
 
@@ -249,8 +275,15 @@ def test_showcase_app_renders_all_nine_tabs():
     at.run(timeout=120)
     assert not at.exception, [e.value for e in at.exception]
     assert [t.label for t in at.tabs] == [
-        "总览", "图文数据", "文本数据", "医疗数据",
-        "工业传感器", "效果证据", "清洗过程", "阈值沙盘", "真实数据",
+        "总览",
+        "图文数据",
+        "文本数据",
+        "医疗数据",
+        "工业传感器",
+        "效果证据",
+        "清洗过程",
+        "阈值沙盘",
+        "真实数据",
     ]
 
 
@@ -264,9 +297,7 @@ def test_showcase_app_renders_with_no_reports_at_all(tmp_path):
     """
     st_testing = pytest.importorskip("streamlit.testing.v1")
     (tmp_path / "scripts").mkdir()
-    shutil.copyfile(
-        REPO / "scripts" / "showcase_app.py", tmp_path / "scripts" / "showcase_app.py"
-    )
+    shutil.copyfile(REPO / "scripts" / "showcase_app.py", tmp_path / "scripts" / "showcase_app.py")
     at = st_testing.AppTest.from_file(str(tmp_path / "scripts" / "showcase_app.py"))
     at.run(timeout=90)
     assert not at.exception, [e.value for e in at.exception]
@@ -329,53 +360,137 @@ def _real_payload() -> dict:
                 "n_clean": 4,
                 "n_dirty": 2,
                 "channels": {
-                    "A": {"t": [10, 20, 30, 40], "lab": [0, 1, 0, 1],
-                          "d": [0, 1, 0, 0], "d0": [1, 1, 1, 0], "u": [0, 0, 1, 2]},
-                    "B": {"t": [10, 20], "lab": [0, 0],
-                          "d": [1, 0], "d0": [0, 0], "u": [0, 1]},
+                    "A": {
+                        "t": [10, 20, 30, 40],
+                        "lab": [0, 1, 0, 1],
+                        "d": [0, 1, 0, 0],
+                        "d0": [1, 1, 1, 0],
+                        "u": [0, 0, 1, 2],
+                    },
+                    "B": {"t": [10, 20], "lab": [0, 0], "d": [1, 0], "d0": [0, 0], "u": [0, 1]},
                 },
                 "operators": [
-                    {"op": "sensor_stuck", "n_in": 6, "n_dropped": 2, "clean_killed": 1,
-                     "kill_rate": 0.25, "n_dirty_caught": 1, "n_unscored": 2,
-                     "forms": {"machine_stop": 2, "scale_collapse": 1},
-                     "old": {"n_dropped": 3, "clean_killed": 2, "kill_rate": 0.5,
-                             "n_dirty_caught": 1}},
-                    {"op": "sensor_range", "n_in": 6, "n_dropped": 0, "clean_killed": 0,
-                     "kill_rate": 0.0, "n_dirty_caught": 0, "n_unscored": 6,
-                     "forms": {}, "old": {"n_dropped": 0, "clean_killed": 0,
-                                          "kill_rate": 0.0, "n_dirty_caught": 0}},
+                    {
+                        "op": "sensor_stuck",
+                        "n_in": 6,
+                        "n_dropped": 2,
+                        "clean_killed": 1,
+                        "kill_rate": 0.25,
+                        "n_dirty_caught": 1,
+                        "n_unscored": 2,
+                        "forms": {"machine_stop": 2, "scale_collapse": 1},
+                        "old": {
+                            "n_dropped": 3,
+                            "clean_killed": 2,
+                            "kill_rate": 0.5,
+                            "n_dirty_caught": 1,
+                        },
+                    },
+                    {
+                        "op": "sensor_range",
+                        "n_in": 6,
+                        "n_dropped": 0,
+                        "clean_killed": 0,
+                        "kill_rate": 0.0,
+                        "n_dirty_caught": 0,
+                        "n_unscored": 6,
+                        "forms": {},
+                        "old": {
+                            "n_dropped": 0,
+                            "clean_killed": 0,
+                            "kill_rate": 0.0,
+                            "n_dirty_caught": 0,
+                        },
+                    },
                 ],
                 "curves": {
                     "sensor_drift": [
-                        {"label": "scale=mad · z=8", "recall": 0.10, "kill_rate": 0.02,
-                         "n_dropped": 8, "params": {"scale": "mad", "z": 8}},
-                        {"label": "scale=mad · z=4", "recall": 0.30, "kill_rate": 0.05,
-                         "n_dropped": 20, "params": {"scale": "mad", "z": 4}},
-                        {"label": "scale=pooled · z=8", "recall": 0.40, "kill_rate": 0.09,
-                         "n_dropped": 40, "params": {"scale": "pooled", "z": 8}},
-                        {"label": "scale=pooled · z=4", "recall": 0.50, "kill_rate": 0.15,
-                         "n_dropped": 60, "params": {"scale": "pooled", "z": 4}},
+                        {
+                            "label": "scale=mad · z=8",
+                            "recall": 0.10,
+                            "kill_rate": 0.02,
+                            "n_dropped": 8,
+                            "params": {"scale": "mad", "z": 8},
+                        },
+                        {
+                            "label": "scale=mad · z=4",
+                            "recall": 0.30,
+                            "kill_rate": 0.05,
+                            "n_dropped": 20,
+                            "params": {"scale": "mad", "z": 4},
+                        },
+                        {
+                            "label": "scale=pooled · z=8",
+                            "recall": 0.40,
+                            "kill_rate": 0.09,
+                            "n_dropped": 40,
+                            "params": {"scale": "pooled", "z": 8},
+                        },
+                        {
+                            "label": "scale=pooled · z=4",
+                            "recall": 0.50,
+                            "kill_rate": 0.15,
+                            "n_dropped": 60,
+                            "params": {"scale": "pooled", "z": 4},
+                        },
                     ]
                 },
                 "applicability": [
-                    {"op": "unit_consistency", "target": "多单位组", "n_target": 0,
-                     "n_windows": 6, "applicable": False, "hint": "无区分度"},
+                    {
+                        "op": "unit_consistency",
+                        "target": "多单位组",
+                        "n_target": 0,
+                        "n_windows": 6,
+                        "applicable": False,
+                        "hint": "无区分度",
+                    },
                 ],
                 "reachability": [
-                    {"op": "sensor_stuck", "group_by": "device×channel", "requirement": 10,
-                     "n_groups": 2, "group_size_p50": 3, "group_size_max": 4,
-                     "n_groups_shorter": 2, "reachable": False},
+                    {
+                        "op": "sensor_stuck",
+                        "group_by": "device×channel",
+                        "requirement": 10,
+                        "n_groups": 2,
+                        "group_size_p50": 3,
+                        "group_size_max": 4,
+                        "n_groups_shorter": 2,
+                        "reachable": False,
+                    },
                 ],
                 "kills": [
-                    {"op": "sensor_stuck", "device": "d1", "channel": "A", "t": 20,
-                     "rule": "machine_stop", "label": "fault_x",
-                     "reading_min": 1.0, "reading_max": 1.0, "reading_std": 0.0},
-                    {"op": "sensor_stuck", "device": "d1", "channel": "B", "t": 10,
-                     "rule": "scale_collapse", "label": "",
-                     "reading_min": 2.0, "reading_max": 2.1, "reading_std": 0.01},
-                    {"op": "sensor_range", "device": "d2", "channel": "A", "t": 30,
-                     "rule": "", "label": "fault_y",
-                     "reading_min": 3.0, "reading_max": 3.0, "reading_std": 0.0},
+                    {
+                        "op": "sensor_stuck",
+                        "device": "d1",
+                        "channel": "A",
+                        "t": 20,
+                        "rule": "machine_stop",
+                        "label": "fault_x",
+                        "reading_min": 1.0,
+                        "reading_max": 1.0,
+                        "reading_std": 0.0,
+                    },
+                    {
+                        "op": "sensor_stuck",
+                        "device": "d1",
+                        "channel": "B",
+                        "t": 10,
+                        "rule": "scale_collapse",
+                        "label": "",
+                        "reading_min": 2.0,
+                        "reading_max": 2.1,
+                        "reading_std": 0.01,
+                    },
+                    {
+                        "op": "sensor_range",
+                        "device": "d2",
+                        "channel": "A",
+                        "t": 30,
+                        "rule": "",
+                        "label": "fault_y",
+                        "reading_min": 3.0,
+                        "reading_max": 3.0,
+                        "reading_std": 0.0,
+                    },
                 ],
             }
         ],
@@ -399,14 +514,14 @@ def test_real_arm_stats_switches_arm_and_uses_clean_denominator():
     new = real_arm_stats(ds, "new")
     assert (new["n"], new["n_clean"], new["n_dirty"]) == (6, 4, 2)
     assert new["n_dropped"] == 2 and new["clean_killed"] == 1 and new["dirty_caught"] == 1
-    assert new["kill_rate"] == 1 / 4          # 分母是干净窗（4），不是总窗数（6）
+    assert new["kill_rate"] == 1 / 4  # 分母是干净窗（4），不是总窗数（6）
     assert new["recall"] == 1 / 2
     assert abs(new["survival"] - 4 / 6) < 1e-12
 
     old = real_arm_stats(ds, "old")
     assert old["n_dropped"] == 3 and old["clean_killed"] == 2
     assert old["kill_rate"] == 2 / 4
-    assert old["recall"] == 1 / 2             # 旧判据同样抓到那 1 条，但多杀了 1 条干净窗
+    assert old["recall"] == 1 / 2  # 旧判据同样抓到那 1 条，但多杀了 1 条干净窗
 
     # 分母口径的反例守卫：拿总窗数当分母会算出 1/6，那是「假精确」
     assert new["kill_rate"] != 1 / 6
@@ -436,16 +551,16 @@ def test_real_op_rows_reports_percentage_points_and_forms():
     rows = real_op_rows(_real_payload()["datasets"][0])
     assert [r["算子"] for r in rows] == ["sensor_stuck", "sensor_range"]
     stuck = rows[0]
-    assert stuck["旧·误杀率%"] == 50.0        # 分数 × 100（百分点），列名带 %
+    assert stuck["旧·误杀率%"] == 50.0  # 分数 × 100（百分点），列名带 %
     assert stuck["新·误杀率%"] == 25.0
     assert stuck["命中的判据形态"] == "machine_stop×2 · scale_collapse×1"
-    assert rows[1]["命中的判据形态"] == "—"   # 没有命中的形态别留空串
+    assert rows[1]["命中的判据形态"] == "—"  # 没有命中的形态别留空串
     assert real_op_rows(None) == []
 
 
 def test_real_unscored_total_sums_sample_operator_pairs():
     ds = _real_payload()["datasets"][0]
-    assert real_unscored_total(ds) == 8      # 2 + 6：每一对都是一格「没干活」
+    assert real_unscored_total(ds) == 8  # 2 + 6：每一对都是一格「没干活」
     assert real_unscored_total(None) == 0
 
 
@@ -489,7 +604,7 @@ def test_real_kill_rows_filters_and_limit():
     assert real_kill_rows(None) == []
 
     row = real_kill_rows(ds, channel="B")[0]
-    assert row["数据集标签"] == "（无标签）"   # 无标签如实写出来，不留空
+    assert row["数据集标签"] == "（无标签）"  # 无标签如实写出来，不留空
     assert row["窗口起始"].startswith("19")  # epoch 秒 → 可读时间（本机时区）
 
 
@@ -505,7 +620,7 @@ def test_rows_to_csv_has_header_and_rows():
     text = rows_to_csv(rows)
     assert text.splitlines()[0] == "算子,丢弃"
     assert len(text.splitlines()) == 3
-    assert rows_to_csv([]) == ""   # 空表返回空串，调用方据此禁用下载按钮
+    assert rows_to_csv([]) == ""  # 空表返回空串，调用方据此禁用下载按钮
 
 
 def test_image_domain_blurb_uses_registry_count_not_a_stale_number():
@@ -528,8 +643,8 @@ def test_image_domain_blurb_uses_registry_count_not_a_stale_number():
     assert live == MODALITY_COUNTS["image_caption"]
     assert f"{live} 级滤芯" in app.DOMAINS["image"]["blurb"]
     assert modality_phrase("image_caption") == f"{live} 级滤芯"
-    assert modality_phrase("no_such_modality") == "多级滤芯"   # 取不到就不编数字
-    assert app._modality_breakdown().count("/") == 3           # 四段：图文/文本/医疗/工业
+    assert modality_phrase("no_such_modality") == "多级滤芯"  # 取不到就不编数字
+    assert app._modality_breakdown().count("/") == 3  # 四段：图文/文本/医疗/工业
     # 四个双模态算子被两边各算一次，所以四段之和 ≥ 算子总数（不是相等）
     assert all(v > 0 for v in MODALITY_COUNTS.values())
     assert sum(MODALITY_COUNTS.values()) >= len(metas)

@@ -177,9 +177,7 @@ class RawDocStore:
         except (OSError, EOFError, UnicodeDecodeError) as e:
             raise RawDocCorrupted(f"{sha[:10]} 正文解压/解码失败: {e}") from e
         if sha256_of_text(text) != sha:
-            raise RawDocCorrupted(
-                f"{sha[:10]} 内容哈希与路径不符——存档损坏或被改写"
-            )
+            raise RawDocCorrupted(f"{sha[:10]} 内容哈希与路径不符——存档损坏或被改写")
         return RawDoc(
             sha256=sha,
             urls=tuple(ref.get("urls") or []),
@@ -219,7 +217,5 @@ class RawDocStore:
             "n_docs": n_docs,
             "n_bytes_raw": n_bytes_raw,
             "n_bytes_stored": n_bytes_stored,
-            "compression_ratio": (
-                round(n_bytes_stored / n_bytes_raw, 4) if n_bytes_raw else 0.0
-            ),
+            "compression_ratio": (round(n_bytes_stored / n_bytes_raw, 4) if n_bytes_raw else 0.0),
         }

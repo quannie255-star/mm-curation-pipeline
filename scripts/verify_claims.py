@@ -58,9 +58,7 @@ def check_claim(claim: dict, repo: Path = REPO) -> dict:
         ok = current == expected
     else:
         ok = (
-            current is not None
-            and expected is not None
-            and abs(current - expected) <= claim["tol"]
+            current is not None and expected is not None and abs(current - expected) <= claim["tol"]
         )
     return {**claim, "status": "pass" if ok else "drift", "current": current}
 
@@ -102,8 +100,13 @@ def main() -> int:
     print(f"{'claim':<32}{'状态':<10}{'期望':>10}{'当前':>12}  说明")
     n_drift = 0
     for r in results:
-        flag = {"pass": "PASS", "drift": "DRIFT", "missing": "缺报告",
-                "pointer-broken": "指针断", "historical": "历史数字"}.get(r["status"], r["status"])
+        flag = {
+            "pass": "PASS",
+            "drift": "DRIFT",
+            "missing": "缺报告",
+            "pointer-broken": "指针断",
+            "historical": "历史数字",
+        }.get(r["status"], r["status"])
         exp = r["expected"]
         cur = r["current"]
         line = (
@@ -130,9 +133,7 @@ def main() -> int:
         registry["claims"] = [
             {k: v for k, v in r.items() if k not in ("status", "current")} for r in results
         ]
-        claims_path.write_text(
-            json.dumps(registry, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        claims_path.write_text(json.dumps(registry, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"\n--update：{len(results)} 条 claim 已按当前报告重新锁定（请 review diff 后提交）")
         return 0
 

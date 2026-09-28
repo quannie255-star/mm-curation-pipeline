@@ -325,8 +325,12 @@ def write_fact_benchmark(items: list[dict], out_dir: Path, *, train_jsonl: Path 
     if train_jsonl and Path(train_jsonl).exists():
         leak = _leak_check(items, Path(train_jsonl))
     else:
-        leak = {"train_file": str(train_jsonl) if train_jsonl else None,
-                "md5_leaks": [], "minhash_leaks": [], "note": "训练文件未产出"}
+        leak = {
+            "train_file": str(train_jsonl) if train_jsonl else None,
+            "md5_leaks": [],
+            "minhash_leaks": [],
+            "note": "训练文件未产出",
+        }
     manifest = {
         "benchmark": "fact_ext_v1",
         "version": "v1",
@@ -339,8 +343,8 @@ def write_fact_benchmark(items: list[dict], out_dir: Path, *, train_jsonl: Path 
         "seed": 47,
         "leakage_check": leak,
         "label_protocol": "gold=supported(逐字原文) 的真假；number_swap=相近数字篡改；"
-                          "cross_doc=他文事实（纯幻觉）；源文档复用 ext 任务占用（任务不同"
-                          "标签独立，不构成泄漏），judge/pref 占用仍全数排除",
+        "cross_doc=他文事实（纯幻觉）；源文档复用 ext 任务占用（任务不同"
+        "标签独立，不构成泄漏），judge/pref 占用仍全数排除",
     }
     (out_dir / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"

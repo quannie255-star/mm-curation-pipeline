@@ -54,9 +54,7 @@ def iter_corpus_lines(corpus: Path | None):
         with open(corpus, encoding="utf-8") as f:
             yield from f
         return
-    rows = Path(
-        yaml.safe_load(CONFIG.read_text(encoding="utf-8"))["dataset"]["raw_jsonl"]
-    )
+    rows = Path(yaml.safe_load(CONFIG.read_text(encoding="utf-8"))["dataset"]["raw_jsonl"])
     with open(rows, encoding="utf-8") as f:
         yield from f
 
@@ -125,8 +123,14 @@ def main() -> None:
     samples = load_samples(args.n, args.tile, corpus)
     cfg = cpu_config()
     ops = [spec.build() for spec in cfg.operators]
-    logging.info("语料 %s 篇（tile=%s，corpus=%s），%s 级 CPU 算子（%s）",
-                 len(samples), args.tile, corpus or "config", len(ops), [o.name for o in ops])
+    logging.info(
+        "语料 %s 篇（tile=%s，corpus=%s），%s 级 CPU 算子（%s）",
+        len(samples),
+        args.tile,
+        corpus or "config",
+        len(ops),
+        [o.name for o in ops],
+    )
 
     local, t_local, _ = run_local(ops, samples)
     logging.info("local %.1fs，kept %s", t_local, len(local.kept))

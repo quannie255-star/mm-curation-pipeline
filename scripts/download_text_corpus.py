@@ -23,7 +23,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--docs", type=int, default=300_000, help="目标文档数")
     parser.add_argument(
-        "--out", default=str(OUT),
+        "--out",
+        default=str(OUT),
         help="输出 jsonl 路径（κ 块：扩量语料落独立文件，勿混入 β 基线语料——"
         "extract_docs 按目标数截断，同分片重跑会重复抽取）",
     )

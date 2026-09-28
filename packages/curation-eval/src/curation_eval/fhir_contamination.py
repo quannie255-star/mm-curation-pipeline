@@ -163,9 +163,7 @@ class FhirRefBroken(Contaminator):
     def apply(self, sample, ctx: Context):
         resource = _load(sample)
         if "subject" not in resource and "encounter" not in resource:
-            resource = _draw_donor(
-                ctx, lambda r: "subject" in r or "encounter" in r
-            )
+            resource = _draw_donor(ctx, lambda r: "subject" in r or "encounter" in r)
         key = "subject"
         if "encounter" in resource and (ctx.rng.random() < 0.3 or "subject" not in resource):
             key = "encounter"

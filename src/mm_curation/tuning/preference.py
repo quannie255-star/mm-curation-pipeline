@@ -542,8 +542,7 @@ def build_user_pref_data(
         "n_eval_main": len(eval_rows),
         "n_eval_control": min(CONTROL_EVAL_MAX, len(eval_rows)),
         "labelers": {
-            k: sum(1 for r in labels if r["labeler"] == k)
-            for k in {r["labeler"] for r in labels}
+            k: sum(1 for r in labels if r["labeler"] == k) for k in {r["labeler"] for r in labels}
         },
     }
     return triples, items, stats

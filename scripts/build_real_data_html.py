@@ -38,8 +38,9 @@ def main() -> int:
     raw = SRC.read_text(encoding="utf-8")
     payload = json.loads(raw)
     payload["meta"]["built_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    html = TEMPLATE.replace("__DATA__", json.dumps(payload, ensure_ascii=False,
-                                                    separators=(",", ":")))
+    html = TEMPLATE.replace(
+        "__DATA__", json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    )
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(html, encoding="utf-8")
     print(f"产出: {OUT}（{OUT.stat().st_size / 1e6:.2f} MB，自包含零外部依赖）")

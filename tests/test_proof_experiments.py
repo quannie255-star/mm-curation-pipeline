@@ -22,10 +22,26 @@ for _name, _rel in (
 
 def test_worst_case_gate_takes_pessimistic_aggregate():
     runs = [
-        {"seed": 42, "recall": 1.0, "false_kill_rate": 0.0104, "passed": True,
-         "n_dirty": 317, "n_dirty_caught": 317, "n_clean_killed": 11, "n_clean": 1056},
-        {"seed": 7, "recall": 0.98, "false_kill_rate": 0.0123, "passed": True,
-         "n_dirty": 300, "n_dirty_caught": 294, "n_clean_killed": 13, "n_clean": 1056},
+        {
+            "seed": 42,
+            "recall": 1.0,
+            "false_kill_rate": 0.0104,
+            "passed": True,
+            "n_dirty": 317,
+            "n_dirty_caught": 317,
+            "n_clean_killed": 11,
+            "n_clean": 1056,
+        },
+        {
+            "seed": 7,
+            "recall": 0.98,
+            "false_kill_rate": 0.0123,
+            "passed": True,
+            "n_dirty": 300,
+            "n_dirty_caught": 294,
+            "n_clean_killed": 13,
+            "n_clean": 1056,
+        },
     ]
     g = sys.modules["eval_fhir"].worst_case_gate(runs)
     assert g["recall"] == 0.98  # 最差召回

@@ -67,7 +67,10 @@ def _run_with_log(cmd: list[str], log_path: Path, total_hint: str) -> int:
     shown = 0.02
     with log_path.open("w", encoding="utf-8") as lf:
         proc = subprocess.Popen(  # noqa: S603
-            [sys.executable, "-X", "utf8", *cmd], cwd=REPO, stdout=lf, stderr=subprocess.STDOUT,
+            [sys.executable, "-X", "utf8", *cmd],
+            cwd=REPO,
+            stdout=lf,
+            stderr=subprocess.STDOUT,
             env=env,
         )
         while proc.poll() is None:
@@ -103,11 +106,13 @@ def _gen_pairs(docs: list[dict]) -> tuple[list[dict], int]:
     pairs = []
     for p in base:
         if rng.randrange(2) == 0:
-            pairs.append({**p, "cand_a": p["s"], "cand_b": p["f"],
-                          "variant_a": "S", "variant_b": "F"})
+            pairs.append(
+                {**p, "cand_a": p["s"], "cand_b": p["f"], "variant_a": "S", "variant_b": "F"}
+            )
         else:
-            pairs.append({**p, "cand_a": p["f"], "cand_b": p["s"],
-                          "variant_a": "F", "variant_b": "S"})
+            pairs.append(
+                {**p, "cand_a": p["f"], "cand_b": p["s"], "variant_a": "F", "variant_b": "S"}
+            )
     return pairs[:MAX_PAIRS], round(100 * len(base) / max(len(docs), 1))
 
 
@@ -116,31 +121,39 @@ def _gen_pairs(docs: list[dict]) -> tuple[list[dict], int]:
 
 def step_import():
     st.header("① 导入文本")
-    st.caption("这一步做什么：把文章交给系统，系统把每篇自动改成「精简版」和「完整版」两个候选，稍后请你投票。")
+    st.caption(
+        "这一步做什么：把文章交给系统，系统把每篇自动改成「精简版」和「完整版」两个候选，稍后请你投票。"
+    )
     S.protocol = st.text_area(
         "你的偏好（用一句自己的话写，训练时会告知判官）", S.protocol, height=90
     ).strip()
-    uploads = st.file_uploader("上传 txt / md 文件（可多选）", accept_multiple_files=True,
-                               type=["txt", "md"])
+    uploads = st.file_uploader(
+        "上传 txt / md 文件（可多选）", accept_multiple_files=True, type=["txt", "md"]
+    )
     pasted = st.text_area("…或直接粘贴文章（空行分隔多篇）", height=130)
     c1, c2 = st.columns(2)
     if c1.button("用上面的文本生成候选对", type="primary", use_container_width=True):
         docs = _docs_from_inputs(uploads, pasted)
         S.pairs, rate = _gen_pairs(docs)
         if S.pairs:
-            st.success(f"导入 {len(docs)} 篇 → 可用 {rate}% → "
-                       f"生成 {len(S.pairs)} 个候选对，请进第②步。")
+            st.success(
+                f"导入 {len(docs)} 篇 → 可用 {rate}% → 生成 {len(S.pairs)} 个候选对，请进第②步。"
+            )
         else:
             st.error("没有可切分的文章：需要「首行标题 + 至少两段正文」且正文含数字或引语。")
     if c2.button("没有文本？一键用示例语料", use_container_width=True):
         corpus = load_news_corpus_excluded()
         if not corpus:
-            st.error("本地没有示例语料（data/raw/news_corpus.jsonl）。先粘贴自己的文本，"
-                     "或按 RUNBOOK 运行一次爬取脚本。")
+            st.error(
+                "本地没有示例语料（data/raw/news_corpus.jsonl）。先粘贴自己的文本，"
+                "或按 RUNBOOK 运行一次爬取脚本。"
+            )
         else:
             S.pairs, rate = _gen_pairs(corpus)
-            st.success(f"示例语料 {len(corpus)} 篇（已排除其他任务占用）→ 可用 {rate}% → "
-                       f"生成 {len(S.pairs)} 个候选对，请进第②步。")
+            st.success(
+                f"示例语料 {len(corpus)} 篇（已排除其他任务占用）→ 可用 {rate}% → "
+                f"生成 {len(S.pairs)} 个候选对，请进第②步。"
+            )
     if S.pairs:
         st.info(f"当前队列：{len(S.pairs)} 对。每个候选训练时取前 {CANDIDATE_MAX_CHARS} 字。")
 
@@ -150,8 +163,10 @@ def step_import():
 
 def step_annotate():
     st.header("② 点击标注")
-    st.caption(f"这一步做什么：读两个候选，点出你更喜欢的一个；两个都不合格就点「都不合格」。"
-               f"建议至少 {RECOMMEND} 次，最低 {MIN_PAIRS} 次。")
+    st.caption(
+        f"这一步做什么：读两个候选，点出你更喜欢的一个；两个都不合格就点「都不合格」。"
+        f"建议至少 {RECOMMEND} 次，最低 {MIN_PAIRS} 次。"
+    )
     labels = _read_labels()
     if labels:
         n_reject = sum(1 for r in labels if r["choice"] == "REJECT")
@@ -207,8 +222,10 @@ def step_annotate():
 
 def step_train():
     st.header("③ 一键训练")
-    st.caption("这一步做什么：你的投票自动分成「练习题」和「考试题」（四分之一留作考试，"
-               "不参与训练），然后训练一个小判官学会你的口味，约 10~20 分钟。")
+    st.caption(
+        "这一步做什么：你的投票自动分成「练习题」和「考试题」（四分之一留作考试，"
+        "不参与训练），然后训练一个小判官学会你的口味，约 10~20 分钟。"
+    )
     if not torch.cuda.is_available():
         st.warning("未检测到可用 GPU——训练仍可进行，但会慢很多。")
     else:
@@ -224,13 +241,22 @@ def step_train():
         st.warning("训练进行中，请不要关闭或刷新页面。")
         rc = _run_with_log(["scripts/build_user_pref_data.py"], TRAIN_LOG, "整理练习题与考试题…")
         if rc != 0:
-            st.error("整理数据失败：通常是标注里出现了多种「偏好协议」文字。"
-                     "请统一第①步的协议后重试。")
+            st.error(
+                "整理数据失败：通常是标注里出现了多种「偏好协议」文字。请统一第①步的协议后重试。"
+            )
             return
         rc = _run_with_log(
-            ["scripts/finetune_judge_dpo.py", "--persona", "USER", "--data", DPO,
-             "--out", "models/judge_pref_USER"],
-            TRAIN_LOG, "训练中…",
+            [
+                "scripts/finetune_judge_dpo.py",
+                "--persona",
+                "USER",
+                "--data",
+                DPO,
+                "--out",
+                "models/judge_pref_USER",
+            ],
+            TRAIN_LOG,
+            "训练中…",
         )
         if rc == 0:
             st.success("训练完成！去第④步看你的判官考了多少分。")
@@ -243,17 +269,26 @@ def step_train():
 
 def step_eval():
     st.header("④ 评测出分")
-    st.caption("这一步做什么：让你的判官做留出的考题，并让「未训练的通用模型」考同一张卷——"
-               "两相对比就是你微调的真实效果。")
+    st.caption(
+        "这一步做什么：让你的判官做留出的考题，并让「未训练的通用模型」考同一张卷——"
+        "两相对比就是你微调的真实效果。"
+    )
     if not (ADAPTER.exists() and Path(REPO / BENCH).exists()):
         st.warning("还没有训练好的判官，先完成第③步。")
         return
     if st.button("开始评测（约 5~10 分钟）", type="primary", use_container_width=True):
         st.warning("评测进行中，请不要关闭或刷新页面。")
         rc = _run_with_log(
-            ["scripts/run_pref_benchmark.py", "--benchmark", BENCH,
-             "--adapters", "USER=models/judge_pref_USER", "--generic"],
-            EVAL_LOG, "评卷中…",
+            [
+                "scripts/run_pref_benchmark.py",
+                "--benchmark",
+                BENCH,
+                "--adapters",
+                "USER=models/judge_pref_USER",
+                "--generic",
+            ],
+            EVAL_LOG,
+            "评卷中…",
         )
         if rc != 0:
             st.error(f"评测失败（退出码 {rc}）。")
@@ -269,8 +304,9 @@ def step_eval():
             m2.metric("你的判官", f"{mine:.1%}", f"提升 +{(mine - base) * 100:.0f} 个百分点")
             ctrl_m = judges.get("USER", {}).get("USER/control")
             if ctrl_m is not None:
-                st.caption(f"质检题（带广告损伤的候选应被否决）："
-                           f"你的判官 {ctrl_m:.1%}（如实记录，不设线）")
+                st.caption(
+                    f"质检题（带广告损伤的候选应被否决）：你的判官 {ctrl_m:.1%}（如实记录，不设线）"
+                )
         else:
             st.json(judges, expanded=False)
     elif ADAPTER.exists():
@@ -299,8 +335,10 @@ def _load_judge(adapter_dir: str):
 
 def step_use():
     st.header("⑤ 判官试用")
-    st.caption("这一步做什么：贴上任意两个候选，判官按你的偏好替你选。"
-               "「候选甲/乙」的顺序不影响结果吗？——会影响一点，这正是它像人的一面。")
+    st.caption(
+        "这一步做什么：贴上任意两个候选，判官按你的偏好替你选。"
+        "「候选甲/乙」的顺序不影响结果吗？——会影响一点，这正是它像人的一面。"
+    )
     has_adapter = ADAPTER.exists()
     if not has_adapter:
         st.info("还没有训练好的判官：现在作答的是未微调的通用模型，可作对照。")
@@ -329,7 +367,7 @@ def step_use():
             gen = model.generate(
                 **enc, max_new_tokens=96, do_sample=False, pad_token_id=tok.pad_token_id
             )
-        out = tok.decode(gen[0][enc["input_ids"].shape[1]:], skip_special_tokens=True)
+        out = tok.decode(gen[0][enc["input_ids"].shape[1] :], skip_special_tokens=True)
         choice = parse_choice(out)
         if choice:
             st.markdown(f"## 判官的选择：**候选 {choice}**")

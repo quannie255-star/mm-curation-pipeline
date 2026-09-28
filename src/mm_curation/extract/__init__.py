@@ -97,9 +97,7 @@ def default_chain(
     """默认抽取链（按参数缓存——链条是无状态的，重复构造纯属浪费）。"""
     key = (tuple(names) if names is not None else available_extractors(), min_chars)
     if key not in _chain_cache:
-        _chain_cache[key] = ExtractionChain.default(
-            names=key[0], min_chars=key[1]
-        )
+        _chain_cache[key] = ExtractionChain.default(names=key[0], min_chars=key[1])
     return _chain_cache[key]
 
 

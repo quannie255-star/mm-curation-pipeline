@@ -25,14 +25,26 @@ def test_check_claim_pass_and_drift(tmp_path):
     f = tmp_path / "report.json"
     f.write_text(json.dumps({"gate": {"recall": 0.98}}), encoding="utf-8")
     ok = check_claim(
-        {"id": "x", "file": "report.json", "pointer": "gate.recall",
-         "expected": 0.98, "tol": 0.001, "comparator": "approx"},
+        {
+            "id": "x",
+            "file": "report.json",
+            "pointer": "gate.recall",
+            "expected": 0.98,
+            "tol": 0.001,
+            "comparator": "approx",
+        },
         repo=tmp_path,
     )
     assert ok["status"] == "pass"
     drift = check_claim(
-        {"id": "x", "file": "report.json", "pointer": "gate.recall",
-         "expected": 0.90, "tol": 0.001, "comparator": "approx"},
+        {
+            "id": "x",
+            "file": "report.json",
+            "pointer": "gate.recall",
+            "expected": 0.90,
+            "tol": 0.001,
+            "comparator": "approx",
+        },
         repo=tmp_path,
     )
     assert drift["status"] == "drift" and drift["current"] == 0.98
@@ -40,13 +52,21 @@ def test_check_claim_pass_and_drift(tmp_path):
 
 def test_check_claim_missing_and_historical(tmp_path):
     missing = check_claim(
-        {"id": "x", "file": "nope.json", "pointer": "a.b", "expected": 1,
-         "tol": 0, "comparator": "approx"},
+        {
+            "id": "x",
+            "file": "nope.json",
+            "pointer": "a.b",
+            "expected": 1,
+            "tol": 0,
+            "comparator": "approx",
+        },
         repo=tmp_path,
     )
     assert missing["status"] == "missing"
-    hist = check_claim({"id": "h", "comparator": "historical", "file": None,
-                        "pointer": None, "expected": -0.017}, repo=tmp_path)
+    hist = check_claim(
+        {"id": "h", "comparator": "historical", "file": None, "pointer": None, "expected": -0.017},
+        repo=tmp_path,
+    )
     assert hist["status"] == "historical"
 
 
@@ -56,9 +76,13 @@ def test_fingerprint_drift_detection(tmp_path):
     import hashlib
 
     md5 = hashlib.md5(f.read_bytes()).hexdigest()
-    registry = {"meta": {"data_fingerprints": {
-        "data.jsonl": {"md5": md5, "rows": 2},
-    }}}
+    registry = {
+        "meta": {
+            "data_fingerprints": {
+                "data.jsonl": {"md5": md5, "rows": 2},
+            }
+        }
+    }
     assert check_fingerprints(registry, repo=tmp_path)[0]["status"] == "pass"
     registry["meta"]["data_fingerprints"]["data.jsonl"]["rows"] = 3
     assert check_fingerprints(registry, repo=tmp_path)[0]["status"] == "drift"

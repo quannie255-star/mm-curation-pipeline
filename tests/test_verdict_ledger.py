@@ -85,7 +85,11 @@ def _scored(sid: str, score: float, text: str = "内容") -> Sample:
 def test_build_verdict_drop_has_full_evidence_chain():
     s = _scored("s1", 12.0)
     v = build_verdict(
-        run_id="r1", seq=1, op="doc_length", sample=s, dropped=True,
+        run_id="r1",
+        seq=1,
+        op="doc_length",
+        sample=s,
+        dropped=True,
         params={"min": 30, "max": 50000},
     )
     assert v.v == VERDICT_SCHEMA_VERSION
@@ -135,8 +139,11 @@ def test_ledger_writes_jsonl_and_manifest(tmp_path: Path):
     for i in range(3):
         led.record(
             build_verdict(
-                run_id="run-x", seq=1, op="doc_length",
-                sample=_scored(f"s{i}", 1.0), dropped=False,
+                run_id="run-x",
+                seq=1,
+                op="doc_length",
+                sample=_scored(f"s{i}", 1.0),
+                dropped=False,
             )
         )
     led.close(extra={"n_kept": 3})

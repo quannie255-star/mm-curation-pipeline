@@ -28,12 +28,8 @@ N_PATIENT, N_ENCOUNTER = 100, 100
 N_OBSERVATION, N_MEDICATION = 200, 100
 
 # 通用常见姓名样式（姓氏/名各 20，组合 400；基线只落 family，given 脱敏为 "*"）
-FAMILY_NAMES = (
-    "张 王 李 赵 刘 陈 杨 黄 周 吴 徐 孙 马 朱 胡 郭 何 高 林 罗"
-).split()
-GIVEN_NAMES = (
-    "伟 芳 娜 敏 静 丽 强 磊 军 洋 勇 艳 杰 娟 涛 明 超 秀 兰 霞"
-).split()
+FAMILY_NAMES = ("张 王 李 赵 刘 陈 杨 黄 周 吴 徐 孙 马 朱 胡 郭 何 高 林 罗").split()
+GIVEN_NAMES = ("伟 芳 娜 敏 静 丽 强 磊 军 洋 勇 艳 杰 娟 涛 明 超 秀 兰 霞").split()
 
 # code_validity 内嵌码表（system URL -> (格式正则, 合法码集)），见 fhir_quality.py
 ICD10_SYSTEM = "http://hl7.org/fhir/sid/icd-10"
@@ -52,8 +48,7 @@ LOINC_CODES = (
 ).split()
 
 ATC_CODES = (
-    "A10BA02 A10BH05 C09AA02 C10AA01 B01AC06 C07AB02 N02BE01 J01MA02 "
-    "H03AA01 N05BA06"
+    "A10BA02 A10BH05 C09AA02 C10AA01 B01AC06 C07AB02 N02BE01 J01MA02 H03AA01 N05BA06"
 ).split()
 
 UCUM_UNITS = ("mg/dL", "mmol/L", "mmHg", "{beats}/min", "%", "kg", "cm", "Cel", "mg", "mL")
@@ -127,11 +122,7 @@ def _observation(
         "id": f"{k:06d}",
         "meta": {"lastUpdated": _iso(_EPOCH + timedelta(seconds=2000 + k))},
         "status": "final",
-        "code": {
-            "coding": [
-                {"system": LOINC_SYSTEM, "code": LOINC_CODES[k % len(LOINC_CODES)]}
-            ]
-        },
+        "code": {"coding": [{"system": LOINC_SYSTEM, "code": LOINC_CODES[k % len(LOINC_CODES)]}]},
         "subject": {"reference": f"Patient/{k % n_patient:06d}"},
         "encounter": {"reference": f"Encounter/{enc_j:06d}"},
         "effectiveDateTime": _iso(effective),
@@ -189,8 +180,7 @@ def generate_corpus(seed: int = 42, scale: float = 1.0) -> list[Sample]:
     samples = [FHIRSample.from_resource(r) for r in patients]
     samples += [FHIRSample.from_resource(r) for r in encounters]
     samples += [
-        FHIRSample.from_resource(_observation(k, n_pat, enc_period, rng))
-        for k in range(n_obs)
+        FHIRSample.from_resource(_observation(k, n_pat, enc_period, rng)) for k in range(n_obs)
     ]
     samples += [
         FHIRSample.from_resource(_medication_request(m, n_pat, enc_period, rng))

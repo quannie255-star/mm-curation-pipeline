@@ -78,9 +78,7 @@ class SensorSample:
                     "operating_mode": payload["operating_mode"],
                 }
             )
-            sample_id = (
-                f"win_{device_id}_{payload['channel']}_{_COMPACT.sub('', start)}"
-            )
+            sample_id = f"win_{device_id}_{payload['channel']}_{_COMPACT.sub('', start)}"
         else:
             sample_id = f"maint_{device_id}_{_COMPACT.sub('', start)}"
         return Sample(

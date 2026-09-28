@@ -1032,9 +1032,7 @@ class SensorMultivariateOp(BatchOperator):
                     row, sensor_side, stat, detail = device_rows[i]
                     if not sensor_side:
                         flags[row] = 1.0
-                        detail["attribution"] = (
-                            "多通道共同变化：设备状态变了，读数本身合法（保留）"
-                        )
+                        detail["attribution"] = "多通道共同变化：设备状态变了，读数本身合法（保留）"
                         evidence[row] = detail
                         i += 1
                         continue

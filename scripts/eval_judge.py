@@ -69,7 +69,9 @@ def main() -> None:
     parser.add_argument("--min", type=float, default=0.5, help="judge 通过阈值")
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument(
-        "--timeout", type=float, default=None,
+        "--timeout",
+        type=float,
+        default=None,
         help="单次 judge 调用超时秒数（缺省用算子默认 30s；1.5B 本机服务建议 90+）",
     )
     args = parser.parse_args()
@@ -95,7 +97,10 @@ def main() -> None:
     # judge 全评
     op_kwargs = {"timeout_s": args.timeout} if args.timeout else {}
     judge = LlmJudgeOp(
-        base_url=args.base_url, sample_rate=1.0, max_workers=args.workers, min=args.min,
+        base_url=args.base_url,
+        sample_rate=1.0,
+        max_workers=args.workers,
+        min=args.min,
         **op_kwargs,
     )
     judge.run_batch(list(mixed))

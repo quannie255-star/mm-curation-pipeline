@@ -220,8 +220,7 @@ def render_markdown(report: dict) -> str:
     L.append(f"- 配置：`{report['config']}`（算子：{'、'.join(report['ops'])}）")
     if report["excluded_ops"]:
         L.append(
-            f"- **未参与**：{report['excluded_ops']}（成本档 MODEL/LLM，"
-            f"用 `--allow-model` 可纳入）"
+            f"- **未参与**：{report['excluded_ops']}（成本档 MODEL/LLM，用 `--allow-model` 可纳入）"
         )
     L.append("")
     L.append("## 一句话结论")
@@ -244,31 +243,56 @@ def render_markdown(report: dict) -> str:
             )
         )
     L.append("")
-    L.append(f"- **存活**：A {a['n_kept']} 篇（{100 * a['kept_ratio']:.1f}%）"
-             f" → B {b['n_kept']} 篇（{100 * b['kept_ratio']:.1f}%）"
-             f"，Δ = **{cmp_['n_kept_delta']:+d}**")
-    L.append(f"- **裁决条数**：A {a['n_verdict_rows']} / B {b['n_verdict_rows']}"
-             f"（须等于各滤级进入数之和；若凭空变大即读到了历史运行的残留）")
+    L.append(
+        f"- **存活**：A {a['n_kept']} 篇（{100 * a['kept_ratio']:.1f}%）"
+        f" → B {b['n_kept']} 篇（{100 * b['kept_ratio']:.1f}%）"
+        f"，Δ = **{cmp_['n_kept_delta']:+d}**"
+    )
+    L.append(
+        f"- **裁决条数**：A {a['n_verdict_rows']} / B {b['n_verdict_rows']}"
+        f"（须等于各滤级进入数之和；若凭空变大即读到了历史运行的残留）"
+    )
     L.append("")
     L.append("## 语料形态（归一化的作用面）")
     L.append("")
     ca, cb = report["corpus_A"], report["corpus_B"]
     L.append("| 指标 | A（原样） | B（归一化后） |")
     L.append("|---|---|---|")
-    L.append(_md_row("空白占比 p50", f"{ca['whitespace_ratio_p50']:.4f}",
-                     f"{cb['whitespace_ratio_p50']:.4f}"))
-    L.append(_md_row("空白占比 p90", f"{ca['whitespace_ratio_p90']:.4f}",
-                     f"{cb['whitespace_ratio_p90']:.4f}"))
-    L.append(_md_row("空白占比 >50% 的篇目",
-                     ca["n_whitespace_dominant"], cb["n_whitespace_dominant"]))
-    L.append(_md_row("中文占比（含空白分母）p50", f"{ca['cjk_ratio_raw_p50']:.4f}",
-                     f"{cb['cjk_ratio_raw_p50']:.4f}"))
-    L.append(_md_row("中文占比（去空白分母）p50", f"{ca['cjk_ratio_nospace_p50']:.4f}",
-                     f"{cb['cjk_ratio_nospace_p50']:.4f}"))
-    L.append(_md_row("字符总量（进下游的载体）", f"{ca['chars_total']:,}",
-                     f"{cb['chars_total']:,}"))
-    L.append(_md_row("去空白后字符总量", f"{ca['chars_total_nospace']:,}",
-                     f"{cb['chars_total_nospace']:,}"))
+    L.append(
+        _md_row(
+            "空白占比 p50", f"{ca['whitespace_ratio_p50']:.4f}", f"{cb['whitespace_ratio_p50']:.4f}"
+        )
+    )
+    L.append(
+        _md_row(
+            "空白占比 p90", f"{ca['whitespace_ratio_p90']:.4f}", f"{cb['whitespace_ratio_p90']:.4f}"
+        )
+    )
+    L.append(
+        _md_row("空白占比 >50% 的篇目", ca["n_whitespace_dominant"], cb["n_whitespace_dominant"])
+    )
+    L.append(
+        _md_row(
+            "中文占比（含空白分母）p50",
+            f"{ca['cjk_ratio_raw_p50']:.4f}",
+            f"{cb['cjk_ratio_raw_p50']:.4f}",
+        )
+    )
+    L.append(
+        _md_row(
+            "中文占比（去空白分母）p50",
+            f"{ca['cjk_ratio_nospace_p50']:.4f}",
+            f"{cb['cjk_ratio_nospace_p50']:.4f}",
+        )
+    )
+    L.append(
+        _md_row("字符总量（进下游的载体）", f"{ca['chars_total']:,}", f"{cb['chars_total']:,}")
+    )
+    L.append(
+        _md_row(
+            "去空白后字符总量", f"{ca['chars_total_nospace']:,}", f"{cb['chars_total_nospace']:,}"
+        )
+    )
     L.append(_md_row("每篇字符数 p50", ca["chars_per_doc_p50"], cb["chars_per_doc_p50"]))
     L.append("")
     L.append(
@@ -282,8 +306,9 @@ def render_markdown(report: dict) -> str:
     L.append("")
     ns = report["normalize_aggregate"]
     L.append(f"- 被改写：{ns['n_changed']}/{ns['n']}（{100 * ns['changed_ratio']:.1f}%）")
-    L.append(f"- 字符净减：{ns['chars_removed_total']}"
-             f"（占原文 {100 * ns['chars_removed_ratio']:.1f}%）")
+    L.append(
+        f"- 字符净减：{ns['chars_removed_total']}（占原文 {100 * ns['chars_removed_ratio']:.1f}%）"
+    )
     L.append(f"- 改后为空被丢弃：{ns['n_emptied']}")
     L.append(f"- 逐规则命中：{ns['rule_counts']}")
     L.append("")
@@ -293,11 +318,13 @@ def render_markdown(report: dict) -> str:
     L.append("|---|---|---|")
     rules = sorted(set(a["verdict"]["by_rule"]) | set(b["verdict"]["by_rule"]))
     for r in rules:
-        L.append(_md_row(
-            f"`{r}`",
-            a["verdict"]["by_rule"].get(r, 0),
-            b["verdict"]["by_rule"].get(r, 0),
-        ))
+        L.append(
+            _md_row(
+                f"`{r}`",
+                a["verdict"]["by_rule"].get(r, 0),
+                b["verdict"]["by_rule"].get(r, 0),
+            )
+        )
     L.append("")
     L.append("## 复现")
     L.append("")
@@ -410,9 +437,7 @@ def main() -> None:
         "variant_B": vb,
     }
     report["comparison"] = build_comparison(va, vb)
-    report["headline"] = build_headline(
-        report["comparison"], va, vb, report["normalize_aggregate"]
-    )
+    report["headline"] = build_headline(report["comparison"], va, vb, report["normalize_aggregate"])
 
     (out_dir / f"{args.report_name}.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -423,8 +448,7 @@ def main() -> None:
     print("\n逐算子 Δ：")
     for r in report["comparison"]["per_op"]:
         print(
-            f"  {r['op']:18s} A={r['dropped_A']:5d} "
-            f"B={r['dropped_B']:5d} Δ={r['delta_dropped']:+d}"
+            f"  {r['op']:18s} A={r['dropped_A']:5d} B={r['dropped_B']:5d} Δ={r['delta_dropped']:+d}"
         )
     print(f"\n报告：{out_dir}/{args.report_name}.{{json,md}}")
 

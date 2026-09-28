@@ -238,8 +238,7 @@ def cmd_platform(a) -> int:
 
     if not a.platform_args:
         print(
-            "用法：mmc.py platform "
-            "<run|dag|obs|contracts|prune|runs|watermarks|promote|serve> ..."
+            "用法：mmc.py platform <run|dag|obs|contracts|prune|runs|watermarks|promote|serve> ..."
         )
         print("     详见 python -m mm_curation.cli --help")
         return 0

@@ -173,7 +173,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--steps", type=int, default=100)
     parser.add_argument(
-        "--seed", type=int, default=None,
+        "--seed",
+        type=int,
+        default=None,
         help="训练随机种子（V5 β 补：历史报告未记录 seed，单 seed 局限见 PROOF_CHAIN §九）",
     )
     args = parser.parse_args()

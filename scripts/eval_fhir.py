@@ -71,18 +71,13 @@ def worst_case_gate(runs: list[dict]) -> dict:
         "recall_mean": round(sum(r["recall"] for r in runs) / len(runs), 4),
         "recall_std": round(
             (
-                sum(
-                    (r["recall"] - sum(x["recall"] for x in runs) / len(runs)) ** 2
-                    for r in runs
-                )
+                sum((r["recall"] - sum(x["recall"] for x in runs) / len(runs)) ** 2 for r in runs)
                 / (len(runs) - 1 if len(runs) > 1 else 1)
             )
             ** 0.5,
             4,
         ),
-        "false_kill_mean": round(
-            sum(r["false_kill_rate"] for r in runs) / len(runs), 4
-        ),
+        "false_kill_mean": round(sum(r["false_kill_rate"] for r in runs) / len(runs), 4),
     }
 
 
@@ -98,7 +93,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
-        "--seeds", default=None,
+        "--seeds",
+        default=None,
         help="逗号分隔多 seed 稳定性实验（如 42,7,2026）；提供时覆盖 --seed",
     )
     parser.add_argument("--scale", type=float, default=1.0)
@@ -120,9 +116,7 @@ def main() -> int:
 
     def run_one(seed: int) -> dict:
         corpus = generate_corpus(seed=seed, scale=args.scale)
-        plan = ContaminationPlan(
-            inject_rate=args.inject_rate, seed=seed, kinds=dict(FHIR_KINDS)
-        )
+        plan = ContaminationPlan(inject_rate=args.inject_rate, seed=seed, kinds=dict(FHIR_KINDS))
         mixed, manifest = plan.run(corpus, Path("data/tmp_fhir_images"))
         samples = [Sample.from_dict(s.to_dict()) for s in mixed]
         results, dirty_totals, n_clean = evaluate_all(config.operators, samples)
@@ -138,10 +132,7 @@ def main() -> int:
                 min(
                     (
                         v
-                        for v in (
-                            r.recall_of(t, dirty_totals.get(t, 0))
-                            for t in r.primary_target
-                        )
+                        for v in (r.recall_of(t, dirty_totals.get(t, 0)) for t in r.primary_target)
                         if v is not None
                     ),
                     default=None,
@@ -151,7 +142,10 @@ def main() -> int:
         }
         logging.info(
             "seed=%d：语料 %d + 注入 %d，召回 %.1f%%，误杀 %.2f%%",
-            seed, len(samples), manifest["n_injected"], gate["recall"] * 100,
+            seed,
+            len(samples),
+            manifest["n_injected"],
+            gate["recall"] * 100,
             gate["false_kill_rate"] * 100,
         )
         return gate
@@ -197,9 +191,10 @@ def main() -> int:
     print(f"{'算子':<26}{'扔':>5}{'误杀':>5}{'precision':>10}{'主靶recall':>12}")
     for r in results:
         prec = "—" if r.precision is None else f"{r.precision:.1%}"
-        prim = "/".join(
-            f"{r.recall_of(t, dirty_totals.get(t, 0)) or 0:.0%}" for t in r.primary_target
-        ) or "—"
+        prim = (
+            "/".join(f"{r.recall_of(t, dirty_totals.get(t, 0)) or 0:.0%}" for t in r.primary_target)
+            or "—"
+        )
         print(f"{r.op:<26}{r.n_dropped:>5}{r.clean_killed:>5}{prec:>10}{prim:>12}")
     print(
         f"漏斗门禁（{'%d seeds 最差口径' % len(runs) if len(runs) > 1 else '单 seed'}）: "

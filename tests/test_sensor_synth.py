@@ -41,19 +41,14 @@ def test_planned_maintenance_absent_and_covered():
         for s in samples
         if s.meta["sensor_record_type"] == "reading_window"
     }
-    events = [
-        s for s in samples if s.meta["sensor_record_type"] == "maintenance_event"
-    ]
+    events = [s for s in samples if s.meta["sensor_record_type"] == "maintenance_event"]
     assert events
     for ev in events:
         device = ev.meta["device_id"]
         span = ev.meta["window_end"]
         # 事件窗 [start, end] 内不应有任何该设备的读数窗
         inside = [
-            (d, t)
-            for (d, t) in starts
-            if d == device
-            and ev.meta["window_start"] <= t <= span
+            (d, t) for (d, t) in starts if d == device and ev.meta["window_start"] <= t <= span
         ]
         assert not inside, f"计划检修窗内不应有读数: {device} @ {ev.meta['window_start']}"
 
@@ -85,6 +80,4 @@ def test_baseline_group_has_earlier_slots():
     for starts in by_channel.values():
         assert starts == sorted(starts)
         first = datetime.fromisoformat(starts[0])
-        assert all(
-            datetime.fromisoformat(t) > first for t in starts[1:]
-        )
+        assert all(datetime.fromisoformat(t) > first for t in starts[1:])

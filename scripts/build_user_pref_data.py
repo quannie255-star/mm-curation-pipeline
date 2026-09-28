@@ -29,7 +29,8 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=0, help="学习曲线通道：只取前 N 个有效对")
     parser.add_argument("--min-pairs", type=int, default=80, help="最低有效对数（学习曲线时放宽）")
     parser.add_argument(
-        "--freeze-eval-from", default=None,
+        "--freeze-eval-from",
+        default=None,
         help="冻结考卷：从既有 benchmark items.jsonl 取 main 题 source_id，"
         "这些来源的对强制进评测、其余全进训练（加量不换考卷）",
     )

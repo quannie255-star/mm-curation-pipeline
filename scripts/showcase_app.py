@@ -49,8 +49,7 @@ def _modality_counts() -> dict[str, int]:
         return {}
     metas = available_operator_metas()
     return {
-        m: sum(1 for meta in metas.values() if m in (meta.modalities or ()))
-        for m in MODALITY_KEYS
+        m: sum(1 for meta in metas.values() if m in (meta.modalities or ())) for m in MODALITY_KEYS
     }
 
 
@@ -90,7 +89,7 @@ DOMAINS = {
         "tag": "图像 + 文字描述",
         "report": "operator_pr.json",
         "blurb": f"{modality_phrase('image_caption')}：模糊图、重复图、图文不符、低质描述……"
-                 "清洗后检索准确率提升 21%",
+        "清洗后检索准确率提升 21%",
         "cmd": "python scripts/eval_operators.py",
         "cost": "约 4 分钟（需要先准备图文数据集）",
     },
@@ -383,8 +382,7 @@ def verdict_table(
                 "滤芯": r.get("op"),
                 "判决": "删" if r.get("decision") == "drop" else "留",
                 "分数": None if r.get("score") is None else round(r["score"], 4),
-                "门限": ", ".join(f"{k}={v}" for k, v in (r.get("threshold") or {}).items())
-                or "—",
+                "门限": ", ".join(f"{k}={v}" for k, v in (r.get("threshold") or {}).items()) or "—",
                 "判据": r.get("rule"),
                 "指纹": (r.get("input_fingerprint") or "")[7:19],
             }
@@ -397,9 +395,7 @@ def verdict_table(
 def score_values(rows: list[dict], op: str) -> list[float]:
     """某一级滤芯的分数列（判决台账是唯一数据源，不另算）。"""
     return [
-        r["score"]
-        for r in rows
-        if r.get("op") == op and isinstance(r.get("score"), (int, float))
+        r["score"] for r in rows if r.get("op") == op and isinstance(r.get("score"), (int, float))
     ]
 
 
@@ -575,9 +571,7 @@ def real_curve_rows(ds: dict | None, op: str = "sensor_drift") -> list[dict]:
 
 def real_curve_point(rows: list[dict], scale: str, z: float) -> dict | None:
     """取网格上离 `(scale, z)` 最近的工作点——z 落在两档之间时取近档（界面上如实标注）。"""
-    cands = [
-        r for r in rows if r["尺度"] == scale and r["z"] is not None and r["召回"] is not None
-    ]
+    cands = [r for r in rows if r["尺度"] == scale and r["z"] is not None and r["召回"] is not None]
     if not cands:
         return None
     return min(cands, key=lambda r: abs(r["z"] - z))
@@ -946,10 +940,11 @@ def render_real() -> None:
             index=scales.index("mad") if "mad" in scales else 0,
             key="real_scale",
             help="pooled：窗内噪声能推出多大窗均值抖动（合成档用的）。"
-                 "mad：这个通道自己观察到的窗间波动有多大（只会更宽松）。",
+            "mad：这个通道自己观察到的窗间波动有多大（只会更宽松）。",
         )
-        z = f2.select_slider("阈值档（z 倍数，预计算网格）", options=zs,
-                             value=zs[len(zs) // 2], key="real_z")
+        z = f2.select_slider(
+            "阈值档（z 倍数，预计算网格）", options=zs, value=zs[len(zs) // 2], key="real_z"
+        )
         point = real_curve_point(curve, scale, z)
         try:
             import altair as alt
@@ -962,25 +957,19 @@ def render_real() -> None:
 
             frame = pd.DataFrame([r for r in curve if r["召回"] is not None])
             mad = frame[frame["尺度"] == "mad"].sort_values("召回")
-            chart = (
-                alt.Chart(mad)
-                .mark_area(opacity=0.15, color="#0E7490", interpolate="monotone")
-                .encode(x="召回:Q", y="误杀率:Q")
-                + alt.Chart(frame)
-                .mark_line(point=True, strokeWidth=2)
-                .encode(
-                    x=alt.X("召回:Q", title="真实脏召回（上界口径）",
-                            axis=alt.Axis(format="%")),
-                    y=alt.Y("误杀率:Q", title="误杀率（上界口径）",
-                            axis=alt.Axis(format="%")),
-                    color=alt.Color(
-                        "尺度:N",
-                        title="判据尺度",
-                        scale=alt.Scale(domain=["pooled", "mad"],
-                                        range=["#94A3B8", "#0E7490"]),
-                    ),
-                    tooltip=["标签:N", "z:Q", "召回:Q", "误杀率:Q", "丢弃数:Q"],
-                )
+            chart = alt.Chart(mad).mark_area(
+                opacity=0.15, color="#0E7490", interpolate="monotone"
+            ).encode(x="召回:Q", y="误杀率:Q") + alt.Chart(frame).mark_line(
+                point=True, strokeWidth=2
+            ).encode(
+                x=alt.X("召回:Q", title="真实脏召回（上界口径）", axis=alt.Axis(format="%")),
+                y=alt.Y("误杀率:Q", title="误杀率（上界口径）", axis=alt.Axis(format="%")),
+                color=alt.Color(
+                    "尺度:N",
+                    title="判据尺度",
+                    scale=alt.Scale(domain=["pooled", "mad"], range=["#94A3B8", "#0E7490"]),
+                ),
+                tooltip=["标签:N", "z:Q", "召回:Q", "误杀率:Q", "丢弃数:Q"],
             )
             if point:
                 mark = pd.DataFrame([point])
@@ -1132,7 +1121,8 @@ def main() -> None:
                     "召回": "—" if not gates.get(k) else f"{gates[k]['recall']:.1%}",
                     "误杀": "—" if not gates.get(k) else f"{gates[k]['false_kill']:.2%}",
                     "验收": (
-                        "未生成" if not gates.get(k)
+                        "未生成"
+                        if not gates.get(k)
                         else ("合格" if gates[k]["passed"] else "未达标")
                     ),
                 }
@@ -1154,8 +1144,7 @@ def main() -> None:
         reports = load_report(DOMAINS["text"]["report"])
         if reports is None:
             st.warning(
-                f"质检报告还没生成。运行下面的命令（{DOMAINS['text']['cost']}），"
-                "跑完回来看读数。"
+                f"质检报告还没生成。运行下面的命令（{DOMAINS['text']['cost']}），跑完回来看读数。"
             )
             st.code(DOMAINS["text"]["cmd"], language="bash")
         else:
@@ -1226,9 +1215,7 @@ def main() -> None:
                     "空白占比 >50% 的篇目", shape.get("n_whitespace_dominant", 0), border=True
                 )
                 ns = cmp_report.get("normalize_aggregate") or {}
-                c3.metric(
-                    "被归一化改写", f"{ns.get('n_changed', 0)}/{ns.get('n', 0)}", border=True
-                )
+                c3.metric("被归一化改写", f"{ns.get('n_changed', 0)}/{ns.get('n', 0)}", border=True)
                 st.caption(
                     "读法：空白占比的**中位数**几乎不动、**p90** 却差一个数量级——"
                     "语料是双峰的（干净篇目 + 严重膨胀篇目）。归一化作用在那条长尾上，"

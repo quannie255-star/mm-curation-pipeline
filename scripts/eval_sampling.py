@@ -86,7 +86,10 @@ def main() -> None:
     parser.add_argument("--clean-source", default=CLEAN_SOURCE)
     parser.add_argument("--budgets", nargs="+", type=int, default=[1200, 1000, 800])
     parser.add_argument(
-        "--prune-fracs", nargs="+", type=float, default=[0.2],
+        "--prune-fracs",
+        nargs="+",
+        type=float,
+        default=[0.2],
         help="semde_dup 的簇内剪枝比例 ε（V3 λ 消融：0.1 0.2 0.3）",
     )
     parser.add_argument("--semde-clusters", type=int, default=64)
@@ -121,8 +124,10 @@ def main() -> None:
     ]
     for frac in args.prune_fracs:
         samplers.append(
-            (f"semde_dup(e={frac:g})",
-             SemanticPruneSampler(pool_vecs, n_clusters=args.semde_clusters, prune_frac=frac))
+            (
+                f"semde_dup(e={frac:g})",
+                SemanticPruneSampler(pool_vecs, n_clusters=args.semde_clusters, prune_frac=frac),
+            )
         )
 
     results: list[BudgetResult] = []
