@@ -3,6 +3,16 @@ name: Data CI
 # 数据质量门禁（V2 ε）：与代码 CI 的区别——单测验证「逻辑对」，
 # 本工作流验证「质量数字达标」。合成带标注语料上真跑 dedup_fast，
 # 召回/误杀低于门限即红（劣化注入实测可红，见 scripts/data_ci_benchmark.py）。
+#
+# 与 ci.yml 的分工（2026-09-27）：
+# - 本工作流 = **极小依赖**的数据质量门（numpy/pillow/datasketch/pyyaml/imagehash），
+#   秒级跑完，只要"质量数字"退化就红；
+# - ci.yml = 全量单测（含平台轨 `tests/test_platform_*.py` 的湖仓/台账/DAG/服务/观测）
+#   + ruff + Airflow 导出物同步。
+# 平台轨的数据侧门禁（`mmc contracts` / `mmc obs`）**刻意不放在这里**：
+# 它们需要一个已构建的湖（`data/lake/**` 是生成物、不入库），
+# 干净检出里没有可校验的对象——放进来只会变成一条永远被 skip 的假门禁。
+# 它们在 `docs/PLATFORM.md` 第九节有本地复现命令。
 
 on:
   push:

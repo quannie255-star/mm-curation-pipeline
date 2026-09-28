@@ -1,0 +1,30 @@
+# 服务容器依赖（CPU 轻量集）——`docker/Dockerfile.app` 装的就是这一份。
+#
+# 为什么**不直接**用 `requirements.txt`：那份是"宿主机全量 venv"，
+# 里面含 transformers / peft / trl / datasets / matplotlib / streamlit / faiss，
+# 拉进来是 GB 级，而且 peft/trl 会把整条训练栈带进一个只需要出数的容器。
+# 镜像体积与攻击面都会因此失真，而容器要做的事只有三件：
+# **读湖上的 Parquet、查数仓、响应 HTTP**。
+#
+# 平台轨（`mm_curation.platform`）的顶层第三方 import 只有以下 5 个，
+# 这份文件就是它们的精确集合（实测：`duckdb / pyarrow / yaml / fastapi / uvicorn`）。
+# GPU 训练栈留在宿主机 venv —— 算力分级是本项目的既有设计，见 docs/ROADMAP.md。
+#
+# 依赖精确版本由 `requirements.lock` 承担；本文件只声明范围与意图。
+
+# 湖与数仓（写/读 Parquet、跑 SQL、契约断言）
+duckdb>=1.1
+pyarrow>=15.0
+
+# 协议与算子 SDK（本地包 `packages/curation-eval`）的**声明依赖**。
+# 平台链路真的需要这个包：`mm_curation.operators/**` 建立在它的协议之上，
+# 实测（把 curation_eval 从 import 里挡掉后跑平台链路）会直接 ImportError。
+# 它的 pyproject 声明了 pillow，而镜像里用 `--no-deps` 装本地包 → 必须在这里补上。
+pillow>=10.0
+
+# 配置与契约（platform.yaml / rbac.yaml / contracts_platform/*.yaml）
+pyyaml>=6.0
+
+# 只读数据服务
+fastapi>=0.110
+uvicorn[standard]>=0.29

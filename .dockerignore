@@ -1,0 +1,50 @@
+# 构建上下文裁剪（S6）。
+#
+# 不加这个文件的后果是具体的：本机 `data/` 有 383 MB 真实数据、`models/` 有
+# 约 1.2 GB 本地权重、`.venv/` 与 `.git/` 也都在仓库根下。Docker 会把**整个
+# 上下文**打包发给 daemon（除非用 BuildKit 的远端缓存），于是构建时间与带宽
+# 都被这些永远不会被 COPY 的东西吃掉，而失败信息只会说"构建超时"。
+#
+# 判断规则只有一条：**Dockerfile 里 COPY 了什么，就留什么**。
+# 当前 COPY 的是 `requirements.lock` / `src/` / `configs/` / `scripts/`。
+
+.git
+.gitignore
+.github
+.venv
+.workbuddy
+.zcode
+.cache
+.pytest_cache
+.pytest_tmp
+.ruff_cache
+__pycache__
+*.pyc
+*.pyo
+
+# 数据与产物：一条都不进镜像（`data/` 由 compose 在**运行时**挂进来）
+data
+runs
+models
+docs
+docs_archive
+benchmarks
+
+# 测试：容器里不跑测试
+tests
+
+# ⚠️ `packages/` **不能挡**：`curation-eval` 是平台链路的运行时依赖
+# （`mm_curation.operators/**` 建立在它的协议之上），实测把它的 import 挡掉
+# 会立刻 ImportError。整个目录只有几百 KB，没有裁剪的必要。
+
+# 其它交付物与说明（进镜像只会变大）
+*.md
+LICENSE
+Dockerfile*
+docker-compose.yaml
+.dockerignore
+
+# 顺带把不需要的临时/日志挡掉
+*.log
+*.duckdb
+*.parquet

@@ -1,0 +1,40 @@
+# 服务容器依赖精确锁（S6）——由 pip 解析器生成，**不要手改**。
+#
+# 生成方式（改依赖后重跑这两条，见 scripts/gen_lock.py）：
+#   pip install --dry-run --ignore-installed --report report.json \
+#       -r requirements-app.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+#   python scripts/gen_lock.py report.json
+# 生成日期：2026-09-27（共 21 个包 = 直接依赖 + 其运行时闭包，含 uvicorn[standard] 的 extras）
+#
+# 这份锁钉的是**解析器当日给出的上游版本**，不是"我本机 venv 里的那一套"。
+# 两者会不同（本机 pyarrow 是 23.0.1，这里解析到 25.0.1）。这个区别必须说清：
+# 平台轨那些实测数字是在**本机 venv** 上跑的，而镜像构建服从这份锁——
+# 「锁」保证的是**构建可复现**，不是「实测版本可复现」。后者要把版本冻结成实测值，
+# 那等于把开发机环境当真相源，代价是别人装不上新版本的安全修复。
+#
+# 直接依赖与范围见 requirements-app.txt；GPU 训练栈刻意不进镜像。
+#
+# 校验：tests/test_lock_file.py 会检查"每条都是 name==version"且
+# "requirements-app.txt 里每个直接依赖都在锁里"。
+
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+click==8.5.0
+duckdb==1.5.5
+fastapi==0.141.1
+h11==0.16.0
+httptools==0.8.0
+idna==3.20
+pillow==12.3.0
+pyarrow==25.0.1
+pydantic==2.13.5
+pydantic-core==2.46.5
+python-dotenv==1.2.3
+pyyaml==6.0.3
+starlette==1.7.0
+typing-extensions==4.16.0
+typing-inspection==0.4.4
+uvicorn==0.54.0
+watchfiles==1.3.0
+websockets==17.1

@@ -33,9 +33,17 @@ jobs:
       - name: Ruff lint
         run: ruff check src tests scripts dags packages
 
-      - name: Ruff format check
-        run: ruff format --check src tests scripts dags packages
-
+      # ⚠️ 顺序纪律（2026-09-27 修）：测试步骤必须排在 `ruff format --check` **之前**。
+      #
+      # 历史形态是 format-check 在测试之前、且没有 `continue-on-error` ——
+      # 它在**既有历史文件**上必然失败（当时 src/tests/scripts/dags 52 文件
+      # + packages 4 文件未格式化，其中 43 个是初始提交就带来的），
+      # 于是它后面的两条 pytest 从未被执行过一次：
+      # 工作流里写着"主仓与包侧测试"，执行层面却是零覆盖。
+      # 这和"跑了门禁的一个子集"是同一类假绿——**步骤顺序也是一种门禁语义**。
+      #
+      # 注意这里刻意**不加** `continue-on-error`：格式欠债是真欠债，它该红；
+      # 但它不许再挡在测试前面。格式欠债的清偿见 docs/ENGINEERING_NOTES.md。
       - name: Run tests (主仓库)
         env:
           HF_ENDPOINT: https://hf-mirror.com
@@ -47,3 +55,19 @@ jobs:
         env:
           HF_ENDPOINT: https://hf-mirror.com
         run: pytest -v packages/curation-eval/tests
+
+      # 平台轨的 Airflow 导出物是**生成物入库**：dags/generated_platform_dag.py
+      # 必须与 DAG 定义逐字节一致，漂移即红。
+      # 同一条断言在 tests/test_platform_jobs.py 里也有（跑 pytest 就会覆盖），
+      # 这里单独用 `diff` 再列一次，是为了让"漂移了"在 CI 页面上**一眼可见**，
+      # 不必去 562 条用例的输出里翻找。
+      # 注意是"生成到临时路径再比对"，**不是**就地重写——就地重写永远绿，是假绿。
+      - name: Airflow DAG in sync (平台轨)
+        run: |
+          python -m mm_curation.cli dag --export-airflow "$RUNNER_TEMP/_dag_check.py"
+          diff -u dags/generated_platform_dag.py "$RUNNER_TEMP/_dag_check.py"
+
+      # 放在最后：格式检查的职责是"报告欠债与新增漂移"，
+      # 不是"决定测试跑不跑"。
+      - name: Ruff format check
+        run: ruff format --check src tests scripts dags packages

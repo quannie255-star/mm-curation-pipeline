@@ -1,0 +1,97 @@
+name: container
+
+# ⚠️ 这个工作流有一个特殊地位：**它是本机唯一无法预演的那部分门禁**。
+# 本机 Docker 拉不到 registry-1.docker.io（"Docker Desktop has no HTTPS proxy"），
+# 所以 `docker build` / `docker run` 只能在这里跑。
+#
+# 因此两件事必须做到：
+# 1. **不许加 `continue-on-error`**。不可预演不等于可以不拦——
+#    那正是"把未验证当成通过"，本项目已经因为同类写法吃过一次亏（ci.yml 的顺序事故）。
+# 2. **把本机能验的部分全部移出这个工作流**。冒烟的断言逻辑在
+#    `scripts/smoke_container.py`（可对着宿主 `serve` 先跑通），
+#    造数在 `scripts/ci_seed_sources.py`（有 tests/test_ci_seed_sources.py 覆盖）。
+#    于是这里剩下的未知量只有"镜像能不能构建、容器能不能起"这一个。
+#
+# 另外 HTTP 适配层曾有整层级别的缺陷（除 /metrics 外全 422，见 ENGINEERING_NOTES #85），
+# 是靠对着真 socket 打一发才发现的——本工作流跑的就是那类检查。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: container-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app-image:
+    name: 应用镜像构建 + 容器冒烟（S6）
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      # 主仓库是 src 布局，而 requirements-app 装的是**依赖**不是本项目本身。
+      # 用 PYTHONPATH 而不是 `pip install -e .`：后者会把整条训练栈拖进来。
+      PYTHONPATH: src
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # 服务侧依赖很小（21 个精确 pin），装起来是秒级；
+      # 刻意不装 requirements.txt —— 那是含 torch/transformers 的宿主机全量集。
+      - name: 装服务侧依赖（与镜像同一份锁）
+        run: |
+          pip install -r requirements.lock
+          pip install --no-deps ./packages/curation-eval
+
+      # CI 的 runner 上 `data/raw/**` 是空的（真数据不入库，383MB）。
+      # 造数逻辑单独成脚本，于是它的正确性可以在本机被 pytest 覆盖。
+      - name: 造最小合成源
+        run: python scripts/ci_seed_sources.py
+
+      # 容器服务的是 **prod store**，所以必须先在 dev 跑一遍再晋升
+      # ——这正是"dev 验过的那份产物进 prod"这条语义的可执行形式。
+      - name: 跑平台链路并晋升到 prod
+        run: |
+          python -m mm_curation.cli run --run-id ci__container__0001
+          python -m mm_curation.cli promote
+          python -m mm_curation.cli runs --env prod
+
+      - name: 构建应用镜像
+        run: docker build --progress=plain -f docker/Dockerfile.app -t mm-curation-app:ci .
+
+      - name: 起容器并等探针就绪
+        run: |
+          # 容器以 uid 10001 运行，而 runner 工作区属于另一个 uid。
+          # 服务本身只读数据，但 DuckDB 以读写方式打开库文件（台账要建表）→ 需要可写。
+          # 这是 Dockerfile 里已注明的 caveat，在这里显式处理，而不是靠"本地能跑"。
+          sudo chmod -R a+rwX data
+          docker run -d --name app -p 8081:8080 \
+            -v "$PWD/data:/app/data" \
+            -v "$PWD/configs:/app/configs:ro" \
+            mm-curation-app:ci
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8081/healthz || true)
+            echo "第 $i 次探测 /healthz -> $code"
+            if [ "$code" = "200" ]; then exit 0; fi
+            sleep 2
+          done
+          echo "::error::容器 60s 内没有就绪（/healthz 未返回 200）" >&2
+          exit 1
+
+      - name: 冒烟断言（鉴权 / 行级授权 / 指标 / 环境）
+        run: python scripts/smoke_container.py --base-url http://127.0.0.1:8081 --expect-env prod
+
+      - name: 失败时打印容器日志与健康状态
+        if: failure()
+        run: |
+          docker logs app || true
+          docker inspect --format '{{json .State.Health}}' app || true
+          docker image ls mm-curation-app --format '{{.Size}}'

@@ -1,7 +1,28 @@
-# Airflow 编排层（LocalExecutor，单机轻量部署）。
+# Airflow 编排层（LocalExecutor，单机轻量部署）+ 应用服务容器（S6）。
 # 重计算（CLIP 批量推理等）在宿主机 GPU venv 中进行，容器负责 DAG 编排与
 # CPU 可承受的规则算子——算力分级是本项目的设计考量之一，见 docs/ROADMAP.md。
 services:
+  # -- 应用服务容器 ------------------------------------------------------------
+  # 只读数据服务：读 **prod store**（`data/envs/prod/`，由 `promote` 落盘），
+  # 不是 dev。晋升在宿主机做、容器只负责供数 —— 这条分工是刻意的：
+  # 容器里没有 GPU、也没有源数据（`data/raw/**` 不入镜像）。
+  #
+  # 端口映射到 8081：Airflow webserver 已经占了 8080。
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.app
+    image: mm-curation-app:latest
+    ports:
+      - "8081:8080"
+    volumes:
+      # data 可写（DuckDB 以读写方式打开库文件）；configs 只读（配置是代码的一部分）
+      - ./data:/app/data
+      - ./configs:/app/configs:ro
+    # healthcheck 继承镜像里的那条（打 /healthz），不在这里重复定义 ——
+    # 两处各写一遍必然漂移，而漂移的那一份没人会发现。
+    restart: unless-stopped
+
   postgres:
     image: postgres:16
     environment:
