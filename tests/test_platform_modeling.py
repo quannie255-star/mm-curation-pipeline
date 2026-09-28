@@ -221,3 +221,28 @@ def test_refresh_views_makes_all_layers_queryable(lake_root: Path):
             assert con.execute(f"SELECT count(*) FROM {v}").fetchone()[0] >= 0
     finally:
         con.close()
+
+
+def test_ads_avg_survives_all_null_varchar_partition():
+    """回归（路线 D 实测）：全 NULL 数值列被 lake 兜底落成 VARCHAR，
+    ADS 的 avg() 在 binder 抛异常致 run FAILED（realdata__0002/0003 同因）。
+    修复 = avg(try_cast(... AS DOUBLE))。
+    """
+    import duckdb
+
+    con = duckdb.connect()
+    con.execute(
+        "create table dws_dataset_day"
+        "(score_coverage varchar, avg_len double, n_total bigint)"
+    )
+    con.execute("insert into dws_dataset_day values (NULL, 12.5, 10), (NULL, 7.5, 5)")
+    # 旧写法在这里就抛 BinderException；修复后的写法必须返回一行 NULL 均值
+    row = con.sql(
+        "select avg(try_cast(score_coverage as double)) as m, avg(avg_len) as l "
+        "from dws_dataset_day"
+    ).fetchone()
+    assert row[0] is None and row[1] == 10.0
+    # 有值时 try_cast 不改变语义
+    con.execute("update dws_dataset_day set score_coverage = '0.5' where n_total = 10")
+    row = con.sql("select avg(try_cast(score_coverage as double)) from dws_dataset_day").fetchone()
+    assert abs(row[0] - 0.5) < 1e-9  # 只有一行非 NULL

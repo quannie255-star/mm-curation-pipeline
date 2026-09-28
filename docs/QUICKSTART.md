@@ -194,6 +194,65 @@ s4 <- text_minhash     | 数据质量是模型效果的上限。清洗后的语�
 
 ---
 
+## 路线 D · 「我要看真实工业数据跑完整数据系统」（纯 CPU，实测 18 秒）
+
+这是平台轨的路线：真实产线传感器数据（SKAB / MetroPT-3 / C-MAPSS，公开数据集）
+进一条**有批次概念的数仓链路**（ODS→DWD→DWS→ADS→观测→指标），最后起一个带
+鉴权的只读数据服务。**全程纯 CPU、不用 GPU、不用联网**（数据下载完之后）。
+
+### 第 0 步 · 一次性准备（约 10 分钟，只做一次）
+
+```bash
+# 装服务侧依赖（21 个精确锁版本；也可以 PYTHONPATH=src 免安装）
+python -m pip install -r requirements.lock
+python -m pip install --no-deps ./packages/curation-eval
+
+# 下载三个公开数据集并切成"一窗一样本"（SKAB 是 git clone，另外两个是官网/zenodo 下载）
+python -X utf8 scripts/ingest_real_sensor.py --source skab
+python -X utf8 scripts/ingest_real_sensor.py --source metropt3 --unzip
+python -X utf8 scripts/ingest_real_sensor.py --source cmapss --window 30 --stride 10
+```
+
+### 第 1 步 · 跑整条数仓链路（实测 11.8 秒）
+
+```bash
+python -m mm_curation.cli run --datasets metropt3,skab_w64,cmapss   --run-id route_d__001 --batch-date 2026-09-28
+```
+
+实测输出：ods 5.0s → dims 0.3s → dwd 2.7s → dws 1.2s → ads/obs/metrics 全
+SUCCESS，`status=SUCCESS`。这次运行会进**运行台账**（哪次跑的、参数、git sha、
+各阶段耗时），这就是"任务运行记录"。
+
+### 第 2 步 · 三道观测（合计约 5 秒）
+
+```bash
+python -m mm_curation.cli contracts   # 数据契约校验：10 条断言 0 fail
+python -m mm_curation.cli obs         # 观测快照：新鲜度/行数异常/告警收敛
+python -m mm_curation.cli runs --limit 3   # 运行台账
+```
+
+`obs` 会告诉你真实世界的真话：哪些源停供了（新鲜度破线）、哪些分区行数异常、
+23 条原始信号收敛成 9 条告警。
+
+### 第 3 步 · 起数据服务（实测探针 200）
+
+```bash
+python -m mm_curation.cli serve --port 8080
+# 另开一个终端：
+curl http://127.0.0.1:8080/healthz    # -> 200
+```
+
+服务带契约闸门（契约不过拒启）、RBAC 行/列级权限、数据新鲜度指标。
+完整冒烟（8 数据集/行级授权/404 语义）见 `scripts/smoke_container.py`。
+
+### 环境变量说明
+
+- Windows + Git Bash 无 `make`：上面全是等价 python 命令；
+- 免安装跑法：把 `PYTHONPATH=src` 加在每条 `python -m mm_curation.cli` 前面。
+
+---
+---
+
 ## 常见坑（三个最常撞到的）
 
 **1. `ModuleNotFoundError: No module named 'torch'`**

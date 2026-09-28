@@ -597,7 +597,11 @@ def build_ads(con, lake: Lake, *, today: str = "") -> dict[str, Any]:
                    max(n_channels)                   AS n_channels,
                    count(*)                          AS n_partitions,
                    avg(avg_len)                      AS avg_len,
-                   avg(score_coverage)               AS mean_score_coverage
+                   -- score_coverage 在真实数据上可能整列为 NULL（无 score 事件），
+                   -- lake._infer_schema 的兜底会把全 NULL 列落成 VARCHAR（lake.py:66）；
+                   -- 直接 avg(VARCHAR) 在 binder 阶段就抛错（路线 D 实测抓到，WorkBuddy
+                   -- 的 platform__realdata__0002/0003 同因 FAILED）。try_cast 自愈旧分区。
+                   avg(try_cast(score_coverage AS DOUBLE)) AS mean_score_coverage
             FROM ({day}) GROUP BY dataset
         ), o AS (
             SELECT dataset, count(DISTINCT op) AS n_ops,

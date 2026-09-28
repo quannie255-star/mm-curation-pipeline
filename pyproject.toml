@@ -4,9 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mm-curation"
-version = "0.1.0"
-description = "中文多模态图文数据清洗与向量检索管道"
+version = "1.0.0"
+description = "多模态数据清洗与质量评测平台：清洗管道 → 数仓分层 → 数据服务（curation-eval 协议 + 四领域增强包）"
 requires-python = ">=3.10"
+
+[project.scripts]
+# `mmc` 成为真命令（S6④ / GAP_AUDIT P1-8 收尾）：pip install 后任意目录可用
+# mmc run / runs / promote / serve / contracts …
+mmc = "mm_curation.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

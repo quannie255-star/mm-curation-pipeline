@@ -294,7 +294,7 @@ GAP_AUDIT 的 P1-1~P1-9 里，09-22 复核实点是 **1 条半修、8 条原封�
 | ③ lock 文件 | ✅ 已做 | `requirements-app.txt`（5 个直接依赖）→ `requirements.lock`（**21 个精确 pin**，含 `uvicorn[standard]` 的 extras 闭包）；生成器 `scripts/gen_lock.py`（可重放）；结构门 8 条 |
 | ④ 版本对齐 + git tag + CHANGELOG + `[project.scripts]` | ⬜ **未做** | 如实标注：本批只做 ①②③⑤。tag / CHANGELOG 属发布动作，需要推送窗口（当前 `github.com:443` 仍不通） |
 | ⑤ CI 容器冒烟（build + `/healthz` 200） | ✅ 已写，**尚未在 CI 跑过** | `.github/workflows/container-ci.yml`，刻意**不加** `continue-on-error`；断言逻辑 `scripts/smoke_container.py` **已在本机对宿主 `serve --env prod` 实测 PASS**（8 数据集可见、行级授权生效、404 正确），造数脚本有 4 条单测。剩下未验的只有「镜像能不能构建、容器能不能起」 |
-| ⑥ 纯 CPU 十分钟可验路径（P1-9） | ⚠️ 部分 | 合成源路线（`scripts/ci_seed_sources.py`）已进 CI 冒烟；**"十分钟"是待实测的承诺，本文不写未测数字** |
+| ⑥ 纯 CPU 十分钟可验路径（P1-9） | ✅ **实测出数（2026-09-28）** | QUICKSTART 路线 D：真实三源（SKAB/MetroPT-3/C-MAPSS，383MB/47 文件）`mmc run` **11.8s** + contracts 1.9s + obs 1.7s + serve 闸门 1.7s，**全程 ≈18s ≪ 10min**；实测还抓到并修掉一个 main 真 bug——ads 层 `avg(VARCHAR)`（全 NULL 数值列被 lake 兜底落成 string），WorkBuddy 的 platform__realdata__0002/0003 FAILED 同因，修复带回归测试 |
 
 另：S6 期间发现并修掉 **3 个真实缺陷**（HTTP 适配层整层 422、日期对象序列化 500、
 `--dry-run` 真的写盘），全部有回归测试，见 `ENGINEERING_NOTES.md` #85–#88。
