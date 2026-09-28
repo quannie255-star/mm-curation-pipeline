@@ -1,0 +1,88 @@
+# 数据契约：数仓链路（平台轨）—— 针对**湖上的实际产物**，不是 warehouse 库里的旧表
+#
+# 与 `configs/contracts/*.yaml` 的分工：
+#   那四个 → 校验 `curation.duckdb` 里的 `stg_*` / `marts_*`（旧仓库轨，保持不动）；
+#   本文件 → 校验 `data/lake/**` 经视图暴露出来的 ods/dwd/dws/ads（新平台轨）。
+# 两套契约并存不是重复：它们是**两条建模路径各自的闸门**，口径不同不能互相顶替。
+#
+# 契约在 DAG 里是**阻断件**：severity=error 的断言失败 → 该阶段抛错、运行记 FAILED、
+# 下游 obs/metrics 不跑。warn 级只计数不阻断。
+
+dataset: text_funnel
+version: 1
+owner: data-platform
+table: ods_samples
+
+fields:
+  sample_id:
+    required: true
+    unique: true          # 同一数据集内样本 id 必须唯一（去重算子的可执行断言）
+  text_len:
+    required: true
+    min_value: 1          # 数值列用 min_value；min_len 比的是位数（笔记 #79）
+
+checks:
+  # ---- 层间对账：明细不增不减 ----
+  - name: dwd_matches_ods
+    # 契约相对「字段非空校验」的增量价值就在这里：它断言的是**跨层关系**，
+    # 而不是单表内的格式。DWD 是 ODS 的一一映射，少一条就说明 join 把行吞了。
+    sql: |
+      SELECT ABS(
+        (SELECT COUNT(*) FROM dwd_samples WHERE dataset = 'text_funnel')
+        - (SELECT COUNT(*) FROM ods_samples  WHERE dataset = 'text_funnel')
+      )
+    expect: 0
+    severity: error
+
+  - name: profile_reconciliation
+    # DWS 汇总 vs DWD 明细：汇总说有 N 条，明细就得有 N 条（不重不漏）
+    sql: |
+      SELECT COUNT(*) FROM dws_dataset_profile p
+      WHERE p.dataset = 'text_funnel'
+        AND p.n_total <> (SELECT COUNT(*) FROM dwd_samples WHERE dataset = 'text_funnel')
+    expect: 0
+    severity: error
+
+  # ---- 参照完整性：分数表的样本必须在样本表里 ----
+  - name: no_orphan_score
+    sql: |
+      SELECT COUNT(*) FROM dwd_scores s
+      WHERE s.dataset = 'text_funnel'
+        AND NOT EXISTS (
+          SELECT 1 FROM dwd_samples t
+          WHERE t.dataset = s.dataset AND t.sample_id = s.sample_id
+        )
+    expect: 0
+    severity: error
+
+  # ---- 对外承诺的可执行形式 ----
+  - name: attribution_complete
+    # 对外承诺「每条丢弃都能逐条归因」→ 有一条 is_kept=false 却没有 dropped_by，
+    # 那句承诺就是假的。把它写成断言，承诺才不是幻灯片上的一句话。
+    sql: |
+      SELECT COUNT(*) FROM ods_samples
+      WHERE dataset = 'text_funnel' AND is_kept = FALSE
+        AND (dropped_by IS NULL OR CAST(dropped_by AS VARCHAR) = '')
+    expect: 0
+    severity: error
+
+  - name: dim_unmatched_sensor
+    # 有通道却没关联上维版本 = 维表漏建或事件日落在版本区间外（**真问题**）。
+    # 注意与「没有通道」区分：文本样本本来就没有通道，不该算进这个断言。
+    sql: |
+      SELECT COUNT(*) FROM dwd_samples
+      WHERE dataset = 'text_funnel' AND channel <> '' AND device_sk IS NULL
+    expect: 0
+    severity: error
+
+  - name: ads_undated_visible
+    # 未标注事件时间的分区数必须被 ADS **如实上报**（而不是被静默当成"今天"）。
+    # 这是一个 warn：数据集可以有未标注分区，但不能瞒着不报。
+    sql: |
+      SELECT COUNT(*) FROM ads_metrics
+      WHERE dataset = 'text_funnel' AND n_undated_partitions <> (
+        SELECT COUNT(*) FROM dws_dataset_day
+        WHERE dataset = 'text_funnel' AND event_date IS NULL
+      )
+    expect: 0
+    severity: warn

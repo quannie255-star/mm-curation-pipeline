@@ -18,6 +18,13 @@ addopts = "-q"
 [tool.ruff]
 line-length = 100
 src = ["src", "tests", "scripts", "dags"]
+# 生成物排除出 lint / format。
+# `dags/generated_*.py` 的**唯一**真相源是 `src/mm_curation/platform/jobs.py`：
+# 它必须与 `to_airflow_source()` 的产出**逐字节一致**（单测一条、CI 一条门禁）。
+# 而 `ruff format` 会按自己的规则改写缩进与折行 —— 于是"格式合规"与"逐字节一致"
+# 变成两条**互相打架**的要求，永远无法同时满足。
+# 判别依据：**生成物不是人写的代码，就不该受人写代码的规则约束**。
+extend-exclude = ["dags/generated_*.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]

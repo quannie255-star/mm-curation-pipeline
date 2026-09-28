@@ -1,0 +1,53 @@
+# RBAC 与限流策略（S4 数据服务层）
+#
+# ⚠️ 这里**不存明文 token**，只存 sha256。配置泄露不等于凭据泄露——
+#    这是"凭据不该以可用形式落盘"这条最基本纪律的最小落地。
+#    下面四个 hash 对应的是**本地演示用**的四个固定串，写在 README/PLATFORM.md 里，
+#    方便任何人 `curl -H 'X-API-Token: ...'` 直接试。生产环境该从密钥管理注入。
+#
+# hidden_columns 是**列级脱敏**：查询时这些列不会出现在返回里
+# （不是返回后再删——那等于把数据发出去过一道，日志/中间态都已泄露）。
+#
+# datasets 是**行级授权**：不在此列的数据集，查询直接 403。
+# qps / burst 是**令牌桶**参数：稳态速率 与 突发容量。
+
+roles:
+  admin:
+    hidden_columns: []
+    datasets: ["*"]
+    qps: 100
+    burst: 200
+  steward:
+    # 数据管家：看得到全部列（要判维表变更），但速率比 admin 低
+    hidden_columns: []
+    datasets: ["*"]
+    qps: 50
+    burst: 100
+  analyst:
+    # 通用分析师：看得到代理键 device_sk，看不到业务自然键 device_id。
+    # 这正是 SCD-2 代理键的用途之一——让分析不必暴露业务键。
+    hidden_columns: ["device_id"]
+    datasets: ["*"]
+    qps: 10
+    burst: 20
+  finance_reader:
+    # 业务方（金融域）：只看金融/文本两条线，且连通道名都不给
+    hidden_columns: ["device_id", "channel"]
+    datasets: ["finance_funnel", "text_funnel"]
+    qps: 5
+    burst: 10
+
+# token_sha256 = sha256(token)
+tokens:
+  - name: ci-admin
+    role: admin
+    token_sha256: a1ef72ac89eda9d3bc5583f91afc55a10fd7062a23a5f724c76996ae23fe276b
+  - name: data-steward
+    role: steward
+    token_sha256: 9bc7f5817b13fe96d009c5dc20e8e9cd02ec323369d64a8a4c015fb206c95596
+  - name: adhoc-analyst
+    role: analyst
+    token_sha256: 60325838a9c760f4477f2a65097fdea012965a691fa6c7c94953218ddce99de4
+  - name: finance-reader
+    role: finance_reader
+    token_sha256: fef4fd74eedddd61f60ceaa8e8cf2b88a61e1e966137f7d11a87042ceeaa5464

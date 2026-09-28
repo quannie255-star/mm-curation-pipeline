@@ -225,6 +225,27 @@ def cmd_contracts(a) -> int:
     return 1 if any(not r["ok"] for r in results) else 0
 
 
+def cmd_platform(a) -> int:
+    """把平台轨转交给 `mm_curation.cli`（**不在两个 CLI 里各实现一遍**）。
+
+    转交而不是重复实现：`scripts/mmc.py` 是给人用的入口，
+    `mm_curation.cli` 是被 Airflow 生成物调用的入口
+    （`python -m mm_curation.cli platform run --only <阶段>`）。
+    两处各写一遍子命令，迟早会出现"手工跑和调度跑参数不一致"——
+    而这正是最难看出来的那类事故。
+    """
+    from mm_curation.cli import main as platform_main
+
+    if not a.platform_args:
+        print(
+            "用法：mmc.py platform "
+            "<run|dag|obs|contracts|prune|runs|watermarks|promote|serve> ..."
+        )
+        print("     详见 python -m mm_curation.cli --help")
+        return 0
+    return platform_main(["--root", str(ROOT), *a.platform_args])
+
+
 # ---------------------------------------------------------------------------
 
 
@@ -259,6 +280,14 @@ def main() -> int:
     ct = sub.add_parser("contracts", help="数据契约校验")
     ct.add_argument("--json", action="store_true")
     ct.set_defaults(fn=cmd_contracts)
+
+    # 平台轨（湖仓 + 台账 + 服务 + 观测）：参数原样转交 mm_curation.cli
+    pf = sub.add_parser(
+        "platform",
+        help="平台轨子命令（run/dag/obs/contracts/prune/runs/promote/serve）",
+    )
+    pf.add_argument("platform_args", nargs=argparse.REMAINDER)
+    pf.set_defaults(fn=cmd_platform)
 
     a = p.parse_args()
     return a.fn(a)
