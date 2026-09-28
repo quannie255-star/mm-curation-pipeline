@@ -139,7 +139,7 @@ git status --porcelain                   # 确认没有把对方名下的文件�
 | R0-1 | glm 收口 8 天在途 | ⬜ **未做——整条链唯一的闸门** | 工作区仍有 glm 的 13 个 09-06~09-20 在途文件 |
 | R0-2 | 提交平台轨 S0–S6（3 个 commit） | ✅ | `cd3072b` 核心 / `3ad0be8` 交付 / `ed89d03` 文档 |
 | R0-3 | worktree 物理隔离 | ✅ | `../mmc-doc-frontend`（分支 `workbuddy/doc-frontend`）；**主工作区仍在 `main` 且 HEAD 未动** |
-| R0-4 | 推送 | ✅ | 7 个提交（3 个历史 + 4 个本轮）；开窗/关窗记录在本文件 §四约定的 `DEV_PLAN.md` 顶部 |
+| R0-4 | 推送 | ✅ | **9 个提交**（3 个历史积压 + 6 个本轮 = 5 个实质 + 1 条关窗）已上 `main`（原 `465fe4d`）；关窗条件 `origin/main..HEAD` 为空已满足。**不写死 tip sha**——关窗那条提交也会被推，写死的 sha 会立刻过期 |
 | R0-5 | 全量 `ruff format` | ⬜ **未做，等 R0-1** | 实点仍 **55** 文件（scripts 26 / tests 14 / src 11 / packages 4） |
 | R0-6 | 修复事实源 | ✅ | 与 R0-2 同批的第 4 个 commit `510462a`（`DEV_PLAN.md` + `AGENTS.md`） |
 

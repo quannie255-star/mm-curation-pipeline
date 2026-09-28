@@ -70,7 +70,10 @@
 3. **R0-3**：worktree `../mmc-doc-frontend`（分支 `workbuddy/doc-frontend`）已建；
    **主工作区仍在 `main`、HEAD 未动**——`git worktree add` 不碰别人的工作区。
 4. **R0-6**：`510462a`（`DEV_PLAN.md` + `AGENTS.md`）。
-5. **R0-4**：推送 7 个提交（`b491ffd`/`b5ff1fb`/`bee5c45` + 本轮 4 个）。
+5. **R0-4**：推送 **9 个提交**（3 个历史积压：`b491ffd`/`b5ff1fb`/`bee5c45` + 5 个实质：
+   `cd3072b`/`3ad0be8`/`ed89d03`/`510462a`/`1f9922e` + 1 条关窗提交），`origin/main` 由 `465fe4d` 推进；
+   关窗条件 `origin/main..HEAD` 为空已满足。（关窗那条提交不列 sha——它本身会被推，
+   写死的 sha 会立刻过期。首次推送秒过；第二次推送超时 180s，属瞬时网络抖动，重试即过。）
 
 **实测推翻了我自己的一个猜想**（这条值得记）：我以为 `core.autocrlf=true` 会让 worktree 里
 「生成物逐字节一致」那条门禁假红。**实测：文件确实是 CRLF（3838 B → 3963 B），但门禁仍然绿**——
