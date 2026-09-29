@@ -44,17 +44,27 @@ jobs:
       #
       # 注意这里刻意**不加** `continue-on-error`：格式欠债是真欠债，它该红；
       # 但它不许再挡在测试前面。格式欠债的清偿见 docs/ENGINEERING_NOTES.md。
+      # junitxml 落盘 + 失败上传产物：CI 网页日志本机常被墙，junit 产物走
+      # api.github.com 可拉（RUNBOOK 的取准数纪律同款：别数进度点，读 junit）
       - name: Run tests (主仓库)
         env:
           HF_ENDPOINT: https://hf-mirror.com
-        run: pytest -v
+        run: pytest -v --junitxml=ci-main.xml
 
-      # curation-eval 是对外发布的协议包，必须与主仓库同等门禁
-      # （此前 testpaths 只含 tests/，包的测试从未在 CI 执行过）
       - name: Run tests (curation-eval 包)
         env:
           HF_ENDPOINT: https://hf-mirror.com
-        run: pytest -v packages/curation-eval/tests
+        run: pytest -v --junitxml=ci-pkg.xml packages/curation-eval/tests
+
+      - name: 上传测试报告（失败时排障用）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            ci-main.xml
+            ci-pkg.xml
+          retention-days: 7
 
       # 平台轨的 Airflow 导出物是**生成物入库**：dags/generated_platform_dag.py
       # 必须与 DAG 定义逐字节一致，漂移即红。

@@ -92,6 +92,15 @@ jobs:
       - name: 失败时打印容器日志与健康状态
         if: failure()
         run: |
-          docker logs app || true
-          docker inspect --format '{{json .State.Health}}' app || true
-          docker image ls mm-curation-app --format '{{.Size}}'
+          docker logs app > container-logs.txt 2>&1 || true
+          docker inspect --format '{{json .State.Health}}' app >> container-logs.txt 2>&1 || true
+          docker image ls mm-curation-app --format '{{.Size}}' >> container-logs.txt 2>&1 || true
+          cat container-logs.txt || true
+
+      - name: 上传容器排障产物（失败时）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-debug
+          path: container-logs.txt
+          retention-days: 7
