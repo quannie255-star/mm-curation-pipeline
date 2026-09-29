@@ -12,7 +12,6 @@ L1 规则与哈希去重之后——便宜算子先缩小规模，昂贵算子�
 
 from __future__ import annotations
 
-import numpy as np
 from curation_eval import CostClass, register_operator
 
 from ..embedding import clip_encoder
@@ -43,6 +42,8 @@ class ClipAlignmentOp(BatchOperator):
         self.min = min
 
     def run_batch(self, samples: list[Sample]) -> list[Sample]:
+        import numpy as np  # 懒加载：服务容器最小依赖里没有 numpy（dedup.py 同惯例）
+
         encoder = clip_encoder.get_encoder()
         img = encoder.encode_images([s.image_path for s in samples])
         txt = encoder.encode_texts([s.text for s in samples])
@@ -77,6 +78,8 @@ class SemanticDedupOp(BatchOperator):
         self.threshold = threshold
 
     def run_batch(self, samples: list[Sample]) -> list[Sample]:
+        import numpy as np  # 懒加载：同上
+
         encoder = clip_encoder.get_encoder()
         emb = encoder.encode_images([s.image_path for s in samples])
         kept: list[Sample] = []

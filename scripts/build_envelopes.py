@@ -47,7 +47,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
 
 from mm_curation.operators.base import Sample  # noqa: E402
-from mm_curation.operators.robust import mad_scale, median  # noqa: E402
+from mm_curation.robust import mad_scale, median  # noqa: E402
 
 REAL = REPO / "data" / "raw" / "real"
 

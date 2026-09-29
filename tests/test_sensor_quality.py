@@ -663,7 +663,7 @@ def _env_samples(values, *, device_id="d1", channel="pressure", mode="run"):
 
 
 def test_robust_median_and_mad_scale_are_outlier_resistant():
-    from mm_curation.operators.robust import mad_scale, median
+    from mm_curation.robust import mad_scale, median
 
     assert median([]) == 0.0
     assert median([3.0, 1.0, 2.0]) == 2.0
@@ -680,7 +680,7 @@ def test_robust_median_and_mad_scale_are_outlier_resistant():
 
 def test_robust_limit_is_none_on_zero_dispersion_and_not_max_based():
     """两条关键性质：零离散度 → None（不猜）；限**不随最大值走**（这是 #75 的判据）。"""
-    from mm_curation.operators.robust import robust_limit
+    from mm_curation.robust import robust_limit
 
     assert robust_limit([], 3.0) is None
     assert robust_limit([7.0] * 50, 3.0) is None  # 完全恒定 → 定不出限

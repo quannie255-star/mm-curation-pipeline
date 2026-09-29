@@ -36,17 +36,20 @@ import math
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import numpy as np
+if TYPE_CHECKING:  # 注解引用；运行时 numpy 在使用点懒导入（服务容器无 numpy）
+    import numpy as np
+
 import yaml
 from curation_eval import CostClass, SensorSample, register_operator
 
 from ..data.sensor_synth import RANGE_TABLE, SENTINEL
+from ..robust import MAD_TO_SIGMA
+from ..robust import mad_scale as _mad_scale
+from ..robust import median as _median
+from ..robust import robust_limit as _robust_limit
 from .base import BatchOperator, Operator, Sample
-from .robust import MAD_TO_SIGMA
-from .robust import mad_scale as _mad_scale
-from .robust import median as _median
-from .robust import robust_limit as _robust_limit
 
 _BASELINE = 5  # drift 基线窗数（每组最早 N 个同工况窗）
 _DRIFT_Z = 4.0  # 均值偏移判定阈（以窗均值的有效 σ 为单位；4σ 下平稳语料误杀≈0）
@@ -790,6 +793,8 @@ def _mspc_fit(
     标准化会除零 —— 那是「无信息通道」，不是「正常通道」）、或 T²/SPE 在
     参考集上零离散度（定不出控制限）。
     """
+    import numpy as np  # 懒加载：服务容器最小依赖无 numpy
+
     if len(channels) < _MSPC_MIN_CHANNELS:
         return None
 
@@ -847,6 +852,8 @@ def _mspc_stats(z: np.ndarray, loadings: np.ndarray, eigvals: np.ndarray):
 
     顺带返回残差矩阵——SPE 的**逐通道贡献**就是它的平方，贡献图要用。
     """
+
+    import numpy as np  # 懒加载：服务容器最小依赖无 numpy
     t = z @ loadings
     t2 = ((t**2) / np.maximum(eigvals, 1e-12)).sum(axis=1)
     resid = z - t @ loadings.T
@@ -855,6 +862,7 @@ def _mspc_stats(z: np.ndarray, loadings: np.ndarray, eigvals: np.ndarray):
 
 
 def _mspc_row(model: dict, values: list[float]) -> dict:
+    import numpy as np  # 懒加载：服务容器最小依赖无 numpy
     """单行的 T²/SPE + **贡献分解**（贡献图是区分故障归属的依据）。
 
     - SPE 贡献：残差平方 `e_j²`（各分量之和 = SPE）
@@ -948,6 +956,8 @@ class SensorMultivariateOp(BatchOperator):
         raise TypeError("sensor_multivariate 是批量算子，请通过 run_batch 调用")
 
     def run_batch(self, samples: list[Sample]) -> list[Sample]:
+        import numpy as np  # 懒加载：服务容器最小依赖无 numpy
+
         ref_frac = float(self.params.get("ref_frac", _MSPC_REF_FRAC))
         var_frac = float(self.params.get("var_frac", _MSPC_VAR_FRAC))
         sensor_share = float(self.params.get("sensor_share", _MSPC_SENSOR_SHARE))

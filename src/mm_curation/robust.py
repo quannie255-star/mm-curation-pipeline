@@ -5,7 +5,9 @@
 `sensor_multivariate` 的 T²/SPE 控制限，和 `sensor_range` 在 **没有手册量程** 时
 所用的数据包络（R8，2026-09-22）。式子各抄一遍迟早漂移，而本项目已经因为
 「同一件事有两个数字」踩过一次（`docs/ENGINEERING_NOTES.md` #70）。所以这里做
-唯一真相源：算子与离线脚本（`scripts/build_envelopes.py`）都从这里取。
+唯一真相源：算子、平台观测（`platform/obs.py`）与离线脚本都从这里取。
+（2026-09-28 从 operators/ 迁到包根：平台链路导入它不应连带拉起算子包的
+numpy/torch——服务容器 requirements.lock 里没有它们，G2 容器首跑即栽在这。）
 """
 
 from __future__ import annotations

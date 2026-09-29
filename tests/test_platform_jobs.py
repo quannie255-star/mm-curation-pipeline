@@ -301,3 +301,25 @@ def test_cli_space_mmc_forwards_platform_args(tmp_path):
         platform_args = []
 
     assert mod.cmd_platform(_B()) == 0  # 无参数时打印用法而不是崩
+
+
+def test_platform_import_does_not_pull_operators():
+    """导入边界（G2 容器首跑栽的坑）：platform 包不得连带导入 operators 包。
+
+    operators/__init__ 会拉起 numpy/torch（clip/detector 算子），而服务容器
+    的 requirements.lock 刻意不含它们——platform 链路只需要 robust 统计
+    （已迁到包根）。此测试锁住这条边界，防止未来 import 又把它接回去。
+    """
+    import subprocess
+    import sys
+
+    src = str(Path(__file__).resolve().parents[1] / "src")
+    code = "import sys, mm_curation.platform.jobs; print('mm_curation.operators' in sys.modules)"
+    env = {**__import__("os").environ, "PYTHONPATH": src}
+    r = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, env=env, timeout=60
+    )
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip().endswith("False"), (
+        f"platform 导入拉起了 operators：{r.stdout.strip()}"
+    )

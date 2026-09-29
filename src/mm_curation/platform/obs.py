@@ -13,7 +13,7 @@
 
 1. **用中位数 + MAD，不用均值 + 3σ**。日窗数本身右偏（metropt3 实测 7~239），
    均值与标准差都会被极端日拉走 → 阈值最后会宽到什么都抓不到。
-   口径直接复用 `operators/robust`（唯一真相源，笔记 #75 的教训）。
+   口径直接复用 `mm_curation/robust`（唯一真相源，笔记 #75 的教训）。
 2. **告警必须收敛后再报**。原始信号按天产生，metropt3 有几十个异常日——
    把几十条丢给人看，接受者的实际反应是"关掉通知"，那等于没有告警。
    所以按 `(类型, 数据集)` 指纹收敛成一条，带 `n_signals` / `first` / `last`。
@@ -34,7 +34,9 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
-from ..operators.robust import MAD_TO_SIGMA, median
+from ..robust import MAD_TO_SIGMA, median  # 口径唯一真相源；原 operators/robust，
+
+# 迁到包根的原因：平台导入不应拉起算子包的 numpy/torch（服务容器锁里没有）
 from .runs import FAILED, RUNNING, SKIPPED, SUCCESS, TIMEOUT
 
 SEV_INFO = "info"

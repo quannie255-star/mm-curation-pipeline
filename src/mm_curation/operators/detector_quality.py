@@ -6,7 +6,6 @@ BatchOperator 形态：批量推理（逐样本前向会把 GPU 利用率打到�
 
 from __future__ import annotations
 
-import numpy as np
 from curation_eval import CostClass, register_operator
 
 from ..detector import model as detector_model
@@ -33,6 +32,7 @@ class WmNsfwCnnOp(BatchOperator):
         self.batch_size = batch_size
 
     def run_batch(self, samples: list[Sample]) -> list[Sample]:
+        import numpy as np  # 懒加载：同 dedup.py 惯例，numpy/torch 都在使用点导入
         import torch
         from PIL import Image
         from torchvision import transforms
