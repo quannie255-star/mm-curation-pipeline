@@ -1483,4 +1483,198 @@ S6 交付面（Dockerfile / lock / dev-prod 晋升）里，每一件都有一个
      平台差异。这次两个坑都在测试侧，不在被测对象侧。
 
 
+### 90. 审计工具自己骗了自己：`check-ignore` 说"已忽略"，`git add --dry-run` 说"会逐条暂存"
 
+- 现象（R0 收尾时）：清点工作区，出现三个 `??`：`.venv-ci/`（**179.7 MB / 3659 文件**，
+  R0-5 为复现 CI 最小依赖环境而建的虚拟环境）、`data/_r0_backup/`（格式化前的备份）、
+  `data/tmp_serve.log`。
+- **判据一（假绿）**：`git check-ignore -v .venv-ci/` 返回 **rc=0**，报
+  `.gitignore:80:\t.venv-ci/`——而 `.gitignore` 第 80 行是**空行**，全文件里根本没有这个模式。
+  它报的是一个**不存在的模式匹配**。
+- **判据二（真话）**：`git add --dry-run -- .venv-ci/` 逐条列出
+  `add '.venv-ci/Lib/site-packages/PIL/AvifImagePlugin.py'`……——一次 `git add -A` 就会把
+  179.7 MB 虚拟环境灌进索引（`data/_r0_backup/`、`data/tmp_serve.log` 同理）。
+- **定案（受控实验）**：把本仓库 `.gitignore` **逐字节复制**进一个全新临时仓库，这几条路径
+  `git check-ignore` **全部 rc=1（不被忽略）**，与 `git add --dry-run` 完全一致。
+  → 规则本身没问题；**问题在真实仓库这一侧的判定**：index 的 untracked cache 里存着
+  "这些路径被忽略"的旧结论，`git check-ignore` 采信了它（**连 `--no-index` 也没绕开**），
+  而 `git add` 走的是重新求值。
+- **这正是 #89 的第 1 号坑**：上次它出现在**开发门禁**里（改用临时仓库修好了），
+  这次它出现在**审计/取证**里。**同一个陷阱第二次咬人，这次咬的是证据链本身**——
+  如果没有顺手用 `git add --dry-run` 复核一次，报告里就会把这三个路径写成"已在忽略范围内"。
+- **2026-09-28 复核（重要修正）**：三个产物**已不在盘上**（glm 清理掉了），而
+  `.gitignore` **仍未**补规则（`git diff HEAD -- .gitignore` 为空）。所以这条从
+  **"在案的泄漏"降级为"潜在的泄漏"**：只要有人再建一个 `.venv-ci/`，`git add -A` 就会重演。
+  结论不变——**规则该补**（`.venv*/`、`data/*.log` 之类），只是不再是火警。
+- 通用教训：
+  1. **"会不会被提交"只有一个权威判据：`git add --dry-run`。** `check-ignore` 回答
+     "规则怎么说"、`git status` 回答"现在什么样"、`git add --dry-run` 回答"真的会发生什么"。
+     三者不一致时，以最后一条为准。
+  2. **一个判据若曾被证明会被缓存影响，就得在别处再复核一次**，不能因为"上次修好了"
+     就继续信它——缓存不会因为你修了别处而失效。
+  3. 泄漏类缺陷**唯一的征兆是 `git status` 里多几行 `??`**（#89 已说过）——这次它之所以
+     能被发现，只因为有人**认真读了 status 的输出**。把"读 status"降级成走过场，
+     等于放弃这类缺陷的全部告警。
+
+### 91. 门禁"修绿"是一次性事件，"守住绿"才是状态：格式门禁转绿后的下一个提交就红了
+
+- 现象：`dda99c9`（R0-5）把 `ruff format` 欠债 55 个文件一次清完，"format 后 616+67 全绿"
+  ⇒ 格式门禁在**那一刻**转绿。**紧接着的下一个提交 `7471b1e`（R1 G1+G3）新增的
+  `tests/test_platform_modeling.py` 没过 format** ⇒ `ruff format --check` 在 **HEAD 上又是红的**。
+- **2026-09-28 在 worktree（= 已提交的 `7471b1e`，不受并发编辑污染）实点**：
+  `ruff format --check src tests scripts dags packages` → **rc=1，1 file would be reformatted /
+  236 already formatted**，就是 `tests/test_platform_modeling.py`；`--diff` 显示是**真实的代码
+  格式差异**——隐式字符串拼接该并成一行，**不是 CRLF 假红**（这一点专门核过）。同时
+  `ruff check`（lint）**全绿**：HEAD 是"lint 绿、format 红"。
+- 根因：R0-5 是一次**全量扫荡**，它清的是"存量"；而**新增**文件靠的是每个提交自己的纪律。
+  全量扫荡解决的问题不会自我维持——**除非门禁在每个提交上都真的拦**。
+  `ci.yml` 里 `Ruff format check` 确实在拦，只是它排在最后、且本机没有人跑它。
+- **顺带一个方法论教训（差点让我误判）**：第一次核实时我在**主工作区**跑 ruff，看到的是
+  **2 个文件 + 3×`F821` + 1×`I001`**，差一步就写成"HEAD 不干净"。实际那是
+  **glm 当时正在编辑的未提交内容**（`industrial_quality.py` 那一刻 `git diff --numstat` = `10 6`）。
+  换到 worktree（= 只含已提交内容）复核，才拿到 HEAD 的真实状态。
+  判据：**先确认工作区干净（或换到只含已提交内容的地方），再谈"代码有问题"**——
+  否则你测的是别人的草稿，不是仓库的状态。
+- **再一个（我自己的工具 bug，记下来）**：探测时用 `out.strip()` 处理 `git status --porcelain`，
+  把**第一行状态码前的空格吞掉了**，`" M docs/x.md"` 被念成 `"M docs/x.md"`，
+  差点把"未暂存"误读成"已暂存"。→ **解析 porcelain 不要用 `strip()`**，
+  或者用 `--porcelain=v2`/`-z`；状态码两位（X=索引、Y=工作区）里**空格是有意义的**。
+- 通用教训：
+  1. **"门禁绿了"要么绑一个 commit sha，要么绑一个时间点**。写成不带时限的"已转绿"，
+     它的寿命通常只有一个提交（本次实测：1 个提交）。
+  2. **全量清扫类修复必须配"新增即受检"的机制**，否则清完的存量会以原速度长回来。
+  3. **并发环境里"工作区"不是可靠的被测对象；被测对象应该是"某个 commit"。**
+     这条对所有"本地绿/CI 红"类排障都成立：先固定被测对象，再比较。
+
+
+### 92. 一个「只在跑过生成步骤的机器上绿」的测试 = CI 红（#80 的镜像）
+
+- 现象：给 `claims` 门禁加「文档数字」校验（M2）时，顺手跑既有的
+  `tests/test_verify_claims.py`，发现 `test_registry_all_pointers_resolve_in_repo`
+  **在本机绿、在任何新克隆/CI 红**。它断言「每条非历史 claim 的报告文件必须存在」，
+  而报告路径是 `data/reports/*.json`——**生成物、已 `.gitignore`**。
+- 判据：`git ls-files data/reports` → **空**（无任何报告入库）；在 worktree（没有生成物）
+  跑该测试 → `FAILED ... 报告缺失：data/reports/retrieval_eval.json`。
+- 根因：这是 **#80 的镜像**。#80 是「CI 从建起来就是红的，而我一直以为它绿」；
+  这一条是「**本机绿、CI 红**」。而且它被 **S0「把 pytest 排到格式检查之前」激活**了——
+  在此之前 CI 里 `pytest` **根本不执行**（#80），所以这颗雷一直没响。换句话说：
+  **修一个"从不执行的检查"，要预期它会一次性暴露一批陈年红**。
+- 修法（保留强度、去掉对生成物的依赖）：把这条测试拆成两层——
+  ①**字段完整性**（每条非历史 claim 必须有 `file`/`pointer`/`expected`/`comparator`）：
+     与报告在不在盘无关，**CI 可查**；
+  ②指针可解析：**只在报告在盘时**才校验（缺失 = 「没生成」，不是「数字错」）。
+  另加一条「本机有报告时必须真校验到 ≥1 条」，防止退化成「全部跳过式假绿」。
+- 通用教训：
+  1. **测试断言的对象必须是"已入库的东西"。** 断言一个生成物的存在 = 断言
+     「我这台机器跑过生成步骤」，那是**环境条件**，不是**代码正确性**。凡断言里出现
+     `data/`、模型权重、缓存、`*.log` 这类被忽略的路径，就要警觉。
+  2. **「本地全绿」若依赖未入库的东西，它不构成「CI 会绿」的证据。** 这与 #80 同源：
+     判别方法是把仓库导出到**最小依赖环境**再跑一次（`git archive` / 新克隆 / 无 `data/`）。
+  3. 新门禁的**变异测试**（#80/#89）这次也照做了：`test_real_registry_facades_all_pass_and_
+     mutation_goes_red` 会在把来源值改坏时**必须变红**——否则门禁自己就是假绿。
+
+### 93. 门禁修好了，它锚的那个数字却会自己腐烂：基线 616 在我动手前就已经是 618
+
+- 现象：落地 M2 门面门禁（`claims.json` 新增 `baselines` + 66 条 `facades`，把文档里手写的
+  测试条数绑定到 `tests_main=616` / `tests_pkg=67` / `tests_total=683`）之后实点，**主仓真值是
+  618**，不是门面锚的 616；这一轮再加 5 条 → 623。
+- 根因（实点定位到提交级）：616 是 **2026-09-27** 的实点值。此后 `dda99c9`（R0-5 格式化，
+  "format 后 616+67 全绿复跑"）到 `9c8b2395` 之间，glm 的 R1 新增了**恰好 2 条**回归用例
+  （`git diff --stat dda99c9 9c8b2395 -- tests/` → `+49/-2`，新增 `def test_` 2 个：
+  `test_platform_modeling.py::test_ads_avg_survives_all_null_varchar_partition` 与
+  `test_platform_jobs.py::test_platform_import_does_not_pull_operators`），**但没有回写基线**
+  ——`AGENTS.md` 明写「改测试后实点回写，别沿用旧数」，仍然漏了。616 + 2 = **618** ✓。
+- **最反直觉的一点（本笔记重点）**：**门面门禁不会因为基线腐烂而变红**。它校验两件事——
+  「字面量 == render(来源)」和「文档里能找到这个字面量」。来源 `baselines.tests_main` 是**手写**
+  的；**它错了，门禁就跟着一起错，而且照样 66 条全绿**。
+  → 「把数字接进门禁」只解决**一致性**（改一处，所有没跟上的文档会被逐条列出来），
+  **不解决真值性**（来源本身对不对只能靠人实点）。这句话已写进 `facades_note`，
+  免得后来人以为"有门禁了数字就不会错"。
+- 处置：MAIN 实点 618 / worktree 实点 623 / 包 67（各跑一次 `--junitxml` 落文件解析）
+  → `baselines` 改 `623 / 67 / 690` → 同步 7 个文档共 10 处字面量 → 门禁复跑 **66 门面 66 PASS**。
+- 附带修掉两处"口径不完整"：
+  1. `DEV_PLAN` 顶部（**基线唯一真相源**）的演进链补全：
+     `683`（`ed89d03`；主仓 616）→ **`685`**（glm R1 +2，**未回写**）→ **`690`**（M2 +5）。
+     刻意把 616 与 683 留在链上——**历史步骤不能被新数覆盖**，否则「当时是多少」失传。
+  2. `PLATFORM` 的「**0 跳过**」补上环境条件：**未生成 `data/` 的环境另有 4 条实时数据用例
+     skip**（`test_alpha_acceptance` / `test_operator_pr` / `test_runner` / `test_sampling`）。
+     这句此前只在本机成立，写出去像「任何环境都 0 skip」。
+- **门面门禁的已知边界（必须写清，否则它就是下一个"文档说谎"）**：`min_count` 只保证
+  「**声明处存在正确数字**」，**不保证文档里没有历史残留的旧数**。`DEV_PLAN` 的开发日志表里
+  仍留着 `683`——那是**有意保留的历史记录**（该文件已标"本节是历史存档"）。
+  **"保留历史"与"数字腐烂"外观相同，区别只在于有没有显式时点/commit。**
+- 通用教训：
+  1. **门禁绿 ≠ 数字对**。门禁保证一致性与"改动会被看见"，真值必须实点。
+  2. 改测试的一方有回写义务；**没回写时，下一轮接手的人就是最后一道闸**——先实点再信文档。
+  3. 同一批数字在文档里有两类用法：**规范性**（"不得低于 690"）必须跟着改；
+     **历史性**（"`dda99c9` 时点 683"）必须留着。判据 = **有没有显式时点/commit**。
+
+### 94. 同一个提交，主工作区绿、linked worktree 红：`core.autocrlf=true` + 没有 `.gitattributes`
+
+- 现象：worktree 全量跑出 `tests/test_lock_file.py::test_lock_is_lf_only_so_it_can_be_diffed_
+  across_platforms` 红——`assert b"\r\n" not in LOCK.read_bytes()`；**主工作区同一条测试绿**。
+- 实点定性（**同一提交、同一 blob，只差检出环境**）：
+
+  | 位置 | `requirements.lock` 磁盘字节 |
+  |---|---|
+  | MAIN（主工作区） | `crlf=0 lf=40` → 测试绿 |
+  | WT（`git worktree add` 出来的 linked worktree） | `crlf=40 lf=0` → 测试红 |
+
+- 根因：`core.autocrlf` = **`true`（system 级）**，且仓库**没有 `.gitattributes`**。入库 blob 是
+  LF，主工作区那份也是 LF，而 **linked worktree 的检出**把 LF 写成了 CRLF。这条测试断言的是
+  **原始字节**（`read_bytes()`），不做换行归一 → 红。
+- 与 **#82** 的关系：#82 那条"逐字节一致"门禁用 `read_text()`（通用换行会归一），所以**看不见**
+  EOL 漂移；这条用 `read_bytes()`，**看得见**——但它看见的是**检出策略**，不是提交内容。
+  两条合起来才是完整判据：**归一换行的比较漏 EOL；比原始字节的比较会把检出策略算成内容差异。**
+- 一秒区分「环境性红」与「真红」：同一提交在**两种工作区各跑一次**；若只有 worktree 红、
+  且失败点涉及**原始字节 / EOL / 路径**，先查两件事——`git config --get core.autocrlf`、
+  仓库根有没有 `.gitattributes`。
+- **未做（属 glm 的共享配置域，已交接）**：加最小面 `.gitattributes`（如
+  `requirements.lock text eol=lf`）把检出策略钉死。注意 **`core.autocrlf` 是 system 级的**，
+  改它会影响本机所有仓库，所以该改的是**仓库内的 `.gitattributes`**，不是 git 配置。
+- 通用教训：
+  1. **worktree 是第二个检出环境**——"我在主工作区跑绿了"不构成"worktree 会绿"，反之亦然。
+     报"全量 N 绿"时必须写清**在哪个工作区、什么数据条件下**。
+  2. 环境性红必须**单独定性**，不能混进回归计数：worktree 的汇总行是
+     `623 collected / 618 passed / 1 fail / 4 skip`，不做定性就会被读成"这次提交弄坏了 5 条"，
+     而真值是与 MAIN 的 618 **逐条相同**。
+  3. 断言**原始字节**的测试天然对检出策略敏感：要么上 `.gitattributes` 钉死，要么在断言里显式
+     声明期望的 EOL 策略，别让它默默依赖"我这台机器的检出习惯"。
+
+### 95. 对象库事故的两条机制 + 一条纪律：坏 ref 截断枚举、陈旧 MIDX 报 1205 条假错、未推送提交只有一份副本
+
+- 背景：`.git` 遭外部清空后（glm 已记入 `9c8b2395`，**凶手未定位**），我在恢复途中实点到两条
+  **"症状离根因很远"** 的机制。
+- **机制一（最实用）：一个坏 ref 会让整条枚举静默截断。**
+  `refs/heads/workbuddy/doc-frontend` 指向**已丢失**的 `f08155b` 时，`git show-ref`
+  **rc≠0 且输出只有前半截**：它按字母序走，撞上这个坏 ref 就 `fatal: bad ref`，
+  **排在后面的 `refs/remotes/*` 与 `refs/tags/*` 全部不打印**；`for-each-ref` 同样只吐一半。
+  → 症状看起来是"ref 全丢了"，真因是"**一个坏 ref 卡住了枚举**"。
+  **判据：逐个点名 `git rev-parse --verify <ref>`，别信枚举输出。**
+- **机制二：陈旧 `multi-pack-index` 把 1 个缓存文件放大成 1205 条 fsck 错。**
+  `objects/pack/multi-pack-index` 里记着 **2 个 pack**、盘上只剩 **1 个**时：
+  `git fsck --full` 报 **1205 条**（`failed to load pack in position 0/1` + 逐条
+  `failed to load pack entry for oid[i]`），看着像对象库烂穿。而实际上——
+  `verify-pack -s <仅存的 .idx>` **rc=0、1456 对象完好**；对象读（`git show bee5c45:README.md`）
+  与写（`hash-object -w`）都正常。**删掉这个纯缓存文件后 fsck 问题数 1205 → 13**，
+  剩下 13 条全部是引用已丢失对象的破碎链/reflog（符合预期）。
+  注意 `git multi-pack-index write` 想重建也**先失败**（`could not load pack 0`）——**必须先删旧的**。
+- **机制三：对象库不全时，`git update-ref` 的退出码不可信。**
+  在一个**旧值指向丢失对象**的 ref 上 `git update-ref <ref> <新值>`，实测出现
+  **rc=0 但 ref 文件根本没落地**（`refs/heads/` 里找不到它）。改为**直接写 41 字节的 ref 文件**
+  （40 hex + `\n`）才生效。
+  → 恢复动作做完必须**重新验一遍**（`os.path.isfile` + `rev-parse --verify`），别拿退出码当证据。
+- **纪律：未推送的提交在对象库里也只有一份，工作区才是最后副本。**
+  本次两个提交都不可按对象恢复——`00504d9` 的 **commit 对象还在、它指向的 tree `e482dbfb` 已丢**
+  （`cat-file -t` 说 `commit`，`show` 却 `unable to read tree`）；`f08155b` 连 commit 都没了。
+  **`cat-file -t <sha>` 只证明"这一个对象在"，不证明"它可达"**；`fsck` 的
+  `broken link from commit … to tree …` 才是真话。恢复只能**以工作区内容为依据重建提交**
+  （`f08155b` 的树内容逐字节还在工作区、md5 与备份一致，已据此重新落地）。
+  推论：① **"本地提交了"不等于"安全了"**，对象库是单点；② 事故后**先算清"哪些提交只有本地才有"**
+  （`git log --branches --not --remotes`），那才是唯一可能不可恢复的部分；③ **别用 sha 指认一个
+  只在本地存在的提交**——glm 的 `9a21005` 被"按工作区重建为 `2600fc4`"，**内容一致但 sha 变了**，
+  文档里写死的 sha 会静默失效。
+- 恢复中**只用了加法动作**：重建 ref 文件、重建 worktree 的 admin dir
+  （`.git/worktrees/<id>/` 下 `gitdir` + `HEAD: ref: refs/heads/<branch>` + `commondir: ../..`，
+  之后 `git read-tree HEAD` 重建 index）、删纯缓存 MIDX。**全程没有 `prune` / `gc --prune`
+  / `checkout --`**——第 1 条教训（`git prune` 铲掉 22 个已推送提交）仍然生效。

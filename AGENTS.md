@@ -14,7 +14,7 @@
 
 ## 收工（必做，缺一视为未完成）
 
-1. **质量门全绿**：`python -m ruff check .` + `python -X utf8 -m pytest -q --tb=no`（主仓库与 packages/curation-eval 各跑一次）。测试基线：**主仓 616 + 包 67 = 683**，不得倒退（**改测试后实点回写**，基线在 docs/DEV_PLAN.md 顶部，别沿用旧数）。
+1. **质量门全绿**：`python -m ruff check .` + `python -X utf8 -m pytest -q --tb=no`（主仓库与 packages/curation-eval 各跑一次）。测试基线：**主仓 623 + 包 67 = 690**，不得倒退（**改测试后实点回写**，基线在 docs/DEV_PLAN.md 顶部，别沿用旧数）。
 2. **写本轮交接**：`docs/devlog/YYYY-MM-DD-<你的名字>.md`（做了什么 / 关键数字 / 改了哪些文件 / 下一个人需要知道的前提）。
    **不要直接改 `docs/DEV_PLAN.md`**——它是单写者文件，由文档 owner 合并（见 COLLAB_PLAN.md §四）。
 3. **回写任务状态**：有面试价值的现象写进 docs/ENGINEERING_NOTES.md（**编号由文档 owner 分配**，防撞号），格式：现象 → 根因 → 决策 → 话术。

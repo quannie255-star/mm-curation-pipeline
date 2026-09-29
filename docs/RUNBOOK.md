@@ -142,6 +142,27 @@ git log --oneline -3                      # 提交信息应是原文
   （对象就是一个个内容寻址的裸文件）。85MB 是磁盘问题，不是正确性问题。
 - 定期 `git repack -a -d`：对象进了 pack 至少有 `multi-pack-index` 一层结构保护。
 
+### 0.2.1 补（2026-09-29 实测）：worktree 场景 + 两类"假规模"噪声
+
+事故第二次出现时（`.git` 的 `refs/` 与 `worktrees/` 被清空、`objects/pack` 里只剩旧 pack），
+上面那套"从远端重建对象"仍然适用，但另有四条实测要点：
+
+1. **先量规模，别被 fsck 的行数骗。** 陈旧 `multi-pack-index` 会把 **1205 条**
+   `failed to load pack entry` 报出来，而 `verify-pack -s <仅存的 .idx>` 可能是
+   **rc=0 / 全部对象完好**。先跑 `verify-pack`，再决定是否需要动网络。
+2. **逐个 ref 点名。** `show-ref` / `for-each-ref` 撞上"指向丢失对象"的 ref 会**截断输出**，
+   别拿它的结果判断"ref 丢了多少"；用 `git rev-parse --verify <each-ref>` 一个一个问。
+3. **ref 落地要复核。** 坏 ref 上 `git update-ref` 可能 **rc=0 却没写文件**；写完
+   `rev-parse --verify` 再确认一次（必要时直接写 41 字节的 ref 文件）。
+4. **linked worktree 的断链是单独一件事。** 主库的 `.git/worktrees/<id>/` 丢了之后，
+   worktree 里所有 git 命令都会 `fatal: not a git repository`（`.git` 文件还指着不存在的 gitdir）。
+   `git worktree repair` 在 admin dir 不存在时**帮不上忙**（它得先能解析到仓库）。
+   手工重建 admin dir（`gitdir` / `HEAD: ref: refs/heads/<branch>` / `commondir: ../..`），
+   再从 worktree 里 `git read-tree HEAD` 重建 index 即可；**不需要删除、重加 worktree**。
+
+> 机制细节（坏 ref 截断枚举 / MIDX 假规模 / 未推送提交只有一份副本）见
+> `ENGINEERING_NOTES` #95。
+
 ## 1. 完整复现（按管道顺序，每步有验收数字）
 
 | 步骤 | 命令（make-free） | 耗时 | 验收 |

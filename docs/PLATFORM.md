@@ -609,12 +609,13 @@ python -m pytest tests/test_platform_*.py tests/test_lock_file.py tests/test_ci_
 
 （另计 `src/mm_curation/cli.py` 463 行；未计入测试文件的辅助模块与 fixture。）
 
-**测试基线（2026-09-27 实点）**：主仓 `pytest -q tests` → **616 passed / 0 failed / 0 error / 0 skipped**
-（106.9s）；包侧 `pytest -q packages/curation-eval/tests` → **67 passed**（48.7s）；
-合计 **683 条全绿**。
+**测试基线（2026-09-29 实点）**：主仓 `pytest -q tests` → **623 passed / 0 failed / 0 error / 0 skipped**
+（本机装了 ray + duckdb 且已生成 `data/`；106.9s 为 616 档时点值）；包侧 `pytest -q packages/curation-eval/tests` → **67 passed**（48.7s）；
+合计 **690 条全绿**。
 其中平台轨与交付物门禁贡献 **164 条**（`--collect-only` 实点，逐文件见上表）。
 演进：修观测层信号缺陷前 562 → 567（S6 平台侧修复）→ 613（S6 环境/晋升/交付门禁 +46）
-→ **616**（`data/raw/` 忽略覆盖面门禁 +3，见 §7.4 与 `ENGINEERING_NOTES` #89）。
+→ **616**（`data/raw/` 忽略覆盖面门禁 +3，见 §7.4 与 `ENGINEERING_NOTES` #89）
+→ **618**（glm R1 两条回归用例，未回写）→ **623**（M2 门面数字门禁 +5，见 `ENGINEERING_NOTES` #93）。
 
 参考：`docs/ENGINEERING_NOTES.md` 记现象与根因（本次新增 #85–#89）；
 `docs/RUNBOOK.md` 记处置；`docs/DATA_SYSTEM_TRACK.md` 记六批的完整计划。

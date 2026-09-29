@@ -101,3 +101,98 @@
 2. **R0-5**：全量 `ruff format`（55 文件）+ 提交。
 3. **共享配置域**（`.gitignore` / `pyproject.toml` / workflow / `.gitattributes`）由 glm 定；
    我需要改时走交接请求。
+
+---
+
+## 追加：R0 全关闭之后（同日第三轮）——隔离归位 + 两条交接请求
+
+**背景**：glm 已完成 **R0-1**（`8fd8669`，8 天在途全部入库 + 认领两个无主文件）、**R0-5**
+（`dda99c9`，全量 `ruff format` 55 文件），并顺势做掉 **R1 的 G1+G3**（`7471b1e`：版本 1.0.0 +
+`[project.scripts] mmc` 真命令 + CHANGELOG + 真实三源纯 CPU 实测 ≪10 分钟）。**R0 六项全部关闭**，
+且 `verify_claims.py` + `claims.json` + `tests/test_verify_claims.py` **正式移交给我**
+（COLLAB_PLAN §三例外 2 条件满足）→ **M2 可开工**。
+
+### 隔离归位（我做的一处纠正）
+
+上一轮我的两份文档改动（`COLLAB_PLAN.md` / `DEV_PLAN.md`）**误落在主工作区**（= glm 域），
+而 glm 当时正在同目录实编辑（`industrial_quality.py` 一轮内 `15→20` 行）。**先把这两个文件
+逐字节迁进 worktree**（留备份于临时目录），再把主工作区里它们**还原到 HEAD**
+（`git restore --source=HEAD --staged --worktree -- <这两个文件>`，只碰我独占的文件）。
+此后主工作区 `git status` 只剩 **glm 的 8 个在途文件**，无我的残留。
+
+### 交接请求 1（低优先，非火警）：`.gitignore` 补两条规则
+
+`git add --dry-run` 曾实测：`.venv-ci/`（**179.7 MB** venv）、`data/_r0_backup/`、
+`data/tmp_serve.log` 都**会被逐条暂存**（当时 `git check-ignore` 给的是**假绿**，见 #90）。
+**2026-09-28 复核**：这三个产物**已不在盘上**（你已清理），但 `.gitignore` **仍未**补规则
+（`git diff HEAD -- .gitignore` 为空）。→ 由「在案泄漏」降级为**潜在泄漏**：只要有人再建一个
+`.venv-ci/`，`git add -A` 就会重演。建议补：
+
+```
+# 复现 CI 用的临时 venv（R0-5 建过 .venv-ci/，179.7 MB）
+.venv*/
+# data/ 根下的零散日志 / 临时文件
+data/*.log
+```
+
+（`.venv34`/`.venv-ci` 这类一次性目录用 `.venv*/` 一并覆盖；`data/_r0_backup/` 是一次性备份，
+删掉即可，不必写进规则。）
+
+### 交接请求 2（低优先）：`7471b1e` 上格式门禁又红了（属平台轨）
+
+在 worktree（= 已提交的 `7471b1e`）实点：`ruff format --check src tests scripts dags packages`
+→ **rc=1，1 file would be reformatted / 236 already formatted**，就是
+`tests/test_platform_modeling.py`（`--diff` 是**真代码差**：隐式字符串拼接该并成一行，**非 CRLF**）；
+同一时刻 `ruff check` 全绿。即 **R0-5 转绿的「下一个」提交就把门禁弄红了**（见 #91）。
+修法：`ruff format tests/test_platform_modeling.py`。属平台轨，交给你。
+
+> 两条都**不急**、不阻塞任何人；写在这里是为了不让它们腐烂。`.gitattributes` 缺失（#82 补注）
+> 仍挂在「共享配置域」名下，一并由你定。
+
+---
+
+## 追加：M2 落地（门面数字接门禁）
+
+**目标**（`GAP_AUDIT` P3-1 的根治建议 + `COLLAB_PLAN` M2）：把散落各文档、**手写**的数字接
+`claims.json` + `verify_claims` 门禁，从「靠人记着对齐」变成「CI 拦截」。此前门禁只覆盖
+`claims.json ↔ 落盘报告`，**从不读文档**——README/INTERVIEW/RESUME 里那些数字全是裸奔的。
+
+**做了什么**：
+
+1. **`claims.json` 增两区**：
+   - `baselines`：`tests_main=616` / `tests_pkg=67` / `tests_total=683`（不来自报告 JSON，
+     但同样要求全文档一致；改一处，门禁列出所有没跟上的文档）。
+   - `facades`：**66 条**，覆盖 **16 份文档**（README / INTERVIEW / RESUME / ANALYSIS_REPORT /
+     INTERVIEW_SELFTEST / PROOF_CHAIN / QUICKSTART / RUNBOOK / DS_DA_TRACK / INDUSTRY_BENCHMARK /
+     REAL_DATA_REPORT / PLATFORM / COLLAB_PLAN / DEV_PLAN / AGENTS / showcase_app.py），
+     把 8 个 claim（0.459 / 0.556 / 0.688 / 0.636 / 7.16 / 7.70 / 0.131 / 1.23%）与 3 条基线，
+     绑到「文档里那个字面量」。
+2. **`verify_claims.py` 增门面校验**：每条门面**两件事同时成立**才算过——
+   ①`literal == render(来源值, fmt[, scale, suffix])`（否则 `registry-stale`）；
+   ②文档里能找到该字面量（否则 `doc-stale`）。字面量计数带**边界**（`0.556` 不在 `10.556` 里被误计、
+   `67` 不在 `267` 里被误计）。`--update` 按来源重锁 `literal` 并提示「文档仍需手工同步」。
+3. **可进 CI（关键性质）**：门面校验**只读 `claims.json` 的 `expected`**，**不需要 `data/reports/`**
+   （生成物、不入库）——所以在 CI 上真的会拦。这是它比 claim 校验更强的地方。
+4. **顺手修掉两处「当前态基线腐烂」**：`README.md` 的 `328 + 67` → `616 + 67 = 683`；
+   `PROOF_CHAIN.md` 的 `主仓 328 + 包 67` → `616 + 67`。
+5. **抓到并修掉一颗 CI 地雷**（→ `ENGINEERING_NOTES` **#92**）：`test_verify_claims.py` 的
+   `test_registry_all_pointers_resolve_in_repo` **断言 `data/reports/` 必须存在**，而它是生成物、
+   已忽略 → 这个测试**只在跑过生成步骤的机器上绿、在任何新克隆/CI 红**。是 #80 的镜像
+   （#80 = CI 一直红我以为绿；这条 = 本机绿、CI 红），且被 S0「让 pytest 真跑」**激活**。
+   修法：拆成①字段完整性（CI 可查）②报告在盘才校验指针，并加「有报告时必须真校验到 ≥1 条」防退化。
+6. **测试 + 变异**：`tests/test_verify_claims.py` 从 4 → **10** 条（字数边界 / render /
+   pass / registry-stale / doc-stale / source-missing / **集成 + 变异**：改坏来源必须变红）。
+
+**实点（2026-09-28）**：`verify_claims.py` → **66 门面 66 PASS / 0 漂移**；
+以新注册表对**真实报告**复验 → **13 PASS / 0 DRIFT / 1 历史（不校验）**、数据指纹 `pass`；
+`pytest tests/test_verify_claims.py` → **10 passed**；`ruff check` + `format --check` 双绿。
+
+**诚实边界（还没做）**：①`baselines` 的值仍靠人实点回写（可进一步用 CI 的 `--junitxml` 自动比对，
+属下一步）；②`ROADMAP` / `design_tables` 里的历史基线**刻意没登记**（按日期冻结的历史记录，不是当前态）。
+
+### 交接请求 3（低优先）：把 `verify-claims` 接进 CI
+
+`make verify-claims` 已是入口，但 `.github/workflows/*.yml` 里**没有任何 workflow 调它**（已 grep 确认）
+→ M2 的「CI 拦截」目前只在**本地**兑现。建议在 `ci.yml` 加一步：
+`python -X utf8 scripts/verify_claims.py`（它不依赖 `data/reports/`，CI 上可直接跑）。
+workflow 属 glm 域，故走交接请求。

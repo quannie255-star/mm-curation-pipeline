@@ -1,14 +1,16 @@
 {
   "meta": {
     "purpose": "简历/文档数字版本锁定：每条 claim 绑定 报告文件+json 指针+期望值+容差，verify_claims.py 逐条校验，漂移即红。",
-    "updated": "2026-09-18",
+    "updated": "2026-09-29",
     "data_fingerprints": {
       "data/interim/contaminated/samples.jsonl": {
         "md5": "e1dfdae8e04818a599f5e84f81106089",
         "rows": 2106
       }
     },
-    "tolerance_note": "浮点 claim 用 approx（绝对差 ≤ tol）；计数与比率类用 exact。历史数字无法从落盘报告复核的，标 historical=true，不参与校验（如实标注）。"
+    "tolerance_note": "浮点 claim 用 approx（绝对差 ≤ tol）；计数与比率类用 exact。历史数字无法从落盘报告复核的，标 historical=true，不参与校验（如实标注）。",
+    "facades_note": "文档门面：facades 里每条把「某文档里手写的数字」绑定到来源（claim 或 baselines）+ 渲染格式 + 字面量。verify_claims.py 校验两件事：字面量 == render(来源值)（registry-stale 则红）、文档里能找到该字面量（doc-stale 则红）。好处：**不依赖 data/reports/（生成物、不入库）**，所以在 CI 上也能拦。数字一改，门禁会把所有还没同步的文档逐条列出来。",
+    "baselines_note": "baselines 是不来自报告 JSON、但同样要全文档一致的“基线数字”（测试条数）。改一处，门禁列出所有没跟上的文档。"
   },
   "claims": [
     {
@@ -139,6 +141,871 @@
       "tol": null,
       "comparator": "historical",
       "note": "分组结果未落盘（现有 ablation_eval.json 为逐算子口径，单算子 Δ=0）；引用时必须标注为历史数字，重跑分组口径进 backlog"
+    }
+  ],
+  "baselines": {
+    "tests_main": 623,
+    "tests_pkg": 67,
+    "tests_total": 690
+  },
+  "facades": [
+    {
+      "id": "README_md__soul_dirty_r1",
+      "doc": "README.md",
+      "source": {
+        "claim": "soul_dirty_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.459",
+      "min_count": 1,
+      "note": "README.md 引用 soul_dirty_r1 的数字"
+    },
+    {
+      "id": "README_md__soul_clean_r1",
+      "doc": "README.md",
+      "source": {
+        "claim": "soul_clean_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.556",
+      "min_count": 1,
+      "note": "README.md 引用 soul_clean_r1 的数字"
+    },
+    {
+      "id": "README_md__clip_clean_ft_r1",
+      "doc": "README.md",
+      "source": {
+        "claim": "clip_clean_ft_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.688",
+      "min_count": 1,
+      "note": "README.md 引用 clip_clean_ft_r1 的数字"
+    },
+    {
+      "id": "README_md__clip_dirty_ft_r1",
+      "doc": "README.md",
+      "source": {
+        "claim": "clip_dirty_ft_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.636",
+      "min_count": 1,
+      "note": "README.md 引用 clip_dirty_ft_r1 的数字"
+    },
+    {
+      "id": "README_md__ppl_clean",
+      "doc": "README.md",
+      "source": {
+        "claim": "ppl_clean"
+      },
+      "fmt": ".2f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "7.16",
+      "min_count": 1,
+      "note": "README.md 引用 ppl_clean 的数字"
+    },
+    {
+      "id": "README_md__ppl_dirty",
+      "doc": "README.md",
+      "source": {
+        "claim": "ppl_dirty"
+      },
+      "fmt": ".2f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "7.70",
+      "min_count": 1,
+      "note": "README.md 引用 ppl_dirty 的数字"
+    },
+    {
+      "id": "docs_INTERVIEW_md__soul_dirty_r1",
+      "doc": "docs/INTERVIEW.md",
+      "source": {
+        "claim": "soul_dirty_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.459",
+      "min_count": 1,
+      "note": "docs/INTERVIEW.md 引用 soul_dirty_r1 的数字"
+    },
+    {
+      "id": "docs_INTERVIEW_md__soul_clean_r1",
+      "doc": "docs/INTERVIEW.md",
+      "source": {
+        "claim": "soul_clean_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.556",
+      "min_count": 1,
+      "note": "docs/INTERVIEW.md 引用 soul_clean_r1 的数字"
+    },
+    {
+      "id": "docs_INTERVIEW_md__clip_clean_ft_r1",
+      "doc": "docs/INTERVIEW.md",
+      "source": {
+        "claim": "clip_clean_ft_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.688",
+      "min_count": 1,
+      "note": "docs/INTERVIEW.md 引用 clip_clean_ft_r1 的数字"
+    },
+    {
+      "id": "docs_INTERVIEW_md__clip_dirty_ft_r1",
+      "doc": "docs/INTERVIEW.md",
+      "source": {
+        "claim": "clip_dirty_ft_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.636",
+      "min_count": 1,
+      "note": "docs/INTERVIEW.md 引用 clip_dirty_ft_r1 的数字"
+    },
+    {
+      "id": "docs_INTERVIEW_md__ppl_clean",
+      "doc": "docs/INTERVIEW.md",
+      "source": {
+        "claim": "ppl_clean"
+      },
+      "fmt": ".2f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "7.16",
+      "min_count": 1,
+      "note": "docs/INTERVIEW.md 引用 ppl_clean 的数字"
+    },
+    {
+      "id": "docs_INTERVIEW_md__ppl_dirty",
+      "doc": "docs/INTERVIEW.md",
+      "source": {
+        "claim": "ppl_dirty"
+      },
+      "fmt": ".2f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "7.70",
+      "min_count": 1,
+      "note": "docs/INTERVIEW.md 引用 ppl_dirty 的数字"
+    },
+    {
+      "id": "docs_RESUME_md__soul_dirty_r1",
+      "doc": "docs/RESUME.md",
+      "source": {
+        "claim": "soul_dirty_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.459",
+      "min_count": 1,
+      "note": "docs/RESUME.md 引用 soul_dirty_r1 的数字"
+    },
+    {
+      "id": "docs_RESUME_md__soul_clean_r1",
+      "doc": "docs/RESUME.md",
+      "source": {
+        "claim": "soul_clean_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.556",
+      "min_count": 1,
+      "note": "docs/RESUME.md 引用 soul_clean_r1 的数字"
+    },
+    {
+      "id": "docs_RESUME_md__clip_clean_ft_r1",
+      "doc": "docs/RESUME.md",
+      "source": {
+        "claim": "clip_clean_ft_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.688",
+      "min_count": 1,
+      "note": "docs/RESUME.md 引用 clip_clean_ft_r1 的数字"
+    },
+    {
+      "id": "docs_RESUME_md__clip_dirty_ft_r1",
+      "doc": "docs/RESUME.md",
+      "source": {
+        "claim": "clip_dirty_ft_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.636",
+      "min_count": 1,
+      "note": "docs/RESUME.md 引用 clip_dirty_ft_r1 的数字"
+    },
+    {
+      "id": "docs_RESUME_md__ppl_clean",
+      "doc": "docs/RESUME.md",
+      "source": {
+        "claim": "ppl_clean"
+      },
+      "fmt": ".2f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "7.16",
+      "min_count": 1,
+      "note": "docs/RESUME.md 引用 ppl_clean 的数字"
+    },
+    {
+      "id": "docs_RESUME_md__ppl_dirty",
+      "doc": "docs/RESUME.md",
+      "source": {
+        "claim": "ppl_dirty"
+      },
+      "fmt": ".2f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "7.70",
+      "min_count": 1,
+      "note": "docs/RESUME.md 引用 ppl_dirty 的数字"
+    },
+    {
+      "id": "docs_ANALYSIS_REPORT_md__soul_dirty_r1",
+      "doc": "docs/ANALYSIS_REPORT.md",
+      "source": {
+        "claim": "soul_dirty_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.459",
+      "min_count": 1,
+      "note": "docs/ANALYSIS_REPORT.md 引用 soul_dirty_r1 的数字"
+    },
+    {
+      "id": "docs_ANALYSIS_REPORT_md__soul_clean_r1",
+      "doc": "docs/ANALYSIS_REPORT.md",
+      "source": {
+        "claim": "soul_clean_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.556",
+      "min_count": 1,
+      "note": "docs/ANALYSIS_REPORT.md 引用 soul_clean_r1 的数字"
+    },
+    {
+      "id": "docs_ANALYSIS_REPORT_md__clip_clean_ft_r1",
+      "doc": "docs/ANALYSIS_REPORT.md",
+      "source": {
+        "claim": "clip_clean_ft_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.688",
+      "min_count": 1,
+      "note": "docs/ANALYSIS_REPORT.md 引用 clip_clean_ft_r1 的数字"
+    },
+    {
+      "id": "docs_ANALYSIS_REPORT_md__clip_dirty_ft_r1",
+      "doc": "docs/ANALYSIS_REPORT.md",
+      "source": {
+        "claim": "clip_dirty_ft_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.636",
+      "min_count": 1,
+      "note": "docs/ANALYSIS_REPORT.md 引用 clip_dirty_ft_r1 的数字"
+    },
+    {
+      "id": "docs_ANALYSIS_REPORT_md__ppl_clean",
+      "doc": "docs/ANALYSIS_REPORT.md",
+      "source": {
+        "claim": "ppl_clean"
+      },
+      "fmt": ".2f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "7.16",
+      "min_count": 1,
+      "note": "docs/ANALYSIS_REPORT.md 引用 ppl_clean 的数字"
+    },
+    {
+      "id": "docs_ANALYSIS_REPORT_md__ppl_dirty",
+      "doc": "docs/ANALYSIS_REPORT.md",
+      "source": {
+        "claim": "ppl_dirty"
+      },
+      "fmt": ".2f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "7.70",
+      "min_count": 1,
+      "note": "docs/ANALYSIS_REPORT.md 引用 ppl_dirty 的数字"
+    },
+    {
+      "id": "docs_ANALYSIS_REPORT_md__random_drop_margin",
+      "doc": "docs/ANALYSIS_REPORT.md",
+      "source": {
+        "claim": "random_drop_margin"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.131",
+      "min_count": 1,
+      "note": "docs/ANALYSIS_REPORT.md 引用 random_drop_margin 的数字"
+    },
+    {
+      "id": "docs_INTERVIEW_SELFTEST_md__soul_dirty_r1",
+      "doc": "docs/INTERVIEW_SELFTEST.md",
+      "source": {
+        "claim": "soul_dirty_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.459",
+      "min_count": 1,
+      "note": "docs/INTERVIEW_SELFTEST.md 引用 soul_dirty_r1 的数字"
+    },
+    {
+      "id": "docs_INTERVIEW_SELFTEST_md__soul_clean_r1",
+      "doc": "docs/INTERVIEW_SELFTEST.md",
+      "source": {
+        "claim": "soul_clean_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.556",
+      "min_count": 1,
+      "note": "docs/INTERVIEW_SELFTEST.md 引用 soul_clean_r1 的数字"
+    },
+    {
+      "id": "docs_INTERVIEW_SELFTEST_md__clip_clean_ft_r1",
+      "doc": "docs/INTERVIEW_SELFTEST.md",
+      "source": {
+        "claim": "clip_clean_ft_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.688",
+      "min_count": 1,
+      "note": "docs/INTERVIEW_SELFTEST.md 引用 clip_clean_ft_r1 的数字"
+    },
+    {
+      "id": "docs_INTERVIEW_SELFTEST_md__clip_dirty_ft_r1",
+      "doc": "docs/INTERVIEW_SELFTEST.md",
+      "source": {
+        "claim": "clip_dirty_ft_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.636",
+      "min_count": 1,
+      "note": "docs/INTERVIEW_SELFTEST.md 引用 clip_dirty_ft_r1 的数字"
+    },
+    {
+      "id": "docs_INTERVIEW_SELFTEST_md__ppl_clean",
+      "doc": "docs/INTERVIEW_SELFTEST.md",
+      "source": {
+        "claim": "ppl_clean"
+      },
+      "fmt": ".2f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "7.16",
+      "min_count": 1,
+      "note": "docs/INTERVIEW_SELFTEST.md 引用 ppl_clean 的数字"
+    },
+    {
+      "id": "docs_INTERVIEW_SELFTEST_md__ppl_dirty",
+      "doc": "docs/INTERVIEW_SELFTEST.md",
+      "source": {
+        "claim": "ppl_dirty"
+      },
+      "fmt": ".2f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "7.70",
+      "min_count": 1,
+      "note": "docs/INTERVIEW_SELFTEST.md 引用 ppl_dirty 的数字"
+    },
+    {
+      "id": "docs_PROOF_CHAIN_md__soul_dirty_r1",
+      "doc": "docs/PROOF_CHAIN.md",
+      "source": {
+        "claim": "soul_dirty_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.459",
+      "min_count": 1,
+      "note": "docs/PROOF_CHAIN.md 引用 soul_dirty_r1 的数字"
+    },
+    {
+      "id": "docs_PROOF_CHAIN_md__soul_clean_r1",
+      "doc": "docs/PROOF_CHAIN.md",
+      "source": {
+        "claim": "soul_clean_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.556",
+      "min_count": 1,
+      "note": "docs/PROOF_CHAIN.md 引用 soul_clean_r1 的数字"
+    },
+    {
+      "id": "docs_PROOF_CHAIN_md__clip_clean_ft_r1",
+      "doc": "docs/PROOF_CHAIN.md",
+      "source": {
+        "claim": "clip_clean_ft_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.688",
+      "min_count": 1,
+      "note": "docs/PROOF_CHAIN.md 引用 clip_clean_ft_r1 的数字"
+    },
+    {
+      "id": "docs_PROOF_CHAIN_md__clip_dirty_ft_r1",
+      "doc": "docs/PROOF_CHAIN.md",
+      "source": {
+        "claim": "clip_dirty_ft_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.636",
+      "min_count": 1,
+      "note": "docs/PROOF_CHAIN.md 引用 clip_dirty_ft_r1 的数字"
+    },
+    {
+      "id": "docs_PROOF_CHAIN_md__ppl_clean",
+      "doc": "docs/PROOF_CHAIN.md",
+      "source": {
+        "claim": "ppl_clean"
+      },
+      "fmt": ".2f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "7.16",
+      "min_count": 1,
+      "note": "docs/PROOF_CHAIN.md 引用 ppl_clean 的数字"
+    },
+    {
+      "id": "docs_PROOF_CHAIN_md__ppl_dirty",
+      "doc": "docs/PROOF_CHAIN.md",
+      "source": {
+        "claim": "ppl_dirty"
+      },
+      "fmt": ".2f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "7.70",
+      "min_count": 1,
+      "note": "docs/PROOF_CHAIN.md 引用 ppl_dirty 的数字"
+    },
+    {
+      "id": "docs_PROOF_CHAIN_md__ind_gate_fk_worst",
+      "doc": "docs/PROOF_CHAIN.md",
+      "source": {
+        "claim": "ind_gate_fk_worst"
+      },
+      "fmt": ".2f",
+      "scale": 100,
+      "suffix": "%",
+      "literal": "1.23%",
+      "min_count": 1,
+      "note": "docs/PROOF_CHAIN.md 引用 ind_gate_fk_worst 的数字"
+    },
+    {
+      "id": "docs_QUICKSTART_md__soul_dirty_r1",
+      "doc": "docs/QUICKSTART.md",
+      "source": {
+        "claim": "soul_dirty_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.459",
+      "min_count": 1,
+      "note": "docs/QUICKSTART.md 引用 soul_dirty_r1 的数字"
+    },
+    {
+      "id": "docs_QUICKSTART_md__soul_clean_r1",
+      "doc": "docs/QUICKSTART.md",
+      "source": {
+        "claim": "soul_clean_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.556",
+      "min_count": 1,
+      "note": "docs/QUICKSTART.md 引用 soul_clean_r1 的数字"
+    },
+    {
+      "id": "docs_RUNBOOK_md__soul_dirty_r1",
+      "doc": "docs/RUNBOOK.md",
+      "source": {
+        "claim": "soul_dirty_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.459",
+      "min_count": 1,
+      "note": "docs/RUNBOOK.md 引用 soul_dirty_r1 的数字"
+    },
+    {
+      "id": "docs_RUNBOOK_md__soul_clean_r1",
+      "doc": "docs/RUNBOOK.md",
+      "source": {
+        "claim": "soul_clean_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.556",
+      "min_count": 1,
+      "note": "docs/RUNBOOK.md 引用 soul_clean_r1 的数字"
+    },
+    {
+      "id": "docs_RUNBOOK_md__clip_clean_ft_r1",
+      "doc": "docs/RUNBOOK.md",
+      "source": {
+        "claim": "clip_clean_ft_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.688",
+      "min_count": 1,
+      "note": "docs/RUNBOOK.md 引用 clip_clean_ft_r1 的数字"
+    },
+    {
+      "id": "docs_RUNBOOK_md__clip_dirty_ft_r1",
+      "doc": "docs/RUNBOOK.md",
+      "source": {
+        "claim": "clip_dirty_ft_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.636",
+      "min_count": 1,
+      "note": "docs/RUNBOOK.md 引用 clip_dirty_ft_r1 的数字"
+    },
+    {
+      "id": "docs_DS_DA_TRACK_md__soul_dirty_r1",
+      "doc": "docs/DS_DA_TRACK.md",
+      "source": {
+        "claim": "soul_dirty_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.459",
+      "min_count": 1,
+      "note": "docs/DS_DA_TRACK.md 引用 soul_dirty_r1 的数字"
+    },
+    {
+      "id": "docs_DS_DA_TRACK_md__soul_clean_r1",
+      "doc": "docs/DS_DA_TRACK.md",
+      "source": {
+        "claim": "soul_clean_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.556",
+      "min_count": 1,
+      "note": "docs/DS_DA_TRACK.md 引用 soul_clean_r1 的数字"
+    },
+    {
+      "id": "docs_DS_DA_TRACK_md__random_drop_margin",
+      "doc": "docs/DS_DA_TRACK.md",
+      "source": {
+        "claim": "random_drop_margin"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.131",
+      "min_count": 1,
+      "note": "docs/DS_DA_TRACK.md 引用 random_drop_margin 的数字"
+    },
+    {
+      "id": "docs_INDUSTRY_BENCHMARK_md__soul_dirty_r1",
+      "doc": "docs/INDUSTRY_BENCHMARK.md",
+      "source": {
+        "claim": "soul_dirty_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.459",
+      "min_count": 1,
+      "note": "docs/INDUSTRY_BENCHMARK.md 引用 soul_dirty_r1 的数字"
+    },
+    {
+      "id": "docs_INDUSTRY_BENCHMARK_md__soul_clean_r1",
+      "doc": "docs/INDUSTRY_BENCHMARK.md",
+      "source": {
+        "claim": "soul_clean_r1"
+      },
+      "fmt": ".3f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "0.556",
+      "min_count": 1,
+      "note": "docs/INDUSTRY_BENCHMARK.md 引用 soul_clean_r1 的数字"
+    },
+    {
+      "id": "scripts_showcase_app_py__ppl_clean",
+      "doc": "scripts/showcase_app.py",
+      "source": {
+        "claim": "ppl_clean"
+      },
+      "fmt": ".2f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "7.16",
+      "min_count": 1,
+      "note": "scripts/showcase_app.py 引用 ppl_clean 的数字"
+    },
+    {
+      "id": "scripts_showcase_app_py__ppl_dirty",
+      "doc": "scripts/showcase_app.py",
+      "source": {
+        "claim": "ppl_dirty"
+      },
+      "fmt": ".2f",
+      "scale": 1,
+      "suffix": "",
+      "literal": "7.70",
+      "min_count": 1,
+      "note": "scripts/showcase_app.py 引用 ppl_dirty 的数字"
+    },
+    {
+      "id": "docs_REAL_DATA_REPORT_md__ind_gate_fk_worst",
+      "doc": "docs/REAL_DATA_REPORT.md",
+      "source": {
+        "claim": "ind_gate_fk_worst"
+      },
+      "fmt": ".2f",
+      "scale": 100,
+      "suffix": "%",
+      "literal": "1.23%",
+      "min_count": 1,
+      "note": "docs/REAL_DATA_REPORT.md 引用 ind_gate_fk_worst 的数字"
+    },
+    {
+      "id": "README_md__tests_main",
+      "doc": "README.md",
+      "source": {
+        "baseline": "tests_main"
+      },
+      "fmt": "d",
+      "scale": 1,
+      "suffix": "",
+      "literal": "623",
+      "min_count": 1,
+      "note": "README.md 引用测试基线 tests_main"
+    },
+    {
+      "id": "README_md__tests_pkg",
+      "doc": "README.md",
+      "source": {
+        "baseline": "tests_pkg"
+      },
+      "fmt": "d",
+      "scale": 1,
+      "suffix": "",
+      "literal": "67",
+      "min_count": 1,
+      "note": "README.md 引用测试基线 tests_pkg"
+    },
+    {
+      "id": "AGENTS_md__tests_main",
+      "doc": "AGENTS.md",
+      "source": {
+        "baseline": "tests_main"
+      },
+      "fmt": "d",
+      "scale": 1,
+      "suffix": "",
+      "literal": "623",
+      "min_count": 1,
+      "note": "AGENTS.md 引用测试基线 tests_main"
+    },
+    {
+      "id": "AGENTS_md__tests_pkg",
+      "doc": "AGENTS.md",
+      "source": {
+        "baseline": "tests_pkg"
+      },
+      "fmt": "d",
+      "scale": 1,
+      "suffix": "",
+      "literal": "67",
+      "min_count": 1,
+      "note": "AGENTS.md 引用测试基线 tests_pkg"
+    },
+    {
+      "id": "AGENTS_md__tests_total",
+      "doc": "AGENTS.md",
+      "source": {
+        "baseline": "tests_total"
+      },
+      "fmt": "d",
+      "scale": 1,
+      "suffix": "",
+      "literal": "690",
+      "min_count": 1,
+      "note": "AGENTS.md 引用测试基线 tests_total"
+    },
+    {
+      "id": "docs_PLATFORM_md__tests_main",
+      "doc": "docs/PLATFORM.md",
+      "source": {
+        "baseline": "tests_main"
+      },
+      "fmt": "d",
+      "scale": 1,
+      "suffix": "",
+      "literal": "623",
+      "min_count": 1,
+      "note": "docs/PLATFORM.md 引用测试基线 tests_main"
+    },
+    {
+      "id": "docs_PLATFORM_md__tests_pkg",
+      "doc": "docs/PLATFORM.md",
+      "source": {
+        "baseline": "tests_pkg"
+      },
+      "fmt": "d",
+      "scale": 1,
+      "suffix": "",
+      "literal": "67",
+      "min_count": 1,
+      "note": "docs/PLATFORM.md 引用测试基线 tests_pkg"
+    },
+    {
+      "id": "docs_PLATFORM_md__tests_total",
+      "doc": "docs/PLATFORM.md",
+      "source": {
+        "baseline": "tests_total"
+      },
+      "fmt": "d",
+      "scale": 1,
+      "suffix": "",
+      "literal": "690",
+      "min_count": 1,
+      "note": "docs/PLATFORM.md 引用测试基线 tests_total"
+    },
+    {
+      "id": "docs_COLLAB_PLAN_md__tests_main",
+      "doc": "docs/COLLAB_PLAN.md",
+      "source": {
+        "baseline": "tests_main"
+      },
+      "fmt": "d",
+      "scale": 1,
+      "suffix": "",
+      "literal": "623",
+      "min_count": 1,
+      "note": "docs/COLLAB_PLAN.md 引用测试基线 tests_main"
+    },
+    {
+      "id": "docs_COLLAB_PLAN_md__tests_pkg",
+      "doc": "docs/COLLAB_PLAN.md",
+      "source": {
+        "baseline": "tests_pkg"
+      },
+      "fmt": "d",
+      "scale": 1,
+      "suffix": "",
+      "literal": "67",
+      "min_count": 1,
+      "note": "docs/COLLAB_PLAN.md 引用测试基线 tests_pkg"
+    },
+    {
+      "id": "docs_COLLAB_PLAN_md__tests_total",
+      "doc": "docs/COLLAB_PLAN.md",
+      "source": {
+        "baseline": "tests_total"
+      },
+      "fmt": "d",
+      "scale": 1,
+      "suffix": "",
+      "literal": "690",
+      "min_count": 1,
+      "note": "docs/COLLAB_PLAN.md 引用测试基线 tests_total"
+    },
+    {
+      "id": "docs_PROOF_CHAIN_md__tests_main",
+      "doc": "docs/PROOF_CHAIN.md",
+      "source": {
+        "baseline": "tests_main"
+      },
+      "fmt": "d",
+      "scale": 1,
+      "suffix": "",
+      "literal": "623",
+      "min_count": 1,
+      "note": "docs/PROOF_CHAIN.md 引用测试基线 tests_main"
+    },
+    {
+      "id": "scripts_showcase_app_py__tests_pkg",
+      "doc": "scripts/showcase_app.py",
+      "source": {
+        "baseline": "tests_pkg"
+      },
+      "fmt": "d",
+      "scale": 1,
+      "suffix": "",
+      "literal": "67",
+      "min_count": 1,
+      "note": "scripts/showcase_app.py 引用测试基线 tests_pkg"
+    },
+    {
+      "id": "docs_DEV_PLAN_md__tests_total",
+      "doc": "docs/DEV_PLAN.md",
+      "source": {
+        "baseline": "tests_total"
+      },
+      "fmt": "d",
+      "scale": 1,
+      "suffix": "",
+      "literal": "690",
+      "min_count": 1,
+      "note": "docs/DEV_PLAN.md 引用测试基线 tests_total"
     }
   ]
 }

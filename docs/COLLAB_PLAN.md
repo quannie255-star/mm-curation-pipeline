@@ -30,7 +30,7 @@
 2. **禁止 `git add -A` / `git add .`**。只 `git add <具体文件>`。
 3. **禁止 `git stash` / `git checkout -- <path>` / `git reset --hard` / `git push --force`**。
    共享工作区里这些命令会不可逆地吃掉对方的工作。
-4. **门禁只增不减。** 测试基线**主仓 616 + 包 67 = 683**（2026-09-28 实点）；
+4. **门禁只增不减。** 测试基线**主仓 623 + 包 67 = 690**（2026-09-29 实点）；
    任何提交不得低于它。新加的门禁**必须做变异测试**（故意改坏 → 必须红 → 改回 → 必须绿），
    否则不算门禁（判据见 skill `gate-actually-gates-audit`）。
 
@@ -136,26 +136,42 @@ git status --porcelain                   # 确认没有把对方名下的文件�
 
 | # | 任务 | 状态 | 证据 |
 |---|---|---|---|
-| R0-1 | glm 收口 8 天在途 | ⬜ **未做——整条链唯一的闸门** | 工作区仍有 glm 的 13 个 09-06~09-20 在途文件 |
+| R0-1 | glm 收口 8 天在途 | ✅ | `8fd8669`——在途全部入库（extraction 分解式判官 / eval_judge `--timeout` / 能力矩阵 / 台账），**并认领了两个无主文件**（`findata_health_stage.py`、`docs_archive/v4-alpha-fhir/`）；`claims.json`+`verify_claims` 13 PASS |
 | R0-2 | 提交平台轨 S0–S6（3 个 commit） | ✅ | `cd3072b` 核心 / `3ad0be8` 交付 / `ed89d03` 文档 |
 | R0-3 | worktree 物理隔离 | ✅ | `../mmc-doc-frontend`（分支 `workbuddy/doc-frontend`）；**主工作区仍在 `main` 且 HEAD 未动** |
 | R0-4 | 推送 | ✅ | **9 个提交**（3 个历史积压 + 6 个本轮 = 5 个实质 + 1 条关窗）已上 `main`（原 `465fe4d`）；关窗条件 `origin/main..HEAD` 为空已满足。**不写死 tip sha**——关窗那条提交也会被推，写死的 sha 会立刻过期 |
-| R0-5 | 全量 `ruff format` | ⬜ **未做，等 R0-1** | 实点仍 **55** 文件（scripts 26 / tests 14 / src 11 / packages 4） |
+| R0-5 | 全量 `ruff format` | ✅ | `dda99c9`——55 文件（scripts 26 / tests 14 / src 11 / packages 4），format 后 616+67 全绿复跑 |
 | R0-6 | 修复事实源 | ✅ | 与 R0-2 同批的第 4 个 commit `510462a`（`DEV_PLAN.md` + `AGENTS.md`） |
+
+**R0 已全部关闭（2026-09-28 实点）**，且 glm 顺势推进到 R1：**G1 ✅**（`7471b1e` 版本 1.0.0 +
+`[project.scripts] mmc` + CHANGELOG）、**G3 ✅**（同 commit：真实三源 383 MB 纯 CPU 实测
+run 11.8s + contracts/obs/serve ≈18s ≪ 10 分钟承诺；顺带修掉 `ads avg(VARCHAR)` 一个真 bug）。
+**仍开**：G2（容器冒烟首次在 CI 真跑）；**M2 已解禁**（`verify_claims`+`claims.json` 已正式移交我）。
+
+**一件跨域的事（已提交接请求，非火警）**：`git add --dry-run` 曾实测 `.gitignore` 不挡
+`.venv-ci/`（**179.7 MB** 虚拟环境）、`data/_r0_backup/`、`data/tmp_serve.log`。
+**2026-09-28 复核**：这三个产物**已不在盘上**（glm 已清理），但 `.gitignore` **仍未**补规则
+（`git diff HEAD -- .gitignore` 为空）→ 由「在案泄漏」降级为**潜在泄漏**（再建 `.venv-ci/` 即重演）。
+`.gitignore` 属 glm 域，请求写在 `docs/devlog/2026-09-28-workbuddy.md`。详见 `ENGINEERING_NOTES` #90。
+
+**一处 HEAD 上的真红（2026-09-28 在 worktree 实点）**：`ruff format --check` 在 `7471b1e` 上
+**1 file would be reformatted / 236 already formatted**（`tests/test_platform_modeling.py`，
+真代码差非 CRLF），而 `ruff check` 全绿 → **格式门禁又红了**（R0-5 转绿的**下一个**提交）。
+属平台轨（glm 域），请求写在同一 devlog。详见 `ENGINEERING_NOTES` #91。
 
 **本轮把「文件不相交」从假设变成了实测**：按 mtime 分界，glm 的在途文件全部落在
 **09-06~09-20**，平台轨全部落在 **09-27/09-28**，两者零交集——所以 R0-2 能安全地不等 R0-1。
 **归属判据用 mtime，比读文档可靠**（文档自述的归属已经腐烂过）。
 
-**两个未认领项（本轮刻意不提交）**：`scripts/findata_health_stage.py`（跨仓库 findata 联动脚本）
-与 `docs_archive/v4-alpha-fhir/tasks.md`——mtime 均为 09-17，落在 glm 的在途窗口内，
-但**既不在它的清单里，也不在我的清单里**。按「宁可欠着、不可猜着提交」处理，等认领。
+**两个原「未认领项」已被 glm 于 R0-1 认领**：`scripts/findata_health_stage.py`（跨仓库 findata
+联动脚本）与 `docs_archive/v4-alpha-fhir/`——**认领 = 写明归属**，不是提交。
 
 **两件「知道但暂时不修」的共享配置（写在规约里，免得下一个人重新发现）**：
 1. **`.gitattributes` 缺失** → 本机 `core.autocrlf=true`（system 级）让新检出把生成物写成 CRLF
    （实测 3838 B → 3963 B）。现有门禁用 `read_text()` 比较，**自带换行归一，所以两处都看不见这个漂移**。
    详见 `docs/ENGINEERING_NOTES.md` #82 补注。
 2. **`.gitignore` / `pyproject.toml` / workflow 文件属 glm 域**（§四），我需要改时走交接请求。
+   已识别一条待补规则：`.venv*/`（覆盖 `.venv-ci/` 之类）与 `data/*.log`（见 #90）。
 
 **本文件在 R0 之后不再需要更新**——R1–R3 的分派已固定，进度看 `docs/DEV_PLAN.md` 与各人的 `docs/devlog/`。
 
@@ -195,7 +211,7 @@ git status --porcelain                   # 确认没有把对方名下的文件�
 
 ## 六、每轮都不得破坏的不变量
 
-1. **测试基线 616 + 67 = 683，只增不减**；改测试后用 `--junitxml` 实点回写，**别沿用旧数**
+1. **测试基线 623 + 67 = 690，只增不减**；改测试后用 `--junitxml` 实点回写，**别沿用旧数**
    （基线数字历史上烂过六次）。
 2. **不改 `Sample` / `Operator` 协议签名**；**既有 4 个 config 一字不动**（新需求新建 config）。
 3. **非平凡任务先过设计门**：写进 `docs/design_tables.md`，用户确认后再动码（`AGENTS.md` / `AI_CODING_PROTOCOL.md`）。
