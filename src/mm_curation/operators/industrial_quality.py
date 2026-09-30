@@ -854,6 +854,7 @@ def _mspc_stats(z: np.ndarray, loadings: np.ndarray, eigvals: np.ndarray):
     """
 
     import numpy as np  # 懒加载：服务容器最小依赖无 numpy
+
     t = z @ loadings
     t2 = ((t**2) / np.maximum(eigvals, 1e-12)).sum(axis=1)
     resid = z - t @ loadings.T
@@ -863,6 +864,7 @@ def _mspc_stats(z: np.ndarray, loadings: np.ndarray, eigvals: np.ndarray):
 
 def _mspc_row(model: dict, values: list[float]) -> dict:
     import numpy as np  # 懒加载：服务容器最小依赖无 numpy
+
     """单行的 T²/SPE + **贡献分解**（贡献图是区分故障归属的依据）。
 
     - SPE 贡献：残差平方 `e_j²`（各分量之和 = SPE）

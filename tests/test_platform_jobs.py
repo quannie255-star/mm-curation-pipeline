@@ -320,6 +320,4 @@ def test_platform_import_does_not_pull_operators():
         [sys.executable, "-c", code], capture_output=True, text=True, env=env, timeout=60
     )
     assert r.returncode == 0, r.stderr
-    assert r.stdout.strip().endswith("False"), (
-        f"platform 导入拉起了 operators：{r.stdout.strip()}"
-    )
+    assert r.stdout.strip().endswith("False"), f"platform 导入拉起了 operators：{r.stdout.strip()}"

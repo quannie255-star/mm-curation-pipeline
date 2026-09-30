@@ -232,8 +232,7 @@ def test_ads_avg_survives_all_null_varchar_partition():
 
     con = duckdb.connect()
     con.execute(
-        "create table dws_dataset_day"
-        "(score_coverage varchar, avg_len double, n_total bigint)"
+        "create table dws_dataset_day(score_coverage varchar, avg_len double, n_total bigint)"
     )
     con.execute("insert into dws_dataset_day values (NULL, 12.5, 10), (NULL, 7.5, 5)")
     # 旧写法在这里就抛 BinderException；修复后的写法必须返回一行 NULL 均值
