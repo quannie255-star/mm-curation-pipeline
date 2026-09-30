@@ -25,7 +25,7 @@
 | 5 | 敢报阴性结果 | δ 判官 κ≈0 判不合格、η-b 未达标、域外 κ 0.560→0.178 —— **全部原样落文档** | 「数字是不是挑过的？」 |
 
 完整叙事见 [docs/INTERVIEW.md](docs/INTERVIEW.md)（3 分钟电梯演讲 + 追问预案），
-自测题库见 [docs/INTERVIEW_SELFTEST.md](docs/INTERVIEW_SELFTEST.md)（41 题四层）。
+自测题库见 [docs/INTERVIEW_SELFTEST.md](docs/INTERVIEW_SELFTEST.md)（44 题四层）。
 
 ## Demo 一览（Streamlit 四 Tab 实录）
 
@@ -38,7 +38,7 @@
 > 复现：`streamlit run scripts/streamlit_app.py`（依赖见下文快速开始）。
 
 > 状态：✅ 主线（Week 1-4）+ Phase 2（P1-P10）+ **V2 全阶段完成（α 协议 / β 文本语料 / γ Ray 双运行时 / δ LLM-judge / ε 数据 CI）** + **V3 全阶段收官（ζ 域专属判官 κ +0.560 / η 偏好闭环 0.933 / θ 工坊判官 0.839）**。路线图见 [docs/ROADMAP.md](docs/ROADMAP.md)。
-> 面试叙事见 [docs/INTERVIEW.md](docs/INTERVIEW.md)，自测题库见 [docs/INTERVIEW_SELFTEST.md](docs/INTERVIEW_SELFTEST.md)（41 题：数字 / 根因 / 取舍 / 拆现场四层）。
+> 面试叙事见 [docs/INTERVIEW.md](docs/INTERVIEW.md)，自测题库见 [docs/INTERVIEW_SELFTEST.md](docs/INTERVIEW_SELFTEST.md)（44 题：数字 / 根因 / 取舍 / 拆现场四层）。
 >
 > **V2 定位**：从「一条多模态清洗管道」升级为「模态可插拔的数据质量框架」。
 > 协议与算子 SDK 收口进 `curation-eval` 包，图文管道与纯文本语料管道是它的两个
@@ -202,7 +202,7 @@ data/             # raw / interim / processed / reports（git 忽略不入库；
 
 ```bash
 pip install -e packages/curation-eval
-python -m pytest packages/curation-eval/tests   # 40 项协议测试
+python -m pytest packages/curation-eval/tests   # 67 项协议测试（含 5 条 Ray 测试；未装 ray 的环境为 62）
 ```
 
 协议约定、五分钟上手示例与变更记录见 [包内 README](packages/curation-eval/README.md)。
@@ -246,8 +246,8 @@ python scripts/findata_health_stage.py \\
 - [项目路线图](docs/ROADMAP.md) — 周计划 + Phase2 + V2 六阶段 + 进度记录 + 阈值校准
 - [V3 产品文档 PRD（个人微调平台：目标 / 验收线 / ζ 分解）](docs/PRD.md)
 - [岗位 JD 调研与能力映射](docs/JD_RESEARCH.md)
-- [面试叙事（STAR + 预想追问）](docs/INTERVIEW.md) · [面试自测题库（41 题四层）](docs/INTERVIEW_SELFTEST.md)
-- [工程发现日志 59 条（面试弹药库）](docs/ENGINEERING_NOTES.md)
+- [面试叙事（STAR + 预想追问）](docs/INTERVIEW.md) · [面试自测题库（44 题四层）](docs/INTERVIEW_SELFTEST.md)
+- [工程发现日志 96 条（面试弹药库）](docs/ENGINEERING_NOTES.md)
 
 ## License
 

@@ -10,10 +10,22 @@ comparator：approx（绝对差 ≤ tol）/ exact（相等）/ historical（无�
 
 文档门面（facades）：文档/前端里**手写**的数字（README / INTERVIEW / RESUME /
 ANALYSIS_REPORT 里的「0.556」「7.16」「683」等）在 `registry["facades"]` 登记——每条绑定
-**来源**（某个 claim 或 `baselines` 里的基线条目）+ 渲染格式 + 字面量。校验时**两件事**
-同时成立才算过：①字面量与来源一致（`render(来源值, fmt) == literal`，否则 registry-stale）；
-②文档里真能找到该字面量（否则 doc-stale）。于是数字一改，门禁会把**所有还没同步的文档**
-逐条点出来——把「靠人记着对齐」变成「CI 拦截」。
+**来源**（某个 claim、`baselines` 里的基线条目、或 `derived` 派生的结构性计数）+ 渲染格式 +
+字面量。校验时**两件事**同时成立才算过：①字面量与来源一致
+（`render(来源值, fmt) == literal`，否则 registry-stale）；②文档里真能找到该字面量
+（否则 doc-stale）。于是数字一改，门禁会把**所有还没同步的文档**逐条点出来——把
+「靠人记着对齐」变成「CI 拦截」。
+
+派生结构性计数（derived，2026-09-30 增）：文档里的「笔记 N 条」「题库 N 题」这类
+**可由源文档自己数出来**的数字，不再手写。`registry["derived"]` 声明「哪个文件 + 什么
+正则 + 计数语义」，本脚本现算。`kind: count_contiguous` 额外要求编号连续无重号
+（工程笔记曾出现 #65 重号，就是这么被钉住的）。门面可直接 `{"derived": "<id>"}` 引它。
+
+数字覆盖率棘轮（coverage，2026-09-30 增）：光锁「已登记的」不够——**没登记的贵数字
+照样会腐烂**（GAP_AUDIT N-3b 实点：66 条门面只覆盖 11 个不同字面量）。所以对门面正文
+扫描「数字形状的 token」，减去已登记字面量 / 基线条目 / 派生值 / 显式白名单，把**剩下的
+未登记清单**与 `meta.coverage_ceiling` 里声明的上限比：**只许降不许升**。想放松只有两条
+路——把它登记成门面，或在提交里显式抬高上限（可见、需要理由）。
 
 用法：
     python -X utf8 scripts/verify_claims.py            # 校验全部，漂移 exit 1
@@ -113,7 +125,9 @@ def count_literal(text: str, literal: str) -> int:
     return len(re.findall(pat, text))
 
 
-def check_facade(facade: dict, registry: dict, repo: Path = REPO) -> dict:
+def check_facade(
+    facade: dict, registry: dict, repo: Path = REPO, derived: dict | None = None
+) -> dict:
     """校验一条门面：来源渲染出的字面量 == 登记字面量，且文档里能找到它。"""
     src = facade.get("source", {})
     value = None
@@ -124,6 +138,8 @@ def check_facade(facade: dict, registry: dict, repo: Path = REPO) -> dict:
         value = claim.get("expected")
     elif "baseline" in src:
         value = registry.get("baselines", {}).get(src["baseline"])
+    elif "derived" in src:
+        value = (derived or {}).get(src["derived"])
     if value is None:
         return {**facade, "status": "source-missing", "canon": None, "count": None}
 
@@ -131,18 +147,145 @@ def check_facade(facade: dict, registry: dict, repo: Path = REPO) -> dict:
     doc = repo / facade["doc"]
     if not doc.exists():
         return {**facade, "status": "doc-missing", "canon": canon, "count": None}
-    count = count_literal(doc.read_text(encoding="utf-8", errors="replace"), facade["literal"])
+    text = doc.read_text(encoding="utf-8", errors="replace")
+    count = count_literal(text, facade["literal"])
+    # 短字面量（如 "96"）会撞上无关数字（"96% recall"）——用 must_contain 钉住上下文，
+    # 否则门面会**真空通过**：数字在文档里出现，却不是那句话里的那个。
+    ctx = facade.get("must_contain")
     if canon != facade["literal"]:
         status = "registry-stale"  # 登记的字面量已经对不上来源了
     elif count < facade.get("min_count", 1):
         status = "doc-stale"  # 文档里找不到锁定的字面量
+    elif ctx and ctx not in text:
+        status = "context-stale"  # 数字在文档里，但缺了承重的上下文短语
     else:
         status = "pass"
     return {**facade, "status": status, "canon": canon, "count": count}
 
 
-def check_facades(registry: dict, repo: Path = REPO) -> list[dict]:
-    return [check_facade(f, registry, repo) for f in registry.get("facades", [])]
+def check_facades(registry: dict, repo: Path = REPO, derived: dict | None = None) -> list[dict]:
+    d = derived if derived is not None else compute_derived(registry, repo)
+    return [check_facade(f, registry, repo, d) for f in registry.get("facades", [])]
+
+
+# ---------------------------------------------------------------------------
+# 派生结构性计数（derived）：源文档自己数得出来的「条数/题数」，不再手写
+# ---------------------------------------------------------------------------
+
+
+def compute_derived(registry: dict, repo: Path = REPO) -> dict:
+    """按 registry["derived"] 的定义从源文档现算结构性计数。返回 {id: value|None}。"""
+    import re
+
+    out: dict[str, int | None] = {}
+    for d in registry.get("derived", []):
+        path = repo / d["file"]
+        if not path.exists():
+            out[d["id"]] = None
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        out[d["id"]] = len(re.findall(d["pattern"], text, flags=re.MULTILINE))
+    return out
+
+
+def check_derived(registry: dict, repo: Path = REPO) -> list[dict]:
+    """校验 derived 定义本身的健全性：count_contiguous 要求编号是 1..N 且无重号。"""
+    import re
+
+    rows = []
+    for d in registry.get("derived", []):
+        path = repo / d["file"]
+        if not path.exists():
+            rows.append({"id": d["id"], "status": "doc-missing", "value": None, "desc": d["desc"]})
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        found = re.findall(d["pattern"], text, flags=re.MULTILINE)
+        value = len(found)
+        status, detail = "pass", ""
+        if d.get("kind") == "count_contiguous" and found:
+            nums = [int(x) for x in found]
+            gaps = sorted(set(range(1, max(nums) + 1)) - set(nums))
+            if len(set(nums)) != len(nums):
+                status, detail = "dup", "有重号"
+            elif gaps:
+                status, detail = "gap", f"缺号 {gaps[:5]}"
+        rows.append(
+            {"id": d["id"], "status": status, "value": value, "desc": d["desc"], "detail": detail}
+        )
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# 数字覆盖率棘轮（coverage）：未登记的数字清单只许变短
+# ---------------------------------------------------------------------------
+
+NUM_RE = None  # 惰性编译，避免模块级 import re 顺序问题
+
+
+def _doc_numbers(text: str) -> list[str]:
+    """抽出「数字形状」的 token：小数（0.556）与 2–4 位整数（623/2106）。"""
+    import re
+
+    global NUM_RE
+    if NUM_RE is None:
+        NUM_RE = re.compile(r"\d+\.\d+|\d{2,4}")
+    t = re.sub(r"https?://\S+", " ", text)  # URL 里的数字不是门面数字
+    t = re.sub(r"\d{4}-\d{2}-\d{2}", " ", t)  # ISO 日期不是门面数字
+    t = re.sub(r"(?<=\d),(\d{3})", r"\1", t)  # 2,106 -> 2106（千分位）
+    return NUM_RE.findall(t)
+
+
+def _known_literals(registry: dict, derived: dict, doc: str) -> set[str]:
+    """该文档里「有出处」的数字集合：已登记门面 + 基线 + 派生值 + 显式白名单。"""
+    known: set[str] = set()
+    for f in registry.get("facades", []):
+        if f.get("doc") == doc:
+            known.add(f["literal"])
+    for v in registry.get("baselines", {}).values():
+        known.add(str(v))
+    known |= {str(v) for v in derived.values() if v is not None}
+    known |= set(registry.get("meta", {}).get("number_allowlist", []))
+    return known
+
+
+def check_coverage(registry: dict, derived: dict, repo: Path = REPO) -> list[dict]:
+    """对门面正文扫数字，未登记的清单长度必须 ≤ 声明上限（只许降不许升）。"""
+    out = []
+    for doc, ceiling in registry.get("meta", {}).get("coverage_ceiling", {}).items():
+        path = repo / doc
+        if not path.exists():
+            out.append(
+                {
+                    "doc": doc,
+                    "status": "doc-missing",
+                    "left": [],
+                    "ceiling": ceiling,
+                    "unregistered": 0,
+                    "total": 0,
+                }
+            )
+            continue
+        nums = _doc_numbers(path.read_text(encoding="utf-8", errors="replace"))
+        known = _known_literals(registry, derived, doc)
+        left = sorted({n for n in nums if n not in known})
+        out.append(
+            {
+                "doc": doc,
+                "status": "pass" if len(left) <= ceiling else "grew",
+                "left": left,
+                "ceiling": ceiling,
+                "unregistered": len(left),
+                "total": len(set(nums)),
+            }
+        )
+    return out
+
+
+def check_facade_floor(registry: dict) -> dict:
+    """已登记门面条数只许增不许减（N-3b：条数≠覆盖面，但掉下去一定是有人删了登记）。"""
+    floor = registry.get("meta", {}).get("facade_floor")
+    n = len(registry.get("facades", []))
+    return {"floor": floor, "n": n, "status": "pass" if floor is None or n >= floor else "shrunk"}
 
 
 def main() -> int:
@@ -156,7 +299,11 @@ def main() -> int:
 
     results = [check_claim(c) for c in registry["claims"]]
     fingerprints = check_fingerprints(registry)
-    facades = check_facades(registry)
+    derived = compute_derived(registry)
+    derived_rows = check_derived(registry)
+    facades = check_facades(registry, derived=derived)
+    coverage = check_coverage(registry, derived)
+    floor = check_facade_floor(registry)
 
     print(f"{'claim':<32}{'状态':<10}{'期望':>10}{'当前':>12}  说明")
     n_drift = 0
@@ -199,6 +346,29 @@ def main() -> int:
                 print(f"    ↳ 来源已变：登记字面量应改为 {fac['canon']!r}")
             elif fac["status"] == "doc-stale":
                 print(f"    ↳ 文档里找不到 {fac['literal']!r}——应写 {fac['canon']!r}")
+            elif fac["status"] == "context-stale":
+                ctx = fac["must_contain"]
+                print(f"    ↳ 数字在，但找不到上下文短语 {ctx!r}（可能是撞上了别的数字）")
+
+    for d in derived_rows:
+        print(f"派生 {d['id']:<30}{d['status']:<16}值={d['value']}  {d.get('desc', '')}")
+        if d["status"] != "pass":
+            n_drift += 1
+            print(f"    ↳ {d.get('detail', '')}")
+
+    for c in coverage:
+        print(
+            f"覆盖 {c['doc']:<30}{c['status']:<16}"
+            f"未登记 {c['unregistered']}/{c['total']} 个（上限 {c['ceiling']}）"
+        )
+        if c["status"] != "pass":
+            n_drift += 1
+        if c["left"]:
+            print(f"    ↳ 未登记清单：{' '.join(c['left'])}")
+
+    print(f"门面条数 {floor['n']}（下限 {floor['floor']}） {floor['status']}")
+    if floor["status"] != "pass":
+        n_drift += 1
 
     if args.update:
         for r in results:
@@ -235,6 +405,12 @@ def main() -> int:
     print(
         f"{len(facades)} 条门面：{n_fac_pass} PASS, {n_fac_bad} 漂移"
         f"（registry-stale = 字面量对不上来源；doc-stale = 文档里找不到该字面量）"
+    )
+    n_cov_grew = sum(1 for c in coverage if c["status"] != "pass")
+    n_der_bad = sum(1 for d in derived_rows if d["status"] != "pass")
+    print(
+        f"{len(derived_rows)} 条派生计数：{len(derived_rows) - n_der_bad} PASS, {n_der_bad} 异常；"
+        f"{len(coverage)} 篇门面正文覆盖率棘轮：{n_cov_grew} 篇越界"
     )
     return 1 if n_drift else 0
 

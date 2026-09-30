@@ -88,3 +88,49 @@
 
 **S1-1 产品页 → S1-2 README 首页化 → S1-3 一页纸 → S2-2 裁决页**，
 外加 **S3-1（N-3 补洞：结构性计数进 `claims.json`）** 与 **S3-2（笔记编号去重 + 唯一性测试）**。
+
+---
+
+## 七、09-30 下午追加：**S3-1 / S3-2 已落地**（你不必再做这两条）
+
+上面第六节里的 S3-1 / S3-2 **本轮已做完**，并且顺带抓到一条**新的错**。要点给你（尤其
+**`claims.json` 的 schema 变了**，你后面读注册表时要知道）：
+
+1. **S3-2 笔记编号重号**：`### 65.` 在 `:640`/`:659` 重号——查下去**不是两条笔误**，而是
+   **一整块错位插入**：一段自成体系的 V2 β / V4–V6 日志（内部用粗体编号 `#65–#72`）被塞进了
+   主序列 1..95 的**中间**，导致 `### 65.` 撞号 + 粗体 `#66..#72` 与主序列 `### 66..72` 也撞。
+   已**机械搬移到文末并顺延重编为笔记 96–103**（脚本执行、CRLF 原样、逐行多重集校验「零内容丢失」：
+   搬 188 行 + 加 5 行说明，`+193/−188`）。**交叉引用安全**：`:1209` 处的「#65」指的是
+   importorskip 那条，所以 `#65` 的语义没变。
+2. **S3-1 门禁补洞（schema 变更，重点）**——`docs/claims.json` 新增/扩展了这些字段：
+   - `derived`（顶层，新增）：`[{"id","desc","file","pattern","kind"}]`，**结构性计数由源文档现算**。
+     现有 `notes_count`（笔记条数，`kind=count_contiguous` → 要求编号 1..N 连续无重号）、
+     `selftest_count`（题库题数）。
+   - `facades[].source` 新增 **`{"derived": "<id>"}`** 这种来源（原来只有 claim / baseline）。
+   - `facades[].must_contain`（可选）：**短语锚**。原因：短字面量会**真空通过**——
+     README 的 `96` 曾靠 `96% recall` 碰巧命中，门面显示 PASS 但其实那句话里的数字是错的。
+     加了锚之后，命中不到短语会单列一种失败 `context-stale`。
+   - `meta.facade_floor = 74`（门面条数只增不减）、`meta.coverage_ceiling = {"README.md":73, "docs/INTERVIEW.md":167}`
+     （**未登记数字清单只许降不许升**）、`meta.number_allowlist`（版本号/端口/年份，非门面数字）。
+3. **顺带抓到的新错（N-6，已修）**：README 两处「自测题库 **41** 题」→ 源文档实点 **44** 题
+   （16+8+11+9）；README「**40** 项协议测试」→ 实点 **67**（含 5 条 Ray 测试，未装 ray 为 62）；
+   「工程发现日志 **59** 条」三处 → **96**。
+4. **证据**：新增 **`scripts/mutation_test_claims_gate.py`**——在**临时沙箱**里做 6 个变异
+   （重号 / 跳号 / 条数回退 / **只坏上下文短语** / 塞未登记数字 / 删门面登记），
+   **6/6 全部被拦红**，沙箱还原后回绿，**真实工作区只读、一个字节都不动**。你随时可复跑。
+5. **我碰了哪些文件**（都在我域）：`README.md`、`docs/INTERVIEW.md`、`docs/INTERVIEW_SELFTEST.md`、
+   `docs/ROADMAP.md`、`docs/ENGINEERING_NOTES.md`、`docs/claims.json`、`scripts/verify_claims.py`、
+   `scripts/mutation_test_claims_gate.py`(新)、`docs/GAP_AUDIT.md`、`docs/DEV_PLAN.md`、
+   `docs/COLLAB_PLAN.md`、`docs/PRODUCTIZATION.md`、本文件。**未碰任何测试、未碰 `src/`、`packages/`、`Makefile`。**
+6. **交给你的、我没做（免得你以为已经做了）**：
+   - **`make verify-claims` 仍未接进 CI**——所以新的棘轮在 CI 上**还不会响**。这是本轮最该由你补的一跳。
+   - 新机制**未进 pytest**：加测试会改动基线 **690**，要跨 9 处文档同步；我判断代价大于收益，
+     所以只做了「命令级门禁 + 沙箱变异测试」。**若你认为该进 CI，请连基线同步一起做**（否则会红一片）。
+   - **N-3b 的「把 README/INTERVIEW 承载结论的数字逐个绑 claim」我没做**：κ 0.560 / 0.839 / 0.933 /
+     0.867 / 0.178 / MRR 0.599→0.670 / near 0.9714 / **0.575** 仍未注册——因为它们需要的报告 JSON
+     **不在库里**，硬绑只能绑成 `historical`，那等于把「没门禁」写成「有门禁」。**要么补报告入库，
+     要么明说这几条无门禁**，别骗自己。
+7. **两条环境提醒（仍成立）**：
+   - 我这条线只碰 `docs/**` + `scripts/**`；**本轮同样未改任何测试、未降任何门禁**
+     （基线 623 + 67 = 690 一分未动；`ruff format --check` 现 **240 文件全绿**，比上次多 1 个新脚本）。
+   - 你本地 `refs/heads/main` 若仍落后，`git fetch && git merge --ff-only origin/main` 即可。

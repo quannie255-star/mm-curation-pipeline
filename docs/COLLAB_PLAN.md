@@ -228,8 +228,8 @@ run 11.8s + contracts/obs/serve ≈18s ≪ 10 分钟承诺；顺带修掉 `ads a
 | S2-1 | **人审队列** `review_queue.jsonl`（含全量上下文标记） | glm | P1-7；真实轨误杀只能是**上界**，终裁必须靠人 |
 | S2-2 | **审核裁决页**（可筛可导出、裁决回写为弱标签） | **我** | 前端归我 |
 | S2-3 | 人审后数字接 `claims.json`（新类别 `human_adjudicated`） | **我** | 门禁拦得住它腐烂 |
-| S3-1 | **N-3 补洞**：可派生结构性计数（笔记条数等）纳入 `claims.json` 由生成源现算 | **我** | 三处「59 条」实点 96 |
-| S3-2 | `ENGINEERING_NOTES` 编号 `65` 重复（`:640` / `:659`）+ 唯一性测试 | **我** | P3-4 |
+| S3-1 | **N-3 补洞**：可派生结构性计数（笔记条数等）纳入 `claims.json` 由生成源现算 | **我** | 三处「59 条」实点 96 —— **✅ 09-30 已落地**（`derived` 段 + 覆盖率棘轮；门面 66→74，74 PASS） |
+| S3-2 | `ENGINEERING_NOTES` 编号 `65` 重复（`:640` / `:659`）+ 唯一性测试 | **我** | P3-4 —— **✅ 09-30 已落地**（重编号 1..96 连续；"连续无重号"进派生门禁；`scripts/mutation_test_claims_gate.py` 6/6 变异被拦） |
 | S3-3 | Makefile 裸 `python` **25 处** → `$(PYTHON)` | glm | P0-3 |
 | S3-4 | `test_ingest_real_sensor.py`（分号解析 / `_sampling_hz()` / 全量优选 / 窗序号索引） | glm | P0-2 |
 | S3-5 | 包侧 `PROTOCOL_VERSION` 常量 + 校验 | glm | P1-5 |

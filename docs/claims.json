@@ -1,7 +1,7 @@
 {
   "meta": {
     "purpose": "简历/文档数字版本锁定：每条 claim 绑定 报告文件+json 指针+期望值+容差，verify_claims.py 逐条校验，漂移即红。",
-    "updated": "2026-09-29",
+    "updated": "2026-09-30",
     "data_fingerprints": {
       "data/interim/contaminated/samples.jsonl": {
         "md5": "e1dfdae8e04818a599f5e84f81106089",
@@ -10,7 +10,23 @@
     },
     "tolerance_note": "浮点 claim 用 approx（绝对差 ≤ tol）；计数与比率类用 exact。历史数字无法从落盘报告复核的，标 historical=true，不参与校验（如实标注）。",
     "facades_note": "文档门面：facades 里每条把「某文档里手写的数字」绑定到来源（claim 或 baselines）+ 渲染格式 + 字面量。verify_claims.py 校验两件事：字面量 == render(来源值)（registry-stale 则红）、文档里能找到该字面量（doc-stale 则红）。好处：**不依赖 data/reports/（生成物、不入库）**，所以在 CI 上也能拦。数字一改，门禁会把所有还没同步的文档逐条列出来。",
-    "baselines_note": "baselines 是不来自报告 JSON、但同样要全文档一致的“基线数字”（测试条数）。改一处，门禁列出所有没跟上的文档。"
+    "baselines_note": "baselines 是不来自报告 JSON、但同样要全文档一致的“基线数字”（测试条数）。改一处，门禁列出所有没跟上的文档。",
+    "derived_note": "derived：可由源文档自己数出来的结构性计数（笔记条数 / 题库题数）。声明「文件 + 正则 + 计数语义」，verify_claims.py 现算；kind=count_contiguous 额外要求编号连续无重号。门面可用 {\"derived\": \"<id>\"} 引用——这样「N 条」不会跟着文档一起腐烂。",
+    "coverage_note": "coverage_ceiling：门面正文的数字覆盖率棘轮。脚本扫描正文里「数字形状」的 token，减去已登记字面量 / 基线 / 派生值 / number_allowlist，剩下的未登记清单长度必须 ≤ 上限——只许降不许升。来源：GAP_AUDIT N-3b 实点「66 条门面只覆盖 11 个不同字面量」。",
+    "facade_floor": 74,
+    "number_allowlist": [
+      "3.11",
+      "8000",
+      "8080",
+      "8501",
+      "2024",
+      "2025",
+      "2026"
+    ],
+    "coverage_ceiling": {
+      "README.md": 73,
+      "docs/INTERVIEW.md": 167
+    }
   },
   "claims": [
     {
@@ -1006,6 +1022,133 @@
       "literal": "690",
       "min_count": 1,
       "note": "docs/DEV_PLAN.md 引用测试基线 tests_total"
+    },
+    {
+      "id": "README_md__notes_count",
+      "doc": "README.md",
+      "source": {
+        "derived": "notes_count"
+      },
+      "fmt": "d",
+      "scale": 1,
+      "suffix": "",
+      "literal": "96",
+      "min_count": 1,
+      "note": "README 的「工程发现日志 N 条」由源文档现算（derived），不手写",
+      "must_contain": "工程发现日志 96 条"
+    },
+    {
+      "id": "README_md__selftest_count",
+      "doc": "README.md",
+      "source": {
+        "derived": "selftest_count"
+      },
+      "fmt": "d",
+      "scale": 1,
+      "suffix": "",
+      "literal": "44",
+      "min_count": 1,
+      "note": "README 的「自测题库 N 题」由源文档现算（derived）",
+      "must_contain": "44 题"
+    },
+    {
+      "id": "README_md__pkg_tests",
+      "doc": "README.md",
+      "source": {
+        "baseline": "tests_pkg"
+      },
+      "fmt": "d",
+      "scale": 1,
+      "suffix": "",
+      "literal": "67",
+      "min_count": 1,
+      "note": "README 的「N 项协议测试」= 包侧收集数基线",
+      "must_contain": "67 项协议测试"
+    },
+    {
+      "id": "INTERVIEW_md__notes_count",
+      "doc": "docs/INTERVIEW.md",
+      "source": {
+        "derived": "notes_count"
+      },
+      "fmt": "d",
+      "scale": 1,
+      "suffix": "",
+      "literal": "96",
+      "min_count": 1,
+      "note": "INTERVIEW 的「工程笔记 N 条」由源文档现算",
+      "must_contain": "工程笔记有 96 条"
+    },
+    {
+      "id": "INTERVIEW_SELFTEST_md__notes_count",
+      "doc": "docs/INTERVIEW_SELFTEST.md",
+      "source": {
+        "derived": "notes_count"
+      },
+      "fmt": "d",
+      "scale": 1,
+      "suffix": "",
+      "literal": "96",
+      "min_count": 1,
+      "note": "自测题库第 13 题答案里的「N 条工程笔记」由源文档现算",
+      "must_contain": "96 条工程笔记"
+    },
+    {
+      "id": "INTERVIEW_SELFTEST_md__main_tests",
+      "doc": "docs/INTERVIEW_SELFTEST.md",
+      "source": {
+        "baseline": "tests_main"
+      },
+      "fmt": "d",
+      "scale": 1,
+      "suffix": "",
+      "literal": "623",
+      "min_count": 1,
+      "note": "自测题库第 13 题答案里的「主仓 N」基线",
+      "must_contain": "主仓 623"
+    },
+    {
+      "id": "INTERVIEW_SELFTEST_md__pkg_tests",
+      "doc": "docs/INTERVIEW_SELFTEST.md",
+      "source": {
+        "baseline": "tests_pkg"
+      },
+      "fmt": "d",
+      "scale": 1,
+      "suffix": "",
+      "literal": "67",
+      "min_count": 1,
+      "note": "自测题库第 13 题答案里的「包 N」基线",
+      "must_contain": "包 67"
+    },
+    {
+      "id": "ROADMAP_md__notes_count",
+      "doc": "docs/ROADMAP.md",
+      "source": {
+        "derived": "notes_count"
+      },
+      "fmt": "d",
+      "scale": 1,
+      "suffix": "",
+      "literal": "96",
+      "min_count": 1,
+      "note": "ROADMAP 文末的「（N 条）」由源文档现算",
+      "must_contain": "ENGINEERING_NOTES.md（96 条）"
+    }
+  ],
+  "derived": [
+    {
+      "id": "notes_count",
+      "desc": "ENGINEERING_NOTES 工程笔记条数（### N. 计数，要求编号 1..N 连续无重号）",
+      "file": "docs/ENGINEERING_NOTES.md",
+      "pattern": "^### (\\d+)\\.",
+      "kind": "count_contiguous"
+    },
+    {
+      "id": "selftest_count",
+      "desc": "INTERVIEW_SELFTEST 自测题数（各层 N. 列表项求和）",
+      "file": "docs/INTERVIEW_SELFTEST.md",
+      "pattern": "^\\d+\\.\\s"
     }
   ]
 }
