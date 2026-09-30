@@ -92,9 +92,20 @@ jobs:
       - name: 失败时打印容器日志与健康状态
         if: failure()
         run: |
-          docker logs app > container-logs.txt 2>&1 || true
-          docker inspect --format '{{json .State.Health}}' app >> container-logs.txt 2>&1 || true
-          docker image ls mm-curation-app --format '{{.Size}}' >> container-logs.txt 2>&1 || true
+          {
+            echo '===== docker logs ====='
+            docker logs app 2>&1 || true
+            echo '===== 容器内 prod store 布局 ====='
+            docker exec app ls -la /app/data/envs/prod 2>&1 || true
+            docker exec app ls -la /app/data/envs/prod/warehouse 2>&1 || true
+            echo '===== 容器内 dry-run（blocking 明细 + store 路径） ====='
+            docker exec app python -m mm_curation.cli serve --env prod --dry-run 2>&1 || true
+            echo '===== 容器内 root 解析 ====='
+            docker exec app python -c "from mm_curation.cli import ROOT; print(ROOT)" 2>&1 || true
+            echo '===== health 状态 ====='
+            docker inspect --format '{{json .State.Health}}' app 2>&1 || true
+            docker image ls mm-curation-app --format '{{.Size}}' 2>&1 || true
+          } > container-logs.txt 2>&1 || true
           cat container-logs.txt || true
 
       - name: 上传容器排障产物（失败时）
