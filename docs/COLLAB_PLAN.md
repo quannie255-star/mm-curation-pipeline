@@ -233,7 +233,7 @@ run 11.8s + contracts/obs/serve ≈18s ≪ 10 分钟承诺；顺带修掉 `ads a
 | S3-3 | Makefile 裸 `python` **25 处** → `$(PYTHON)` | glm | P0-3 |
 | S3-4 | `test_ingest_real_sensor.py`（分号解析 / `_sampling_hz()` / 全量优选 / 窗序号索引） | glm | P0-2 |
 | S3-5 | 包侧 `PROTOCOL_VERSION` 常量 + 校验 | glm | P1-5 |
-| S3-6 | 3 个文件 `ruff format`（**当前 3/237 红，全在 glm 域**） | glm | 转绿前「CI 全绿」不能说 |
+| S3-6 | ~~3 个文件 `ruff format`~~ **✅ 已由 glm 在 `145c556` 完成** | glm | 转绿前「CI 全绿」不能说 |
 | S3-7 | 最小 `.gitattributes`（`requirements.lock text eol=lf`） | glm | #94 的 CRLF 假红 |
 | V-1 | **判官换大厂对话 API**（δ 的 κ≈0 有**阴性翻正**的机会）——**优先级最高** | glm | 用户指定；接口本就支持换 base_url |
 | V-2 | **抽取层换 API**（现在走兜底器：救回 100% 但字数比 1.92×） | glm | 目标字数比 ≤1.3× |

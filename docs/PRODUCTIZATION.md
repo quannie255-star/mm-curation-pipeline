@@ -116,7 +116,7 @@ S1 三件（按顺序，前一件是后一件的素材）：
 | S3-3 | Makefile 裸 `python` **25 处** → `$(PYTHON)` | glm | P0-3 |
 | S3-4 | `test_ingest_real_sensor.py`（分号解析 / `_sampling_hz()` / 全量优选 / 窗序号索引，10 行 fixture 即可） | glm | P0-2 |
 | S3-5 | 包侧 `PROTOCOL_VERSION` 常量 + 校验 | glm | P1-5 |
-| S3-6 | 3 个文件的 `ruff format`（**当前 3/237 红，全在 glm 域**） | glm | 转绿前「CI 全绿」不能说 |
+| S3-6 | ~~3 个文件的 `ruff format`~~ **✅ 已由 glm 在 `145c556` 完成** | glm | 转绿前「CI 全绿」不能说 |
 | S3-7 | 加最小 `.gitattributes`（`requirements.lock text eol=lf`） | glm | #94 的 CRLF 假红 |
 
 ---

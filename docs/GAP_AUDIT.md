@@ -534,8 +534,8 @@ python -X utf8 -m pytest packages/curation-eval/tests --collect-only -q
 （P2-1/2/3/6/7 这次**没有复跑**——它们要重跑真实数据轨，属 glm 域；上次状态见表上方，本轮不冒充复验。）
 
 **N-1/N-2 状态**：N-2（`mmc metrics --verify` 假绿）**已修**。N-1（CI 格式门禁从建起来就红）
-**仍有残红**：`ruff format --check src tests scripts dags packages` 今日实点 **3 files would be reformatted /
-234 already formatted**（3 个文件全在 glm 域）；`ruff check .` **All checks passed**。
+**同日稍后已转绿**：glm 在 `145c556` 清掉了那 3 个文件的欠债，复跑实点
+**239 files already formatted / 0 红**（我新增的两个脚本也在绿侧）；`ruff check .` **All checks passed**。
 但 N-1 的**结构修复已生效**——`ci.yml` 步骤顺序改成 `lint → 测试 → 格式检查`，
 所以**测试现在真的会在 CI 里执行**（这才是 N-1 真正的伤害点）。
 
