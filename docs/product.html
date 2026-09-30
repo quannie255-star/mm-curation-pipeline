@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mm-curation-pipeline · 多模态数据质量平台</title>
+<style>
+  :root{
+    --bg:#f7f8fa; --card:#ffffff; --ink:#1a1d21; --muted:#5b6470; --line:#e3e7ec;
+    --accent:#1f5fd0; --accent-soft:#eaf1fd; --warn:#b4530a; --warn-soft:#fdf3e7;
+    --ok:#1a7f4b; --ok-soft:#e9f6ef; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
+  .wrap{max-width:1060px;margin:0 auto;padding:34px 22px 70px}
+  h1{font-size:27px;margin:0 0 6px;letter-spacing:-.2px}
+  h2{font-size:17px;margin:38px 0 12px;padding-bottom:7px;border-bottom:1px solid var(--line)}
+  h2 .n{color:var(--accent);font-variant-numeric:tabular-nums;margin-right:7px}
+  p{margin:8px 0}
+  .lede{color:var(--muted);font-size:15px;margin:0 0 16px}
+  .badges{display:flex;flex-wrap:wrap;gap:7px;margin:14px 0 0}
+  .badge{font-size:12px;color:var(--muted);background:var(--card);border:1px solid var(--line);
+    border-radius:999px;padding:3px 10px}
+  .badge b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:15px 16px}
+  .kpi .k{font-size:12px;color:var(--muted);letter-spacing:.4px;text-transform:uppercase}
+  .kpi .v{font-size:25px;font-weight:650;margin:6px 0 2px;font-variant-numeric:tabular-nums;
+    letter-spacing:-.6px}
+  .kpi .v small{font-size:14px;font-weight:500;color:var(--muted)}
+  .kpi .d{font-size:13px;color:var(--muted)}
+  .arrow{color:var(--accent);font-weight:600}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);
+    border-radius:11px;overflow:hidden}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);font-size:14px;
+    vertical-align:top}
+  th{background:#fbfcfd;color:var(--muted);font-weight:600;font-size:12.5px;
+    letter-spacing:.3px;text-transform:uppercase}
+  tr:last-child td{border-bottom:none}
+  td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+  pre{background:#fff;border:1px solid var(--line);border-left:3px solid var(--accent);
+    border-radius:9px;padding:12px 14px;overflow-x:auto;font-family:var(--mono);font-size:13px;
+    margin:9px 0;color:#24292f}
+  .step{margin:14px 0}
+  .step .t{font-weight:600;font-size:14px}
+  .step .s{color:var(--muted);font-size:13px}
+  ul.bound{margin:10px 0;padding-left:0;list-style:none}
+  ul.bound li{background:var(--warn-soft);border:1px solid #f2ddc2;border-radius:9px;
+    padding:10px 13px;margin:8px 0;font-size:14px}
+  ul.bound li b{color:var(--warn)}
+  .note{background:var(--accent-soft);border:1px solid #d3e2fb;border-radius:9px;
+    padding:11px 14px;font-size:13.5px;color:#22364f;margin:12px 0}
+  .ok{background:var(--ok-soft);border-color:#cbe9d9;color:#14472d}
+  footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);
+    font-size:12.5px}
+  footer code{font-family:var(--mono);font-size:12px}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  @media print{body{background:#fff}.kpi,table,pre{box-shadow:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>mm-curation-pipeline</h1>
+  <p class="lede">
+    面向中文多模态大模型训练数据的端到端平台：<b>脏数据进 → 漏斗式多算子清洗 → 质量可量化 →
+    向量索引 → 检索服务 → 清洗收益可证明</b>。这张页面上的每个数字都能指到它的报告文件与容差
+    ——<b>不是结论展示，是可对账的结论</b>。
+  </p>
+  <div class="badges"><span class="badge">测试基线 <b>623 + 67 = 690</b></span><span class="badge">claim <b>14</b> 条 · 文档门面 <b>66</b> 条</span><span class="badge">版本 <b>1.0.0</b> · MIT</span></div>
+
+  <h2><span class="n">01</span>三十秒结论</h2>
+  <div class="grid"><div class="kpi"><div class="k">清洗收益 · Recall@1</div>
+        <div class="v">0.459 <span class="arrow">→</span> 0.556</div>
+        <div class="d">相对提升 <b>+21%</b>（由上面两个 claim 现算）</div></div>
+    <div class="kpi"><div class="k">训练级证据 · CLIP R@1</div>
+        <div class="v">0.688 <small>vs</small> 0.636</div>
+        <div class="d">干净集微调 vs 脏集微调（同一预算）</div></div>
+    <div class="kpi"><div class="k">语言侧 · GPT-2 困惑度</div>
+        <div class="v">7.16 <small>vs</small> 7.70</div>
+        <div class="d">越低越好；脏语料微调更差</div></div>
+    <div class="kpi"><div class="k">工业门禁 · 误杀率</div>
+        <div class="v">1.23%</div>
+        <div class="d">3 seed 最差口径（召回 1）</div></div></div>
+
+  <div class="note">
+    <b>这张页面为什么可信：</b>下面所有数值由 <code>scripts/build_product_page.py</code>
+    从 <code>docs/claims.json</code> <b>现算渲染</b>（不是手抄），并且与门禁同源 ——
+    同一个注册表在 <code>verify_claims.py</code> 里被逐条校验，漂移即红。
+  </div>
+
+  <h2><span class="n">02</span>每个数字都追溯到报告</h2>
+  <table>
+    <thead><tr><th>结论</th><th>值</th><th>来源报告 / 指针</th><th>口径</th></tr></thead>
+    <tbody><tr><td>灵魂实验：脏索引 R@1（1585 查询，dirty_raw 索引）</td><td class='num'><b>0.459</b></td><td style='font-size:13px'>data/reports/retrieval_eval.json<br><span style='color:#5b6470'>others[0].result.recall_at_k.1</span></td><td style='font-size:13px'>approx　tol=0.0</td></tr>
+      <tr><td>灵魂实验：净索引 R@1（简历主数字 0.556 的来源）</td><td class='num'><b>0.556</b></td><td style='font-size:13px'>data/reports/retrieval_eval.json<br><span style='color:#5b6470'>base.recall_at_k.1</span></td><td style='font-size:13px'>approx　tol=0.0</td></tr>
+      <tr><td>干净集微调 R@1（0.688）</td><td class='num'><b>0.688</b></td><td style='font-size:13px'>data/reports/finetune_eval.json<br><span style='color:#5b6470'>results.clean_ft.recall_at_k.1</span></td><td style='font-size:13px'>approx　tol=0.0</td></tr>
+      <tr><td>脏集微调 R@1（0.636；单 seed，无训练方差——PROOF_CHAIN §九）</td><td class='num'><b>0.636</b></td><td style='font-size:13px'>data/reports/finetune_eval.json<br><span style='color:#5b6470'>results.dirty_ft.recall_at_k.1</span></td><td style='font-size:13px'>approx　tol=0.0</td></tr>
+      <tr><td>GPT-2 干净数据微调困惑度 7.16</td><td class='num'><b>7.16</b></td><td style='font-size:13px'>data/reports/finetune_text_eval.json<br><span style='color:#5b6470'>ppl.clean_ft</span></td><td style='font-size:13px'>approx　tol=0.0</td></tr>
+      <tr><td>GPT-2 脏数据微调困惑度 7.70</td><td class='num'><b>7.70</b></td><td style='font-size:13px'>data/reports/finetune_text_eval.json<br><span style='color:#5b6470'>ppl.dirty_ft</span></td><td style='font-size:13px'>approx　tol=0.0</td></tr>
+      <tr><td>清洗净贡献（漏斗 R@1 − 随机删均值）</td><td class='num'><b>0.131</b></td><td style='font-size:13px'>data/reports/random_drop_baseline.json<br><span style='color:#5b6470'>verdict.margin_over_random</span></td><td style='font-size:13px'>approx　tol=0.03</td></tr>
+      <tr><td>只删干净样本对照（同数量，保留全部脏样本）的 R@1 均值——应显著低于漏斗</td><td class='num'><b>0.4133</b></td><td style='font-size:13px'>data/reports/random_drop_baseline.json<br><span style='color:#5b6470'>clean_control.random_r1_mean</span></td><td style='font-size:13px'>approx　tol=0.03</td></tr>
+      <tr><td>医疗门禁召回（3 seeds 最差口径）</td><td class='num'><b>1</b></td><td style='font-size:13px'>data/reports/operator_pr_fhir.json<br><span style='color:#5b6470'>funnel_gate.recall</span></td><td style='font-size:13px'>approx　tol=0.0</td></tr>
+      <tr><td>医疗门禁误杀率（3 seeds 最差口径，0/500）</td><td class='num'><b>0</b></td><td style='font-size:13px'>data/reports/operator_pr_fhir.json<br><span style='color:#5b6470'>funnel_gate.false_kill_rate</span></td><td style='font-size:13px'>approx　tol=0.0</td></tr>
+      <tr><td>工业门禁召回（3 seeds 最差口径）</td><td class='num'><b>1</b></td><td style='font-size:13px'>data/reports/operator_pr_industrial.json<br><span style='color:#5b6470'>funnel_gate.recall</span></td><td style='font-size:13px'>approx　tol=0.0</td></tr>
+      <tr><td>工业门禁误杀率（3 seeds 最差口径，13/1056=1.23%）</td><td class='num'><b>1.23%</b></td><td style='font-size:13px'>data/reports/operator_pr_industrial.json<br><span style='color:#5b6470'>funnel_gate.false_kill_rate</span></td><td style='font-size:13px'>approx　tol=0.0005</td></tr>
+      <tr><td>文本去重 10 万档 exact 召回（V2 β 基准）</td><td class='num'><b>1</b></td><td style='font-size:13px'>data/reports/text_dedup_benchmark.json<br><span style='color:#5b6470'>[2].exact_recall</span></td><td style='font-size:13px'>approx　tol=0.0</td></tr>
+      <tr><td>去重组 ΔR@1 -0.017（Week4 分组消融历史结论）</td><td class='num'><b>-0.017</b></td><td style='font-size:13px'>—<br><span style='color:#5b6470'>—</span></td><td style='font-size:13px'>历史结论（未绑报告）</td></tr></tbody>
+  </table>
+
+  <h2><span class="n">03</span>自己验一遍（不用装环境读这份页面，要验数字就得跑）</h2>
+  
+<div class="step">
+  <div class="t">① 复算数字注册表（不需要数据、不需要 GPU）</div>
+  <div class="s">覆盖「文档手写数字 ↔ 注册表」与「复审清单」两部分：</div>
+  <pre>python -X utf8 scripts/verify_claims.py     # 逐条校验注册表（缺报告的标"缺报告"，不算通过）
+python -X utf8 scripts/gap_audit_probe.py   # 产品级差距审计清单可复跑（只读）</pre>
+</div>
+<div class="step">
+  <div class="t">② 跑真实工业数据链路（纯 CPU，不用 GPU）</div>
+  <div class="s">见 <code>docs/QUICKSTART.md</code>「路线 D」；数据下载只做一次：</div>
+  <pre>python -m pip install -r requirements.lock
+python -m pip install --no-deps ./packages/curation-eval
+python -X utf8 scripts/ingest_real_sensor.py --source skab
+python -X utf8 scripts/ingest_real_sensor.py --source metropt3 --unzip
+python -m mm_curation.cli run --datasets metropt3,skab_w64,cmapss \
+    --run-id route_d__001 --batch-date 2026-09-28</pre>
+</div>
+<div class="step">
+  <div class="t">③ 跑测试</div>
+  <div class="s">本机 Windows：<code>--basetemp</code> 必须是盘符绝对路径、且目录不存在</div>
+  <pre>python -X utf8 -m pytest -q --basetemp C:/tmp/pt_fresh_001 --junitxml C:/tmp/junit.xml</pre>
+</div>
+
+
+  <h2><span class="n">04</span>诚实边界（比数字更重要的部分）</h2>
+  <ul class="bound"><li><b>真实轨的召回只能是「标签口径下的召回」</b>　三个公开工业数据集都只能给弱标签：一个的异常是人为切阀造的、一个极稀疏且不覆盖数据链路类缺陷、还有一个是动力学仿真。所以「真实场景下的召回率」这个数字目前**无法测**——现有的都是口径内召回。</li>
+    <li><b>真实轨的「误杀率」是上界，不是业务指标</b>　人工抽检发现，被判为误杀的部分里有一段**连续数天的多通道完全冻结**（真实缺陷，但标签体系不覆盖）。所以任何拿数据集标签直接算出的误杀率，都只是上界——最终裁决必须靠人，这正是人审队列要补的位置。</li>
+    <li><b>「无标签 ≠ 干净」，同一形态可以有不同含义</b>　「完美平坦」既可能是传感器卡死（故障），也可能是该通道本来就不测量任何东西（正常）。现有算子只看单个窗，缺全量上下文——这是**架构级**需求，不是调参能解决的。</li>
+    <li><b>统计效力有限</b>　训练级对比是单 seed、无置信区间；held-out 查询集很小，波动约 ±1pp。这些不是隐瞒，是硬约束，写在证据链的「已承认局限」里。</li>
+    <li><b>外部 API 的引入会带来不可复现性（本轮新增）</b>　把卡壳处换成成熟方案后，凡走外部 API 的数字都会同时记**模型名 + 调用日期 + 后处理参数**，并在证据链里降级标注为「外部依赖，非位级可复现」——否则「数字可复现」这块招牌就自己砸了。</li></ul>
+
+  <footer>
+    <div>生成时间 <code>2026-09-30 16:58 +0800</code> ·
+      注册表 <code>docs/claims.json</code> md5 <code>0b6fda74e1c5</code> ·
+      claim <code>14</code> 条 / 门面 <code>66</code> 条 /
+      测试基线 <code>623 + 67 = 690</code></div>
+    <div style="margin-top:6px">本页正文含 <code>25</code> 个不同数值，其中 <code>25</code> 个可追溯到注册表（<code>100%</code>）。 全部可追溯。</div>
+    <div style="margin-top:6px">
+      仓库 <a href="https://github.com/quannie255-star/mm-curation-pipeline">https://github.com/quannie255-star/mm-curation-pipeline</a> ·
+      导航 <a href="https://github.com/quannie255-star/mm-curation-pipeline/blob/main/README.md">README</a> ·
+      <a href="https://github.com/quannie255-star/mm-curation-pipeline/blob/main/docs/INTERVIEW.md">面试叙事</a> ·
+      <a href="https://github.com/quannie255-star/mm-curation-pipeline/blob/main/docs/PROOF_CHAIN.md">证据链</a> ·
+      <a href="https://github.com/quannie255-star/mm-curation-pipeline/blob/main/docs/GAP_AUDIT.md">差距审计</a>
+    </div>
+  </footer>
+</div>
+</body>
+</html>
