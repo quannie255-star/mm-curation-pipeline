@@ -687,6 +687,16 @@ def create_app(root: str | Path = ".", **kwargs: Any):
     def _startup():
         rep = core.startup()
         print(f"[service] 契约闸门：{rep['n_checks']} 条断言，阻断 {len(rep['blocking'])} 条")
+        for b in rep["blocking"]:
+            # 阻断的每一条都要在日志里留名：503 的排障入口是日志，
+            # 只打总数等于把「为什么」藏起来（容器首跑排障实测教训）
+            print(f"[service]   阻断：{b}")
+        if rep["blocking"]:
+            print(
+                "[service] 就绪=False（503）。修数据后重跑："
+                "`python -m mm_curation.cli run` → `promote`；"
+                "先看明细：`python -m mm_curation.cli serve --dry-run`"
+            )
 
     @app.on_event("shutdown")
     def _shutdown():
