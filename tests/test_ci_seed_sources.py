@@ -41,9 +41,14 @@ def _load_seed_module():
 def test_seed_writes_both_sources_into_an_empty_root(tmp_path):
     seed = _load_seed_module()
     written = seed.seed(tmp_path)
-    assert set(written) == {"real/metropt3/windows.jsonl", "news_corpus.jsonl"}
+    assert set(written) == {
+        "raw/real/metropt3/windows.jsonl",
+        "raw/news_corpus.jsonl",
+        "processed/text_funnel/cleaned.jsonl",
+        "processed/text_funnel/dropped.jsonl",
+    }
     for rel in written:
-        assert (tmp_path / "data" / "raw" / rel).exists()
+        assert (tmp_path / "data" / rel).exists()
 
 
 def test_seed_is_idempotent_and_does_not_rewrite(tmp_path):

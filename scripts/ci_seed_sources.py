@@ -14,10 +14,14 @@
 
 ## 只造两个源，是刻意的
 
-`registry.LAKE_SOURCES` 里登记了 12 个源，这里只落地 2 个
-（`metropt3` 传感器 + `news_corpus` 文本）。**其余 10 个走 `SKIPPED` 分支**——
-那条分支因此每次 CI 都被覆盖到，而冒烟仍然只要几秒钟。
-"造全 12 个源"会让冒烟变慢、变脆，却证明不了更多东西。
+`registry.LAKE_SOURCES` 里登记了 12 个源，这里只落地 3 类
+（`metropt3` 传感器 + `news_corpus` 文本 + `text_funnel` 漏斗产物）。其余走
+`SKIPPED` 分支——那条分支因此每次 CI 都被覆盖到，而冒烟仍然只要几秒钟。
+
+`text_funnel` 产物是**必须**种的（2026-09-30 容器首跑排障实测）：契约
+`configs/contracts_platform/lake_core.yaml` 对 text_funnel 断言 sample_id
+非空唯一 / text_len 非空且 ≥1 / 层间对账——空数据集会让这 9 条 error 级
+断言全部阻断，服务按设计 503，容器探针永远不就绪。
 
 幂等同样重要：本机跑它是空操作（真源已经在了），CI 跑它才真的写文件。
 **"本机跑有没有副作用"必须能在读代码时判断出来**，所以判据就是"文件在不在"。
@@ -100,17 +104,63 @@ _NEWS = [
     },
 ]
 
-# 相对 `data/raw/` 的路径 → 行。这些是 `registry.LAKE_SOURCES` 里**已登记**的路径，
-# 所以不必 monkeypatch 注册表（与 tests/conftest.py 的夹具保持同一组口径）。
+# 漏斗产物种子：满足 lake_core 契约的最小集（sample_id 唯一、text_len ≥ 1、
+# dropped 带 dropped_by 归因、meta.url 提供事件时间避免全落 UNKNOWN 分区）
+_TEXT_CLEANED = [
+    {
+        "id": "ci_tf_0001",
+        "modality": "text_article",
+        "text": "数据质量是模型效果的上限，清洗后的语料让检索与训练都更稳。",
+        "image_path": None,
+        "meta": {
+            "url": "https://example.com/wiki/2026/09-28/tf1.html",
+            "score:doc_length": 30.0,
+            "score:chinese_ratio": 1.0,
+        },
+        "labels": {},
+    },
+    {
+        "id": "ci_tf_0002",
+        "modality": "text_article",
+        "text": "合成种子行，用于容器冒烟的契约非空断言，不参与任何评测数字。",
+        "image_path": None,
+        "meta": {
+            "url": "https://example.com/wiki/2026/09-28/tf2.html",
+            "score:doc_length": 31.0,
+            "score:chinese_ratio": 1.0,
+        },
+        "labels": {},
+    },
+]
+_TEXT_DROPPED = [
+    {
+        "id": "ci_tf_9001",
+        "modality": "text_article",
+        "text": "太短",
+        "image_path": None,
+        "meta": {
+            "url": "https://example.com/wiki/2026/09-28/tf9.html",
+            "score:doc_length": 2.0,
+        },
+        "labels": {},
+        "dropped_by": "doc_length",
+    },
+]
+
+# 相对 `data/` 根的路径 → 行（raw 源与 processed 产物统一编址）。这些是
+# `registry.LAKE_SOURCES` 里**已登记**的路径，所以不必 monkeypatch 注册表
+# （与 tests/conftest.py 的夹具保持同一组口径）。
 SOURCES: dict[str, list[dict]] = {
-    "real/metropt3/windows.jsonl": _METROPT3,
-    "news_corpus.jsonl": _NEWS,
+    "raw/real/metropt3/windows.jsonl": _METROPT3,
+    "raw/news_corpus.jsonl": _NEWS,
+    "processed/text_funnel/cleaned.jsonl": _TEXT_CLEANED,
+    "processed/text_funnel/dropped.jsonl": _TEXT_DROPPED,
 }
 
 
 def seed(root: str | Path = REPO) -> list[str]:
     """把缺失的源写出来，返回**实际写出**的相对路径列表（已存在的不在列表里）。"""
-    base = Path(root) / "data" / "raw"
+    base = Path(root) / "data"
     written: list[str] = []
     for rel, rows in SOURCES.items():
         p = base / rel
