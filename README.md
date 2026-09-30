@@ -12,6 +12,25 @@
 面向中文多模态大模型训练数据场景的端到端平台：**脏数据进 → 漏斗式多算子清洗 →
 质量可量化 → 向量索引 → 检索服务 → 清洗收益可证明 → 域专属判官微调（LoRA，κ 达标）**。
 
+> **想先看结论再读代码？** → [产品页（单页自包含）](docs/product.html)：
+> 三十秒结论 + 每个数字的出处 + **诚实边界** + 自己验一遍的三条命令。
+> 页面数字不手写——由 [`docs/claims.json`](docs/claims.json) 现算，页面对不上注册表就**生成失败**。
+
+## 自己验一遍（三条命令，不用 GPU、不用下载数据）
+
+```bash
+git clone https://github.com/quannie255-star/mm-curation-pipeline && cd mm-curation-pipeline
+
+# ① 对外数字都锁在注册表里：文档/前端的字面量对不上来源就红
+python -X utf8 scripts/verify_claims.py
+
+# ② "离可用还差什么"不是我一个人说了算——复审清单本身可复跑
+python -X utf8 scripts/gap_audit_probe.py
+
+# ③ 证明上面两道门禁不是装饰：6 个变异全部应被拦红（临时沙箱里跑，不碰你的工作区）
+python -X utf8 scripts/mutation_test_claims_gate.py
+```
+
 ## 面试官 30 秒入口
 
 > 没时间读全文？看这 5 个数，以及它们各自回答什么质疑。
@@ -37,7 +56,14 @@
 
 > 复现：`streamlit run scripts/streamlit_app.py`（依赖见下文快速开始）。
 
-> 状态：✅ 主线（Week 1-4）+ Phase 2（P1-P10）+ **V2 全阶段完成（α 协议 / β 文本语料 / γ Ray 双运行时 / δ LLM-judge / ε 数据 CI）** + **V3 全阶段收官（ζ 域专属判官 κ +0.560 / η 偏好闭环 0.933 / θ 工坊判官 0.839）**。路线图见 [docs/ROADMAP.md](docs/ROADMAP.md)。
+> 状态：✅ 主线（Week 1-4）+ Phase 2（P1-P10）+ **V2 全阶段完成（α 协议 / β 文本语料 / γ Ray 双运行时 / δ LLM-judge / ε 数据 CI）** + **V3 全阶段收官（ζ 域专属判官 κ +0.560 / η 偏好闭环 0.933 / θ 工坊判官 0.839）** + **V4–V7：医疗 FHIR 模态 / 工业传感器模态 / 文本改写通道 / 数据平台轨（湖 + DuckDB 四层 + 契约闸门 + 观测）**。路线图见 [docs/ROADMAP.md](docs/ROADMAP.md)。
+>
+> **V4–V7 一句话**：V4/V5 用**零框架特例**的同一套协议接进第二批模态（医疗 FHIR、工业传感器，
+> 都是"合成轨有 ground truth 的门禁 + 真实轨只报低误杀与逐条可归因"）；V6 发现**协议缺一条通道**
+> 而补了与算子**并列**的 `Transformer`（归一化必须是打分之前的工序，不能塞进算子序列）；
+> V7 另起一条**有状态**的平台轨（`ods→dims→dwd→dws→ads→views→contracts→obs→metrics`），
+> 回答旧轨答不了的问题：「这是第几次运行、跑到哪了、上次为什么失败」。
+> **平台轨的数字不在这里重抄**——唯一真相源是 [docs/PLATFORM.md](docs/PLATFORM.md)（每节都附实点命令）。
 > 面试叙事见 [docs/INTERVIEW.md](docs/INTERVIEW.md)，自测题库见 [docs/INTERVIEW_SELFTEST.md](docs/INTERVIEW_SELFTEST.md)（44 题：数字 / 根因 / 取舍 / 拆现场四层）。
 >
 > **V2 定位**：从「一条多模态清洗管道」升级为「模态可插拔的数据质量框架」。
@@ -244,6 +270,8 @@ python scripts/findata_health_stage.py \\
 - [服务实测性能与降级矩阵（SLA_README）](docs/SLA_README.md)
 - [FAQ：真实踩坑与评测口径](docs/FAQ.md)
 - [项目路线图](docs/ROADMAP.md) — 周计划 + Phase2 + V2 六阶段 + 进度记录 + 阈值校准
+- [数据平台轨（湖 + DuckDB 四层 + 契约闸门 + 观测）](docs/PLATFORM.md) — V7，平台轨数字的唯一真相源
+- [产品页（单页自包含，数字由注册表现算）](docs/product.html) · [产品化收口计划](docs/PRODUCTIZATION.md) · [产品级差距审计](docs/GAP_AUDIT.md)
 - [V3 产品文档 PRD（个人微调平台：目标 / 验收线 / ζ 分解）](docs/PRD.md)
 - [岗位 JD 调研与能力映射](docs/JD_RESEARCH.md)
 - [面试叙事（STAR + 预想追问）](docs/INTERVIEW.md) · [面试自测题库（44 题四层）](docs/INTERVIEW_SELFTEST.md)

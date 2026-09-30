@@ -223,7 +223,12 @@ NUM_RE = None  # 惰性编译，避免模块级 import re 顺序问题
 
 
 def _doc_numbers(text: str) -> list[str]:
-    """抽出「数字形状」的 token：小数（0.556）与 2–4 位整数（623/2106）。"""
+    """抽出「数字形状」的 token：小数（0.556）与 2–4 位整数（623/2106）。
+
+    先剥三类**不是门面数字**的东西，否则棘轮会被误报喂满：
+    ① URL（`https://…:8080/x` 里的端口/路径段）；② ISO 日期（`2026-09-28`）；
+    ③ 标识符（`skab_w64` / `route_d__001` / `Ollama 0.16.3` 这类名字里带的数字）。
+    """
     import re
 
     global NUM_RE
@@ -231,6 +236,7 @@ def _doc_numbers(text: str) -> list[str]:
         NUM_RE = re.compile(r"\d+\.\d+|\d{2,4}")
     t = re.sub(r"https?://\S+", " ", text)  # URL 里的数字不是门面数字
     t = re.sub(r"\d{4}-\d{2}-\d{2}", " ", t)  # ISO 日期不是门面数字
+    t = re.sub(r"[A-Za-z_][A-Za-z_0-9]*", " ", t)  # 标识符（含其内嵌数字）
     t = re.sub(r"(?<=\d),(\d{3})", r"\1", t)  # 2,106 -> 2106（千分位）
     return NUM_RE.findall(t)
 
