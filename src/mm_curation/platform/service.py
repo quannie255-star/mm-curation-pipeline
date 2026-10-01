@@ -306,6 +306,19 @@ class ServiceCore:
         一个数不对还照样供数的服务，比一个明确 503 的服务危险得多——
         下游会把错数当对数用，而且没有人会去读那条日志。
         """
+        # 视图按**当前环境**的路径重建（幂等 CREATE OR REPLACE）。
+        # 为什么必须在这里做：promote 侧建视图时会把**当时的绝对路径**烧进
+        # duckdb 文件（read_parquet('C:/…' 或 '/home/runner/…')）——库文件一旦
+        # 搬家（CI runner → 容器 /app 挂载），路径全失效，契约查询整体 error
+        # → 服务永久 503（容器探针首跑实测，2026-09-30）。视图是查询层配置，
+        # 不属于"晋升的是数据不是结论"里那份数据——消费方启动时用**自己的**
+        # root/store 解析路径重建，跨环境天然正确。
+        from .lake import Lake
+        from .modeling import refresh_views
+
+        self.con.execute(f"SET home_directory='{self.spec.store.as_posix()}'")
+        refresh_views(self.con, Lake(self.spec.lake_dir))
+
         cdir = Path(self.contract_dir)
         cdir = cdir if cdir.is_absolute() else self.root / cdir
         contracts = load_contracts(cdir)

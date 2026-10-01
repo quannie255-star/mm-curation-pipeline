@@ -570,3 +570,35 @@ def test_http_metrics_text_is_prometheus_parseable_shape(http_client):
     assert r.headers["content-type"].startswith("text/plain")
     body = r.text
     assert "# HELP mm_service_up" in body and "# TYPE mm_service_up gauge" in body
+
+
+def test_views_survive_store_relocation(served_root, rbac_file, tmp_path_factory):
+    """回归（容器探针首跑事故）：视图不得被绝对路径绑死。
+
+    事故机理：promote 建视图时把当时的绝对路径烧进 duckdb
+    （read_parquet('C:/…' 或 '/home/runner/…')）；库文件随 store 搬家后
+    （CI runner → 容器 /app 挂载）路径失效，契约查询整体 error →
+    服务永久 503。修复 = serve 启动时按**当前** root/store 重建视图。
+    本测试把整个 store 搬到新路径后启动，断言视图已重指新家且查询可用。
+    """
+    import shutil
+
+    # served_root 基于 lake_root（tmp_path 根），副本必须放到它**外面**，
+    # 否则 copytree 复制自身子树会无限递归（首版实测）
+    new_root = tmp_path_factory.mktemp("reloc") / "repo"
+    shutil.copytree(served_root, new_root)
+
+    c = ServiceCore(new_root, rbac_path=rbac_file)
+    rep = c.startup()
+    try:
+        # 视图已指向新家（不再引用旧绝对路径）
+        v = c.con.sql("select sql from duckdb_views() where view_name='ods_all'").fetchone()[0]
+        fwd = lambda x: str(x).replace("\\", "/")  # noqa: E731
+        assert fwd(new_root) in fwd(v), "视图未按当前环境重建"
+        assert fwd(served_root) not in fwd(v)
+        # 查询层真的能用（事故现场是 10 条全 error）
+        n = c.con.sql("select count(*) from ods_samples").fetchone()[0]
+        assert n > 0
+        assert rep["n_error"] == 0
+    finally:
+        c.close()
