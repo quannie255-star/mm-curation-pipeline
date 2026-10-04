@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -108,49 +109,67 @@ def main() -> int:
     notes = "docs/ENGINEERING_NOTES.md"
     results = []
 
-    print("变异 1：笔记编号重号（#96 → #95）")
+    # 笔记编号锚点从源文档现取（取最大编号那一条），不硬编码——
+    # 硬编码过一次，笔记重排后就悄悄「跳过」了这条变异（2026-09-30 实测）。
+    notes_text = (box / notes).read_text(encoding="utf-8")
+    heads = re.findall(r"^### (\d+)\. .*$", notes_text, re.M)
+    assert heads, "沙箱里读不到任何笔记标题"
+    top = max(int(h) for h in heads)
+    top_head = re.search(rf"^### {top}\. .*$", notes_text, re.M).group(0)
+
+    print(f"变异 1：笔记编号重号（#{top} → #{top - 1}）")
     results.append(
         mutate(
             box,
             notes,
-            "### 96. 真实数据一试跑",
-            "### 95. 真实数据一试跑",
+            top_head,
+            top_head.replace(f"### {top}.", f"### {top - 1}."),
             "重号",
             "派生 notes_count",
         )
     )
 
-    print("变异 2：笔记编号跳号（#96 → #97）")
+    print(f"变异 2：笔记编号跳号（#{top} → #{top + 1}）")
     results.append(
         mutate(
             box,
             notes,
-            "### 96. 真实数据一试跑",
-            "### 97. 真实数据一试跑",
+            top_head,
+            top_head.replace(f"### {top}.", f"### {top + 1}."),
             "跳号",
             "派生 notes_count",
         )
     )
 
-    print("变异 3：README 条数回退（96 条 → 59 条）")
+    # README 的条数锚点从注册表的 must_contain 派生。README 改版把措辞从
+    # 「工程发现日志 96 条」改成「96 条工程发现」时，硬编码版静默跳过两条变异。
+    reg = json.loads((box / "docs" / "claims.json").read_text(encoding="utf-8"))
+    rd_facade = next(f for f in reg["facades"] if f["id"] == "README_md__notes_count")
+    anchor = rd_facade["must_contain"]
+    assert anchor in (box / "README.md").read_text(encoding="utf-8"), (
+        f"注册表 must_contain {anchor!r} 在README 里已不存在——"
+        "先同步 README 与 claims.json 再跑变异测试"
+    )
+
+    print(f"变异 3：README 条数回退（{anchor} → 条数改小）")
     results.append(
         mutate(
             box,
             "README.md",
-            "工程发现日志 96 条",
-            "工程发现日志 59 条",
+            anchor,
+            re.sub(r"\d+", "59", anchor),
             "条数回退",
             "README_md__notes_count",
         )
     )
 
-    print("变异 4：只破坏上下文短语（96 条 → 96 个；字面量 96 仍在文档里）")
+    print(f"变异 4：只破坏上下文短语（{anchor} → 数字不变、只换字）")
     results.append(
         mutate(
             box,
             "README.md",
-            "工程发现日志 96 条",
-            "工程发现日志 96 个",
+            anchor,
+            re.sub(r"条", "个", anchor),
             "上下文失效",
             "README_md__notes_count",
         )

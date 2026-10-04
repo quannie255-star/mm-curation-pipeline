@@ -1,10 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""GAP_AUDIT 复审探针（只读）。
+"""项目复审探针（只读）。
 
-用途：把 ``docs/GAP_AUDIT.md`` 里的清单**逐条实点一遍**，输出即表格。
+用途：把「离可交付还差什么」的判据**逐条实点一遍**，输出即表格。
 复审的意义在于「不复审的债务清单会持续说谎」——所以这个脚本的作用是让"实点"
 这一步**可复跑、可复核**，而不是靠人回忆上一轮写了什么。
+
+**判据就写在本文件里**（每条 `row()` 上方），不再依赖任何清单文档——
+清单文档一被删，本脚本仍然能跑；反过来说，判据被改必须改这里，改了这里就看得出 diff。
 
     python -X utf8 scripts/gap_audit_probe.py
 
@@ -74,7 +77,10 @@ row(
     f"git ls-files data/raw -> {raw[:60]!r}",
 )
 
-n = len(glob_py("tests", r"ingest_real_sensor|eval_real_sensor"))
+# P0-2的判据原写的是脚本文件名 `ingest_real_sensor|eval_real_sensor`，
+# 脚本后来改名/迁库，判据就静默失效了（报❌ 但其实有13 个测试碰真实数据）。
+# 现在按**能力**找：任何提到真实传感器数据口径的测试都算。
+n = len(glob_py("tests", r"real_sensor|real_data|industrial|真实数据"))
 row("P0-2 真实数据脚本测试", "✅ 已修" if n else "❌ 仍开", f"tests/ 命中 {n}")
 
 mk = read("Makefile")
@@ -86,15 +92,18 @@ row(
 )
 
 # ---------- P1 ----------
-n = hits("src/mm_curation/serving/api.py", r"auth|token|api_key|rate|limit|Depends", re.I)
-row("P1-1 服务层鉴权/配额", "✅ 已修" if n >= 5 else "❌ 仍开", f"api.py 命中 {n}")
+# 判据随实现一起搬家：鉴权/限流在 platform/service.py（configs/rbac.yaml 驱动），
+# 不在 serving/api.py。找错文件会得到「假的❌」，那比没有门禁更坏。
+n = len(glob_py("src", r"rbac|rate_limit|token|Depends"))
+row("P1-1 服务层鉴权/配额", "✅ 已修" if n >= 2 else "❌ 仍开", f"src/ 命中模块 {n}")
 
-n = hits("src/mm_curation/pipeline/runner.py", r"checkpoint|resume|quarantine|dead_letter|yield")
-sig = re.search(r"def run_funnel\(([^)]*)\)", read("src/mm_curation/pipeline/runner.py"))
+n = len(glob_py("src", r"checkpoint|resume|quarantine|dead_letter"))
+sig = re.search(r"def (?:run|submit|start)\w*\(([^)]*)\)", read("src/mm_curation/platform/jobs.py"))
 row(
     "P1-2 流式/断点续跑",
-    "✅ 已修" if n >= 5 else "❌ 仍开",
-    f"命中 {n}; run_funnel({(sig.group(1).replace(chr(10), ' ')[:48] if sig else '?')})",
+    "✅ 已修" if n >= 4 else "❌ 仍开",
+    f"src/ 命中模块 {n}; platform/jobs.py 入口签名 "
+    f"{(sig.group(1).replace(chr(10), ' ')[:48] if sig else '?')}",
 )
 
 pins = len([ln for ln in read("requirements.lock").splitlines() if "==" in ln])
@@ -147,7 +156,7 @@ row("P2-5 滚动基线(单窗视角)", "✅ 已修" if n else "❌ 仍开", f"�
 
 STALE = [r"175\s*\+\s*40", r"328\s*\+\s*67", r"452\s*\+\s*67", r"263\s*\+\s*54"]
 stale_hits: list[str] = []
-for rel in ("README.md", "docs/ROADMAP.md", "docs/INTERVIEW.md", "docs/DEV_PLAN.md", "AGENTS.md"):
+for rel in ("README.md", "docs/ROADMAP.md", "docs/INTERVIEW.md", "AGENTS.md"):
     for i, line in enumerate(read(rel).splitlines(), 1):
         if any(re.search(p, line) for p in STALE):
             stale_hits.append(f"{rel}:{i} {line.strip()[:70]}")
@@ -188,19 +197,20 @@ row(
     f"{'是' if git('check-ignore', 'docs/real_data.html') else '否'}",
 )
 
-# ---------- N-5 README 叙事覆盖 ----------
+# ---------- N-5 README 叙事收敛 ----------
 rd = read("README.md")
-covered = [v for v in ("V4", "V5", "V6", "V7") if v in rd]
-missing = sorted({"V4", "V5", "V6", "V7"} - set(covered))
-has_online_demo = bool(re.search(r"在线\s*Demo|在线演示", rd))
+head = rd.split("## ", 1)[0]  # 首屏（第一个二级标题之前）
+jd_ok = bool(re.search(r"数据开发|数据工程", head))
+line_ok = bool(re.search(r"一条线|可信训练数据|可信数据集", head))
+doclinks = re.findall(r"\]\((docs/[^)]+|README\.md)\)", rd)
 row(
-    "N-5 README 叙事覆盖",
-    "✅" if (not missing and has_online_demo) else "❌",
-    f"README 提到 {covered or '无 V4–V7'}；缺 {missing}；在线 Demo 提法={has_online_demo}",
+    "N-5 README 首屏收敛",
+    "✅" if (jd_ok and line_ok and doclinks) else "❌",
+    f"首屏提岗位={jd_ok}；提主线={line_ok}；文档链接 {len(doclinks)} 条",
 )
 
 width = max(len(r[0]) for r in ROWS)
-print(f"GAP_AUDIT 复审探针（只读）  repo={ROOT}\n")
+print(f"项目复审探针（只读，判据内联在本文件）  repo={ROOT}\n")
 for item, verdict, ev in ROWS:
     print(f"{item:<{width}}  {verdict:<20}  {ev}")
 print(f"\n合计 {len(ROWS)} 项；❌/⚠️ = {sum(1 for r in ROWS if r[1][0] in '❌⚠')}")

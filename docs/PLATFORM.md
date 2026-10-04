@@ -1,6 +1,6 @@
 # 数据平台轨：从「指标计算脚本」到「有运行概念的数据系统」
 
-> 2026-09-27。覆盖 `docs/DATA_SYSTEM_TRACK.md` 的 **S0–S6** 六批。
+> 2026-09-27。**S0–S6** 六批的落地记录（2026-09-30 收敛：原`DATA_SYSTEM_TRACK.md` 已删，本文即其唯一幸存载体）。
 >
 > **一句话**：旧仓库轨（`curation.duckdb`）回答的是「数据洗成什么样」；
 > 平台轨（`data/lake/**` + `platform.duckdb`）回答的是
@@ -13,7 +13,7 @@
 
 ## 一、为什么要另起一条轨，而不是改旧轨
 
-旧轨的判据（2026-09-22 实点，见 `DATA_SYSTEM_TRACK.md` §2）：
+旧轨的判据（2026-09-22 实点）：
 `src/mm_curation/warehouse/` 下 `batch_date` / `watermark` / `run_id` / `checkpoint` /
 `resume` / `partition` / `parquet` 命中 **0**。
 
@@ -467,7 +467,7 @@ S6 期间被抓出四个，全部已修、全部有回归测试（详见 `ENGINE
 
 ## 八、诚实边界
 
-**明确不做，以及为什么**（与 `DATA_SYSTEM_TRACK.md` §5 一致）：
+**明确不做，以及为什么**：
 
 | 不做 | 理由 |
 |---|---|
@@ -609,13 +609,13 @@ python -m pytest tests/test_platform_*.py tests/test_lock_file.py tests/test_ci_
 
 （另计 `src/mm_curation/cli.py` 463 行；未计入测试文件的辅助模块与 fixture。）
 
-**测试基线（2026-09-29 实点）**：主仓 `pytest -q tests` → **623 passed / 0 failed / 0 error / 0 skipped**
+**测试基线（2026-09-30 实点）**：主仓 `pytest -q tests` → **624 passed / 0 failed / 0 error / 0 skipped**
 （本机装了 ray + duckdb 且已生成 `data/`；106.9s 为 616 档时点值）；包侧 `pytest -q packages/curation-eval/tests` → **67 passed**（48.7s）；
-合计 **690 条全绿**。
+合计 **691 条全绿**。
 其中平台轨与交付物门禁贡献 **164 条**（`--collect-only` 实点，逐文件见上表）。
 演进：修观测层信号缺陷前 562 → 567（S6 平台侧修复）→ 613（S6 环境/晋升/交付门禁 +46）
 → **616**（`data/raw/` 忽略覆盖面门禁 +3，见 §7.4 与 `ENGINEERING_NOTES` #89）
-→ **618**（glm R1 两条回归用例，未回写）→ **623**（M2 门面数字门禁 +5，见 `ENGINEERING_NOTES` #93）。
+→ **618**（glm R1 两条回归用例，未回写）→ **623**（M2 门面数字门禁 +5，见 `ENGINEERING_NOTES` #93）→ **624**（glm G2 终局修复补 1 条 store 搬迁回归测试，见 `docs/devlog/2026-09-29-glm.md`）。
 
 参考：`docs/ENGINEERING_NOTES.md` 记现象与根因（本次新增 #85–#89）；
-`docs/RUNBOOK.md` 记处置；`docs/DATA_SYSTEM_TRACK.md` 记六批的完整计划。
+`docs/RUNBOOK.md` 记处置；本文各节即六批的落地记录。

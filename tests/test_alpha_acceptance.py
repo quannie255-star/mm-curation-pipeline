@@ -1,4 +1,4 @@
-"""V2 α 阶段验收测试（docs/design_tables.md 验收标准 A1-A7 的主仓库侧落点）。"""
+"""V2 α 阶段验收测试（docs/ENGINEERING_NOTES.md 验收标准 A1-A7 的主仓库侧落点）。"""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def _img(tmp_path: Path, name: str, color) -> str:
 
 
 def _mixed_ten(tmp_path: Path) -> list[Sample]:
-    """验收样本集：5 图文（真实小图）+ 5 纯文本（design_tables A1/A2）。"""
+    """验收样本集：5 图文（真实小图）+ 5 纯文本（见 ENGINEERING_NOTES 的 A1/A2 记录）。"""
     out = []
     for i in range(5):
         out.append(

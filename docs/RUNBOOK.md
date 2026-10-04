@@ -220,7 +220,7 @@ python -X utf8 scripts/run_pipeline.py --config configs/text_funnel.yaml   --inp
 同一份 YAML 配置，`runtime: local`（默认，串行）与 `runtime: ray` 两种执行器
 （`RayDistributedExecutor`，ray 懒加载：`pip install curation-eval[ray]` 或
 `pip install ray`，不装 ray 零影响）。等价性口径与确定性约定见
-docs/design_tables.md γ 决策点 3。
+`ENGINEERING_NOTES.md` 里 V2 γ 的决策点 3。
 
 | 步骤 | 命令 | 耗时 | 验收 |
 |---|---|---|---|
@@ -430,7 +430,7 @@ stratified（0.731 vs 0.706），R@1/MRR 全部不敌且 ε 越大越差。归�
 
 ## 1.17 OPS 日常运维飞轮（ops-flywheel，2026-09-15 起）
 
-30 天数据飞轮一期（R0-R4，PRD 见 docs/OPS_PRD.md，设计表见 design_tables.md
+30 天数据飞轮一期（R0-R4，PRD 原 `docs/OPS_PRD.md` 已于 2026-09-30 收敛时删除，
 OPS w1 节）：每日定时采集 A 股结构化行情（findata）+ 个股新闻文本（akshare），
 双管道加工后出一份日报。ops 壳只编排不实现——findata 侧复用其
 `scripts/daily_pipeline.py`（采集→巡检→推送→归档）。
@@ -633,7 +633,7 @@ python -X utf8 scripts/build_real_data_html.py     # F3：秒级，产 docs/real
 
 ## 1.23 SQL 语义层 / 指标字典 / 记分卡 / 血缘契约（`mmc` CLI，2026-09-22）
 
-统一入口 `scripts/mmc.py`（GAP_AUDIT P1-8：仓库 50+ 脚本，入口靠「记」和「找」）。
+统一入口 `scripts/mmc.py`（仓库 50+ 脚本，入口靠「记」和「找」）。
 **需要可选依赖 duckdb**：`pip install duckdb`（未装时 `connect()` 抛带安装提示的错，不静默退化）。
 
 ```bash

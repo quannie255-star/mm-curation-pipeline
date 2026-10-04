@@ -4,7 +4,7 @@ r"""OPS 日常运维单入口壳（R0/R3）：步骤顺序执行、非零即停�
 用纯函数完成（可离线单测）。任一步失败 → 跳过其余步骤，但日报必渲染
 （顶部「今日异常」），exit 1——管道吞错 exit 0 不可信（η-b 在案教训）。
 
-步骤（对应 OPS_PRD R3 六步，①③合并为 findata_daily）：
+步骤（R3 六步，①③合并为 findata_daily）：
     findata_daily  复用 findata scripts/daily_pipeline.py（采集→巡检→推送→归档）
     fetch_text     akshare 个股新闻 → Sample JSONL（增量，fetch_finance_news.py）
     funnel         金融文本漏斗全量重跑（configs/text_funnel_finance.yaml）

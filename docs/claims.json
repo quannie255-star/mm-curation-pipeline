@@ -9,11 +9,11 @@
       }
     },
     "tolerance_note": "浮点 claim 用 approx（绝对差 ≤ tol）；计数与比率类用 exact。历史数字无法从落盘报告复核的，标 historical=true，不参与校验（如实标注）。",
-    "facades_note": "文档门面：facades 里每条把「某文档里手写的数字」绑定到来源（claim 或 baselines）+ 渲染格式 + 字面量。verify_claims.py 校验两件事：字面量 == render(来源值)（registry-stale 则红）、文档里能找到该字面量（doc-stale 则红）。好处：**不依赖 data/reports/（生成物、不入库）**，所以在 CI 上也能拦。数字一改，门禁会把所有还没同步的文档逐条列出来。",
-    "baselines_note": "baselines 是不来自报告 JSON、但同样要全文档一致的“基线数字”（测试条数）。改一处，门禁列出所有没跟上的文档。",
+    "facades_note": "文档门面：facades 里每条把「某文档里手写的数字」绑定到来源（claim 或 baselines）+ 渲染格式 + 字面量。verify_claims.py 校验两件事：字面量 == render(来源值)（registry-stale 则红）、文档里能找到该字面量（doc-stale 则红）。好处：**不依赖 data/reports/（生成物、不入库）**，所以在 CI 上也能拦。数字一改，门禁会把所有还没同步的文档逐条列出来。2026-09-30 收敛：文档树从34 份砍到 19 份，指向已删文档的 10 条 facade 一并删除，facade_floor 随之从 74 降到新值（只许跟随实际条数，不许为了好看而下调）。",
+    "baselines_note": "baselines 是不来自报告 JSON、但同样要全文档一致的“基线数字”（测试条数）。改一处，门禁列出所有没跟上的文档。2026-09-30 实点：主仓 624（glm 39946ba 补了 1 条 store 搬迁回归测试，文档未同步）+ 包 67 = 691。",
     "derived_note": "derived：可由源文档自己数出来的结构性计数（笔记条数 / 题库题数）。声明「文件 + 正则 + 计数语义」，verify_claims.py 现算；kind=count_contiguous 额外要求编号连续无重号。门面可用 {\"derived\": \"<id>\"} 引用——这样「N 条」不会跟着文档一起腐烂。",
-    "coverage_note": "coverage_ceiling：门面正文的数字覆盖率棘轮。脚本扫描正文里「数字形状」的 token，减去已登记字面量 / 基线 / 派生值 / number_allowlist，剩下的未登记清单长度必须 ≤ 上限——只许降不许升。来源：GAP_AUDIT N-3b 实点「66 条门面只覆盖 11 个不同字面量」。",
-    "facade_floor": 74,
+    "coverage_note": "coverage_ceiling：门面正文的数字覆盖率棘轮。脚本扫描正文里「数字形状」的 token，减去已登记字面量 / 基线 / 派生值 / number_allowlist，剩下的未登记清单长度必须 ≤ 上限——只许降不许升。来源：实点「66 条门面只覆盖 11 个不同字面量」。",
+    "facade_floor": 65,
     "number_allowlist": [
       "3.11",
       "8000",
@@ -160,9 +160,9 @@
     }
   ],
   "baselines": {
-    "tests_main": 623,
+    "tests_main": 624,
     "tests_pkg": 67,
-    "tests_total": 690
+    "tests_total": 691
   },
   "facades": [
     {
@@ -738,71 +738,6 @@
       "note": "docs/RUNBOOK.md 引用 clip_dirty_ft_r1 的数字"
     },
     {
-      "id": "docs_DS_DA_TRACK_md__soul_dirty_r1",
-      "doc": "docs/DS_DA_TRACK.md",
-      "source": {
-        "claim": "soul_dirty_r1"
-      },
-      "fmt": ".3f",
-      "scale": 1,
-      "suffix": "",
-      "literal": "0.459",
-      "min_count": 1,
-      "note": "docs/DS_DA_TRACK.md 引用 soul_dirty_r1 的数字"
-    },
-    {
-      "id": "docs_DS_DA_TRACK_md__soul_clean_r1",
-      "doc": "docs/DS_DA_TRACK.md",
-      "source": {
-        "claim": "soul_clean_r1"
-      },
-      "fmt": ".3f",
-      "scale": 1,
-      "suffix": "",
-      "literal": "0.556",
-      "min_count": 1,
-      "note": "docs/DS_DA_TRACK.md 引用 soul_clean_r1 的数字"
-    },
-    {
-      "id": "docs_DS_DA_TRACK_md__random_drop_margin",
-      "doc": "docs/DS_DA_TRACK.md",
-      "source": {
-        "claim": "random_drop_margin"
-      },
-      "fmt": ".3f",
-      "scale": 1,
-      "suffix": "",
-      "literal": "0.131",
-      "min_count": 1,
-      "note": "docs/DS_DA_TRACK.md 引用 random_drop_margin 的数字"
-    },
-    {
-      "id": "docs_INDUSTRY_BENCHMARK_md__soul_dirty_r1",
-      "doc": "docs/INDUSTRY_BENCHMARK.md",
-      "source": {
-        "claim": "soul_dirty_r1"
-      },
-      "fmt": ".3f",
-      "scale": 1,
-      "suffix": "",
-      "literal": "0.459",
-      "min_count": 1,
-      "note": "docs/INDUSTRY_BENCHMARK.md 引用 soul_dirty_r1 的数字"
-    },
-    {
-      "id": "docs_INDUSTRY_BENCHMARK_md__soul_clean_r1",
-      "doc": "docs/INDUSTRY_BENCHMARK.md",
-      "source": {
-        "claim": "soul_clean_r1"
-      },
-      "fmt": ".3f",
-      "scale": 1,
-      "suffix": "",
-      "literal": "0.556",
-      "min_count": 1,
-      "note": "docs/INDUSTRY_BENCHMARK.md 引用 soul_clean_r1 的数字"
-    },
-    {
       "id": "scripts_showcase_app_py__ppl_clean",
       "doc": "scripts/showcase_app.py",
       "source": {
@@ -850,7 +785,7 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "623",
+      "literal": "624",
       "min_count": 1,
       "note": "README.md 引用测试基线 tests_main"
     },
@@ -876,7 +811,7 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "623",
+      "literal": "624",
       "min_count": 1,
       "note": "AGENTS.md 引用测试基线 tests_main"
     },
@@ -902,7 +837,7 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "690",
+      "literal": "691",
       "min_count": 1,
       "note": "AGENTS.md 引用测试基线 tests_total"
     },
@@ -915,7 +850,7 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "623",
+      "literal": "624",
       "min_count": 1,
       "note": "docs/PLATFORM.md 引用测试基线 tests_main"
     },
@@ -941,48 +876,9 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "690",
+      "literal": "691",
       "min_count": 1,
       "note": "docs/PLATFORM.md 引用测试基线 tests_total"
-    },
-    {
-      "id": "docs_COLLAB_PLAN_md__tests_main",
-      "doc": "docs/COLLAB_PLAN.md",
-      "source": {
-        "baseline": "tests_main"
-      },
-      "fmt": "d",
-      "scale": 1,
-      "suffix": "",
-      "literal": "623",
-      "min_count": 1,
-      "note": "docs/COLLAB_PLAN.md 引用测试基线 tests_main"
-    },
-    {
-      "id": "docs_COLLAB_PLAN_md__tests_pkg",
-      "doc": "docs/COLLAB_PLAN.md",
-      "source": {
-        "baseline": "tests_pkg"
-      },
-      "fmt": "d",
-      "scale": 1,
-      "suffix": "",
-      "literal": "67",
-      "min_count": 1,
-      "note": "docs/COLLAB_PLAN.md 引用测试基线 tests_pkg"
-    },
-    {
-      "id": "docs_COLLAB_PLAN_md__tests_total",
-      "doc": "docs/COLLAB_PLAN.md",
-      "source": {
-        "baseline": "tests_total"
-      },
-      "fmt": "d",
-      "scale": 1,
-      "suffix": "",
-      "literal": "690",
-      "min_count": 1,
-      "note": "docs/COLLAB_PLAN.md 引用测试基线 tests_total"
     },
     {
       "id": "docs_PROOF_CHAIN_md__tests_main",
@@ -993,7 +889,7 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "623",
+      "literal": "624",
       "min_count": 1,
       "note": "docs/PROOF_CHAIN.md 引用测试基线 tests_main"
     },
@@ -1011,19 +907,6 @@
       "note": "scripts/showcase_app.py 引用测试基线 tests_pkg"
     },
     {
-      "id": "docs_DEV_PLAN_md__tests_total",
-      "doc": "docs/DEV_PLAN.md",
-      "source": {
-        "baseline": "tests_total"
-      },
-      "fmt": "d",
-      "scale": 1,
-      "suffix": "",
-      "literal": "690",
-      "min_count": 1,
-      "note": "docs/DEV_PLAN.md 引用测试基线 tests_total"
-    },
-    {
       "id": "README_md__notes_count",
       "doc": "README.md",
       "source": {
@@ -1034,8 +917,8 @@
       "suffix": "",
       "literal": "96",
       "min_count": 1,
-      "note": "README 的「工程发现日志 N 条」由源文档现算（derived），不手写",
-      "must_contain": "工程发现日志 96 条"
+      "note": "README 文档表里「96 条工程发现」由源文档现算（derived），不手写",
+      "must_contain": "96 条工程发现"
     },
     {
       "id": "README_md__selftest_count",
@@ -1102,10 +985,10 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "623",
+      "literal": "624",
       "min_count": 1,
       "note": "自测题库第 13 题答案里的「主仓 N」基线",
-      "must_contain": "主仓 623"
+      "must_contain": "主仓 624"
     },
     {
       "id": "INTERVIEW_SELFTEST_md__pkg_tests",

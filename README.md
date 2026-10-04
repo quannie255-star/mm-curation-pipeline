@@ -1,16 +1,15 @@
-# 多模态数据质量平台：清洗管道 → 向量检索 → 个人微调
+# 脏数据 → 可信训练数据：一条能被第三方复跑的 AI 数据工程链路
 
-> mm-curation-pipeline —— 三级演进：**V1 一条清洗管道**（脏数据进 → 漏斗清洗 →
-> 向量检索，收益可证明）**→ V2 一个模态可插拔的质量框架**（协议/算子 SDK 收口成包）
-> **→ V3 一个个人微调平台**（自己的数据 → 自己的 benchmark → 自己的域判官）。
+> **一句话**：把真实爬取的脏数据变成带血缘、带质量证据、可被下游直接消费的数据集——
+> 中间每一道闸门都不是「我说了算」，它有一份注册表、一条红绿命令、一条失败归因。
+>
+> **面向岗位**：AI 数据开发 / AI 数据工程 / 数据平台开发（调研见 [JD_RESEARCH](docs/JD_RESEARCH.md)）。
+> **判据**（下面每一项都能被追问到底，见 [PROOF_CHAIN](docs/PROOF_CHAIN.md)）。
 
 [![CI](https://github.com/quannie255-star/mm-curation-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/quannie255-star/mm-curation-pipeline/actions/workflows/ci.yml)
 [![Data CI](https://github.com/quannie255-star/mm-curation-pipeline/actions/workflows/data-ci.yml/badge.svg)](https://github.com/quannie255-star/mm-curation-pipeline/actions/workflows/data-ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
-
-面向中文多模态大模型训练数据场景的端到端平台：**脏数据进 → 漏斗式多算子清洗 →
-质量可量化 → 向量索引 → 检索服务 → 清洗收益可证明 → 域专属判官微调（LoRA，κ 达标）**。
 
 > **想先看结论再读代码？** → [产品页（单页自包含）](docs/product.html)：
 > 三十秒结论 + 每个数字的出处 + **诚实边界** + 自己验一遍的三条命令。
@@ -24,7 +23,7 @@ git clone https://github.com/quannie255-star/mm-curation-pipeline && cd mm-curat
 # ① 对外数字都锁在注册表里：文档/前端的字面量对不上来源就红
 python -X utf8 scripts/verify_claims.py
 
-# ② "离可用还差什么"不是我一个人说了算——复审清单本身可复跑
+# ② "离可交付还差什么"不是我一个人说了算——判据内联在脚本里，可复跑
 python -X utf8 scripts/gap_audit_probe.py
 
 # ③ 证明上面两道门禁不是装饰：6 个变异全部应被拦红（临时沙箱里跑，不碰你的工作区）
@@ -35,16 +34,16 @@ python -X utf8 scripts/mutation_test_claims_gate.py
 
 > 没时间读全文？看这 5 个数，以及它们各自回答什么质疑。
 
-| # | 一句话结论 | 硬数字 | 回答的质疑 |
+| # | 数据工程能力 | 硬数字 | 回答的质疑 |
 |---|---|---|---|
-| 1 | 清洗真的有用 | 脏索引 → 净索引 Recall@1 **0.459 → 0.556（+21%）** | 「清洗效果怎么证明？」 |
-| 2 | 脏数据真的伤模型 | CLIP 干净集 vs 脏集微调 R@1 **0.688 vs 0.636**；中文语料 GPT-2 困惑度 **7.16 vs 7.70** | 「只是检索指标好看吧？」 |
-| 3 | 是框架不是管道 | 同一协议**零特例**接入第二模态（30.2 万篇维基）；local/Ray 双运行时**逐 id 零差异** | 「换数据是不是要重写？」 |
-| 4 | 通用模型不认识你的域 | 通用判官 κ **-0.024** → 域专属 LoRA 判官 **+0.560**；偏好判官 0.532 → **0.839** | 「LLM 打分不就行了？」 |
-| 5 | 敢报阴性结果 | δ 判官 κ≈0 判不合格、η-b 未达标、域外 κ 0.560→0.178 —— **全部原样落文档** | 「数字是不是挑过的？」 |
+| 1 | **质检能证明有效** | 脏索引 → 净索引 Recall@1 **0.459 → 0.556（+21%）** | 「清洗效果怎么证明？」 |
+| 2 | **脏数据真的伤模型** | CLIP 干净集 vs 脏集微调 R@1 **0.688 vs 0.636**；中文语料 GPT-2 困惑度 **7.16 vs 7.70** | 「只是检索指标好看吧？」 |
+| 3 | **换数据源不用重写** | 同一协议**零特例**接入第二模态（30.2 万篇维基）；local/Ray 双运行时**逐 id 零差异** | 「换数据是不是要重写？」 |
+| 4 | **有运行概念的数据系统** | 湖分区 + DuckDB 契约闸门；分区裁剪有**字节级**证据（见 [PLATFORM](docs/PLATFORM.md)） | 「这不就是几个脚本？」 |
+| 5 | **通用模型不认识你的域** | 通用判官 κ **-0.024** → 域专属 LoRA 判官 **+0.560**；偏好判官 0.532 → **0.839** | 「LLM 打分不就行了？」 |
 
-完整叙事见 [docs/INTERVIEW.md](docs/INTERVIEW.md)（3 分钟电梯演讲 + 追问预案），
-自测题库见 [docs/INTERVIEW_SELFTEST.md](docs/INTERVIEW_SELFTEST.md)（44 题四层）。
+敢报阴性结果：δ 判官 κ≈0 判不合格、η-b 未达标、域外 κ 0.560→0.178 —— **全部原样落文档**。
+追问预案见 [docs/INTERVIEW.md](docs/INTERVIEW.md)，自测题库见 [自测题库](docs/INTERVIEW_SELFTEST.md)（44 题四层）。
 
 ## Demo 一览（Streamlit 四 Tab 实录）
 
@@ -99,7 +98,7 @@ python -X utf8 scripts/mutation_test_claims_gate.py
 | **V3 ζ · 域专属判官**（judge_news_v1 冻结 benchmark） | 通用 κ → LoRA 微调 κ | **-0.024 → +0.560**（P=0.706 / R=0.960 / 解析率 100%，验收线 ≥0.5） |
 | **V3 η · 偏好闭环**（DPO + persona-oracle 协议） | 双判官命中率 / 分歧率 | **0.933 / 0.867 · 0.783**（线 ≥0.75 / ≥40%）；域外 κ 0.560→0.178 如实报 |
 | **V3 θ · 偏好判官工坊**（五步向导，冻结考卷 77 题） | 通用 → 个人判官命中率 | **0.532 → 0.839（+30.6pp）**；学习曲线 188 对未学会 / 488 对达标 |
-| **工程** | 单元测试 | **623 + 67 = 690**（主仓库 + curation-eval 包；包侧 5 条 Ray 测试需装 ray 才被收集，未装的环境/CI 为 62） |
+| **工程** | 单元测试 | **624 + 67 = 691**（主仓库 + curation-eval 包；包侧 5 条 Ray 测试需装 ray 才被收集，未装的环境/CI 为 62） |
 
 > 灵魂叙事：**脏数据 → 11 级漏斗 → 干净集（R@1 +21%）→ 分层采样（再 +18~24%）**
 > → Phase 2 把"代理指标"升级为"训练证据"（脏集微调 CLIP 比 clean 低 5.2pp R@1）。
@@ -262,20 +261,20 @@ python scripts/findata_health_stage.py \\
 
 **为什么是 stage 而非独立包**：findata 还没有 pip 发布；包外引用（`sys.path` bootstrap）既能证明"可被外部 import"，又不强迫 findata 提前做发布决策。
 
-## 设计文档
+## 文档（6 条，按「你要什么」找）
 
-- [系统架构 V2（模态可插拔框架：八决策 + 六阶段路线）](docs/ARCHITECTURE_V2.md)
-- [系统架构（数据流 Mermaid + FMEA + 替换成本）](docs/ARCHITECTURE.md)
-- [完整跑法 RUNBOOK（make-free，含 venv 踩坑）](docs/RUNBOOK.md)
-- [服务实测性能与降级矩阵（SLA_README）](docs/SLA_README.md)
-- [FAQ：真实踩坑与评测口径](docs/FAQ.md)
-- [项目路线图](docs/ROADMAP.md) — 周计划 + Phase2 + V2 六阶段 + 进度记录 + 阈值校准
-- [数据平台轨（湖 + DuckDB 四层 + 契约闸门 + 观测）](docs/PLATFORM.md) — V7，平台轨数字的唯一真相源
-- [产品页（单页自包含，数字由注册表现算）](docs/product.html) · [产品化收口计划](docs/PRODUCTIZATION.md) · [产品级差距审计](docs/GAP_AUDIT.md)
-- [V3 产品文档 PRD（个人微调平台：目标 / 验收线 / ζ 分解）](docs/PRD.md)
-- [岗位 JD 调研与能力映射](docs/JD_RESEARCH.md)
-- [面试叙事（STAR + 预想追问）](docs/INTERVIEW.md) · [面试自测题库（44 题四层）](docs/INTERVIEW_SELFTEST.md)
-- [工程发现日志 96 条（面试弹药库）](docs/ENGINEERING_NOTES.md)
+| 你想看 | 去这里 |
+|---|---|
+| **30 秒结论 + 每个数字的出处 + 诚实边界** | [产品页](docs/product.html)（单页自包含） |
+| **完整跑法**（make-free，含 venv 踩坑、每条命令的实测输出） | [RUNBOOK](docs/RUNBOOK.md) · [QUICKSTART](docs/QUICKSTART.md)（零基础） |
+| **架构**（模态可插拔框架 + 数据流/失效路径） | [ARCHITECTURE_V2](docs/ARCHITECTURE_V2.md) · [ARCHITECTURE](docs/ARCHITECTURE.md) |
+| **数据系统**（湖分区 / DuckDB 契约闸门 / 观测 / 晋升 / 容器交付） | [PLATFORM](docs/PLATFORM.md) — 平台轨数字的唯一真相源 |
+| **求职**（简历描述 / JD 映射 / 追问预案 / 自测题库） | [RESUME](docs/RESUME.md) · [JD_RESEARCH](docs/JD_RESEARCH.md) · [INTERVIEW](docs/INTERVIEW.md) · [自测题库](docs/INTERVIEW_SELFTEST.md) |
+| **踩坑与判据**（96 条工程发现 + 评测口径 + 常见问题） | [ENGINEERING_NOTES](docs/ENGINEERING_NOTES.md) · [PROOF_CHAIN](docs/PROOF_CHAIN.md) · [FAQ](docs/FAQ.md) |
+
+**这条线现在到哪了、下一步只做哪三件** → [ROADMAP](docs/ROADMAP.md)。
+**领域增强包规范 / 产品需求** → [DOMAIN_PACKS](docs/DOMAIN_PACKS.md) · [PRD](docs/PRD.md) ·
+[真实数据首跑报告](docs/REAL_DATA_REPORT.md) · [清洗策略分析报告](docs/ANALYSIS_REPORT.md)。
 
 ## License
 

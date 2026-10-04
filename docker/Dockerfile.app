@@ -13,7 +13,7 @@
 # ⚠️ 诚实边界：**本机无法验证这个构建**。本机 Docker 拉不到
 # `registry-1.docker.io`（"Docker Desktop has no HTTPS proxy"），
 # 所以 `docker build` 只能在 CI 的 runner 上跑（.github/workflows/container-ci.yml）。
-# 这条限制记在 docs/DATA_SYSTEM_TRACK.md 的诚实边界一节，不藏着。
+# 这条限制记在 docs/PLATFORM.md 的诚实边界一节，不藏着。
 # 也正因为它不能本地预演，"构建与运行"这一步在 CI 里是**真门禁**，
 # 不允许 continue-on-error —— 那种写法等于把未验证当成通过。
 # =============================================================================

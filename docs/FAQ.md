@@ -35,7 +35,7 @@ FakeEncoder/monkeypatch 全覆盖，CI（CPU、无模型、无数据）自动跳
 
 **Q：/api/ingest 重启后同样的图又能进来了？**
 已知限制：去重状态在内存。重启=重复窗口重开。修复路径见
-SLA_README「已知限制」。
+`docs/PLATFORM.md` §七「环境与交付」的已知限制一节。
 
 **Q：想复现全部实验？**
 `make data && make funnel && make index-clean index-dirty && \

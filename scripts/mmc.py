@@ -8,7 +8,7 @@
     python -X utf8 scripts/mmc.py lineage --impact doc_length
     python -X utf8 scripts/mmc.py contracts  # 数据契约校验（失败 exit 1）
 
-为什么需要它：仓库里有 50+ 个脚本，入口靠「记」和「找」（GAP_AUDIT P1-8）。
+为什么需要它：仓库里有 50+ 个脚本，入口靠「记」和「找」。
 本 CLI 只收口**数据链路侧**的高频动作，scripts/ 其余脚本仍是内部实现。
 """
 

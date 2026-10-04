@@ -2,7 +2,7 @@
 
 启动：streamlit run scripts/judge_studio.py
 非开发者入口：全程无 YAML/命令行暴露；训练与评测 subprocess 复用现有脚本
-（全默认参数）。数据纪律见 docs/design_tables.md θ 节：标注 v2 全文落盘；
+（全默认参数）。数据纪律见 docs/ENGINEERING_NOTES.md θ 节：标注 v2 全文落盘；
 真人标注（本向导）与模拟用户（build_oracle_labels.py）分文件分账。
 """
 
@@ -385,5 +385,5 @@ PAGES = {
 }
 
 page = st.sidebar.radio("工坊五步", list(PAGES), label_visibility="collapsed")
-st.sidebar.caption("偏好判官工坊 · 你的点击 → 你的判官\n\n\ndocs/design_tables.md θ 节")
+st.sidebar.caption("偏好判官工坊 · 你的点击 → 你的判官\n\n\ndocs/ENGINEERING_NOTES.md θ 节")
 PAGES[page]()

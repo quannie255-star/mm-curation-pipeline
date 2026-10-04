@@ -12,7 +12,7 @@
   （`git status` 里多一个 `??`，没人会发现，直到有人 `git add -A`）
 
 容器的**构建与运行**只能在 CI 的 runner 上验（本机拉不到 `registry-1.docker.io`，
-这一条已记在 docs/DATA_SYSTEM_TRACK.md 的诚实边界里）。所以这里只做
+这一条已记在 docs/PLATFORM.md 的诚实边界里）。所以这里只做
 "结构上对得上"这一层，并明确写清它不验什么。
 """
 

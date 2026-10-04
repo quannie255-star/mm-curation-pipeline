@@ -6,9 +6,9 @@
 
 1. **不手抄数字**。页面上的每个数值都用 `verify_claims.py` 的 `render_value()` 渲染
    —— 与门禁**同一套渲染逻辑**，所以页面字面量 === 注册表字面量 === 文档里的字面量。
-   手写页面的下场已经在本项目发生过 6 次（见 `GAP_AUDIT` P3-1）。
+   手写页面的下场已经在本项目发生过 6 次（见 `docs/ENGINEERING_NOTES.md` 的腐烂类笔记）。
 2. **自带覆盖率自检**。生成完顺手统计"正文里出现的数值有几个已在注册表里"，
-   未注册的**列出来**——这就是 `GAP_AUDIT` N-3b 的量化口径，也是 S3-1 扩围的输入。
+   未注册的**列出来**——这是注册表覆盖面的量化口径，也是 `claims.json` 扩围的输入。
 
     python -X utf8 scripts/build_product_page.py            # 写 docs/product.html
     python -X utf8 scripts/build_product_page.py --check    # 只报告，不写文件
@@ -252,7 +252,7 @@ def build(registry: dict) -> str:
 
 
 # --------------------------------------------------------------------------
-# 覆盖率自检（= GAP_AUDIT N-3b 的量化口径）
+# 覆盖率自检（= 注册表覆盖面的量化口径）
 # --------------------------------------------------------------------------
 
 
@@ -296,8 +296,7 @@ def coverage_report(html: str, registry: dict, derived: set[str]) -> tuple[str, 
         f"本页正文含 <code>{total}</code> 个不同数值，其中 <code>{n_ok}</code> 个可追溯到"
         f"注册表（<code>{pct:.0f}%</code>）。"
         + (
-            f" 未追溯到的 <code>{len(missing)}</code> 个 —— 这是注册表覆盖面的问题（见 "
-            f"<code>GAP_AUDIT</code> N-3b 与 <code>PRODUCTIZATION</code> S3-1），"
+            f" 未追溯到的 <code>{len(missing)}</code> 个 —— 这是注册表覆盖面的问题，"
             f"不是本页的问题；生成器把它们列在 stdout。"
             if missing
             else " 全部可追溯。"

@@ -1,7 +1,7 @@
 r"""OPS 调度安装器（R0）：把 ops_daily.py 注册为 Windows 每日定时任务。
 
 默认只打印将要执行的 schtasks 命令；--arm 才真装（武装是显式动作——
-R8 环境冻结与电源设置完成前不要武装，见 docs/OPS_PRD.md 里程碑第 0 周）。
+R8 环境冻结与电源设置完成前不要武装，见 docs/RUNBOOK.md 的 ops 安装小节）。
 
 用法（Git Bash）：
     python -X utf8 scripts/ops_install_schedule.py          # 预览命令

@@ -26,7 +26,7 @@ SKAB `sensor_anomaly`）**全是过程/设备异常**，没有一个提供「数
 - `sensor_out_of_range` 要求 `(device_type, channel)` 在**内嵌量程表**里 ——
   真实通道是 `cmapss_fd001/s1`、`metropt3/...`，全在表外；
 - `sensor_unit_swap` 要求单位 ∈ {`MPa`} —— 真实单位是 `au`/`bar`/`°C`。
-这与 `docs/design_tables.md` §8.10 根因 A/D 是同一件事：**靶子是按合成形态写的**。
+这与 `docs/ENGINEERING_NOTES.md` §8.10 根因 A/D 是同一件事：**靶子是按合成形态写的**。
 所以本脚本按**真实载荷形状**重写五个注入形态，且**不需要量程表**——
 越界形态的边界由语料自身**剖面**得到（这既是 R8 的落点，也是「真实数据没有手册量程」
 这个现实下的唯一诚实做法）。

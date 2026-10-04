@@ -9,7 +9,7 @@ description = "多模态数据清洗与质量评测平台：清洗管道 → 数
 requires-python = ">=3.10"
 
 [project.scripts]
-# `mmc` 成为真命令（S6④ / GAP_AUDIT P1-8 收尾）：pip install 后任意目录可用
+# `mmc` 成为真命令（平台轨 S6④）：pip install 后任意目录可用
 # mmc run / runs / promote / serve / contracts …
 mmc = "mm_curation.cli:main"
 

@@ -424,7 +424,7 @@ def test_fault_span_gap_not_judged_but_kept():
     """R3 形态 ③：窗内时间跨度 6 倍 → 跨接两个运行时段 → 记 None，**保留**。
 
     裁决不是 0.0（不是脏）：读数不构成一段连续观测，「这静默是不是故障」
-    在该窗上没有定义。真实数据依据见 docs/design_tables.md §8.2。
+    在该窗上没有定义。真实数据依据见 docs/ENGINEERING_NOTES.md §8.2。
     """
     payloads = _seq(1)
     start = _EPOCH

@@ -2,7 +2,7 @@
 
 蓝图：ARCHITECTURE_V2 决策 2 方案 B——本地零依赖 + Ray 懒加载。import 本模块
 不需要装 ray；只有实例化 RayDistributedExecutor 时才 import（缺失时报可操作的
-安装指引）。算子在两种运行时下的语义映射见 docs/design_tables.md γ 决策点 2。
+安装指引）。算子在两种运行时下的语义映射见 docs/ENGINEERING_NOTES.md γ 决策点 2。
 
 传输协议（ray.data 实测钉死，γ0 spike）：
 - Sample 经 from_items 进 Dataset 后存入 pyarrow 的 pickle 兜底列；
