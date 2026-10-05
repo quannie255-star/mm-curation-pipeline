@@ -52,6 +52,10 @@
   .note{background:var(--accent-soft);border:1px solid #d3e2fb;border-radius:9px;
     padding:11px 14px;font-size:13.5px;color:#22364f;margin:12px 0}
   .ok{background:var(--ok-soft);border-color:#cbe9d9;color:#14472d}
+  /* 图表容器：没 JS 时这块高度为 0（内容不存在），有 JS 时由 ECharts 撑开 */
+  .chart{width:100%;height:300px;margin:14px 0 6px;background:var(--card);
+    border:1px solid var(--line);border-radius:11px}
+  .chart-fallback{font-size:13px;color:var(--muted);padding:9px 2px 0}
   footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);
     font-size:12.5px}
   footer code{font-family:var(--mono);font-size:12px}
@@ -86,10 +90,12 @@
     <tbody>{{CLAIMS_ROWS}}</tbody>
   </table>
 
-  <h2><span class="n">03</span>自己验一遍（不用装环境读这份页面，要验数字就得跑）</h2>
+  {{FLEET}}
+
+  <h2><span class="n">04</span>自己验一遍（不用装环境读这份页面，要验数字就得跑）</h2>
   {{COMMANDS}}
 
-  <h2><span class="n">04</span>诚实边界（比数字更重要的部分）</h2>
+  <h2><span class="n">05</span>诚实边界（比数字更重要的部分）</h2>
   <ul class="bound">{{BOUNDARY}}</ul>
 
   <footer>
@@ -103,10 +109,46 @@
       导航 <a href="{{REPO_URL}}/blob/main/README.md">README</a> ·
       <a href="{{REPO_URL}}/blob/main/docs/INTERVIEW.md">面试叙事</a> ·
       <a href="{{REPO_URL}}/blob/main/docs/PROOF_CHAIN.md">证据链</a> ·
-      <a href="{{REPO_URL}}/blob/main/docs/ENGINEERING_NOTES.md">工程发现 96 条</a> ·
+      <a href="{{REPO_URL}}/blob/main/docs/ENGINEERING_NOTES.md">工程发现 98 条</a> ·
       <a href="{{REPO_URL}}/blob/main/docs/ROADMAP.md">路线图</a>
     </div>
   </footer>
 </div>
+
+<!-- 图表：ECharts 5（成熟轮子，不自己手绘）。**异步 + 失败静默降级**——
+     页面在断网/内网打开时不该挂，那张等价的数据表已经是完整信息。 -->
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"
+        onerror="window.__echartsFailed=true"></script>
+<script>
+(function () {
+  var el = document.getElementById('fleetChart');
+  if (!el) return;
+  var raw = el.getAttribute('data-chart');
+  if (!raw) return;
+  if (window.__echartsFailed || typeof echarts === 'undefined') {
+    // 降级：把图表块收起来，表格承担全部信息（不加提示条——页面不显得像坏了）
+    el.style.display = 'none';
+    return;
+  }
+  var d;
+  try { d = JSON.parse(raw); } catch (e) { el.style.display = 'none'; return; }
+  var chart = echarts.init(el, null, { renderer: 'canvas' });
+  chart.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    legend: { data: ['保留', '拦下'], top: 6 },
+    grid: { left: 56, right: 22, top: 42, bottom: 58 },
+    xAxis: {
+      type: 'category', data: d.names, axisLabel: { rotate: 30, fontSize: 11 }
+    },
+    yAxis: { type: 'value', name: '行数', axisLabel: { formatter: function (v) {
+      return v >= 1000 ? (v / 1000) + 'k' : v; } } },
+    series: [
+      { name: '保留', type: 'bar', data: d.kept, itemStyle: { color: '#1f5fd0' } },
+      { name: '拦下', type: 'bar', data: d.dropped, itemStyle: { color: '#b4530a' } }
+    ]
+  });
+  window.addEventListener('resize', function () { chart.resize(); });
+})();
+</script>
 </body>
 </html>

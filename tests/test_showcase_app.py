@@ -264,17 +264,32 @@ def test_current_threshold_picks_only_matching_op_with_threshold():
     assert current_threshold(rows, "missing") == {}
 
 
-def test_showcase_app_renders_all_nine_tabs():
+def test_showcase_app_renders_all_tabs():
     """真渲染冒烟：脚本要能跑到底，报告缺失时走降级分支而不是抛异常。
 
     CI 里 `data/reports/` 不随仓库分发（.gitignore 第 25 行），所以这条在 CI 上
-    覆盖的正是「报告全缺失」路径；本机则额外覆盖后三个新页签有数据的路径。
+    覆盖的正是「报告全缺失」路径；本机则额外覆盖后面几个页签有数据的路径。
+
+    ⚠️ **不钉页签总数**（2026-10-05 定的规矩，别改回去）。两次踩坑：
+    ①第一版写死 `== 9`，加第10 个页签就红——逼人改测试，而那正是
+    「为了让门禁绿而改门禁」的起点；
+    ②第二版想「从源码现取页签清单」以避免写死，结果正则 `= st\\.tabs\\(\\[(.*?)\\]\\)`
+    匹配到了 **render_ops 里嵌套的** `t1, t2 = st.tabs([...])`，
+    报出「12 个页签」这种**看着很像真的**数字——判据自己抓错了范围，
+    而且错得很自信。
+    ③`at.tabs` 同样会把嵌套页签一并列出（Streamlit AppTest 的行为），所以真渲染
+       这一侧也拿不到干净的「顶层清单」。
+
+    所以这里只断言**产品结构的不变量**：关键页签都在、顺序不变、最后一个是
+    「平台运行态」（它是唯一接真后端的一页）。数量交给人眼，语义交给这几条断言。
     """
     st_testing = pytest.importorskip("streamlit.testing.v1")
     at = st_testing.AppTest.from_file(str(REPO / "scripts" / "showcase_app.py"))
     at.run(timeout=120)
     assert not at.exception, [e.value for e in at.exception]
-    assert [t.label for t in at.tabs] == [
+    labels = [t.label for t in at.tabs]
+
+    must = [
         "总览",
         "图文数据",
         "文本数据",
@@ -284,7 +299,18 @@ def test_showcase_app_renders_all_nine_tabs():
         "清洗过程",
         "阈值沙盘",
         "真实数据",
+        "平台运行态",
     ]
+    missing = [x for x in must if x not in labels]
+    assert not missing, f"这些页签不见了：{missing}（现有：{labels}）"
+    # 顺序必须是「叙事在前、运行态在后」——这是产品结构，不是实现细节
+    idx = [labels.index(x) for x in must]
+    assert idx == sorted(idx), f"页签顺序变了：{dict(zip(must, idx))}"
+    assert labels[labels.index("平台运行态") : labels.index("平台运行态") + 3] == [
+        "平台运行态",
+        "日趋势（`dws_dataset_day`）",
+        "维表（`dim_device` 视图）",
+    ], "「平台运行态」页里那两个内层页签（明细/维表）不见了"
 
 
 def test_showcase_app_renders_with_no_reports_at_all(tmp_path):
@@ -301,7 +327,10 @@ def test_showcase_app_renders_with_no_reports_at_all(tmp_path):
     at = st_testing.AppTest.from_file(str(tmp_path / "scripts" / "showcase_app.py"))
     at.run(timeout=90)
     assert not at.exception, [e.value for e in at.exception]
-    assert len(at.tabs) == 9
+    # 报告全缺失时页签仍要全在（降级路径不许少页签）——判据见上一条测试的说明
+    labels = [t.label for t in at.tabs]
+    for must in ("总览", "真实数据", "平台运行态"):
+        assert must in labels, f"报告全缺失时丢了「{must}」页签：{labels}"
     assert not (tmp_path / "data" / "reports").exists()  # 确认真的什么都没读到
 
 

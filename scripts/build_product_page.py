@@ -29,6 +29,8 @@ REGISTRY = REPO / "docs" / "claims.json"
 TEMPLATE = REPO / "scripts" / "templates" / "product_page.html"
 OUT = REPO / "docs" / "product.html"
 REPO_URL = "https://github.com/quannie255-star/mm-curation-pipeline"
+# 真实跑批产物的库（dev=仓库根 / prod=隔离环境）。看板数字从这里现取。
+PROD_DB = REPO / "data" / "envs" / "prod" / "data" / "warehouse" / "platform.duckdb"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from verify_claims import render_value  # noqa: E402  （同一套渲染逻辑，不许重写）
@@ -171,6 +173,111 @@ def lit(value, fmt_key: str, fmts: dict[str, dict]) -> str:
     return render_value(value, f["fmt"], f.get("scale", 1), f.get("suffix", ""))
 
 
+# --------------------------------------------------------------------------
+# 真实跑批看板：数字从 prod 的 DuckDB **现取**，不手抄
+# --------------------------------------------------------------------------
+
+
+def load_fleet(db_path: Path) -> dict:
+    """从 prod 库读「8 个数据集跑成什么样了」。
+
+    为什么现取而不是写进 `claims.json`：这批数字**每次跑批都会变**，而 claims.json
+    锁的是「不随运行漂移的结论」。两者混在一起会让门禁要么天天红、要么放松成摆设。
+    所以看板数字走独立通道，且**取不到就明说「没跑」**——不填0、不编数。
+    """
+    if not db_path.exists():
+        return {"ok": False, "why": f"库不存在：{db_path.relative_to(REPO)}"}
+    try:
+        import duckdb
+    except ImportError:
+        return {"ok": False, "why": "未装 duckdb"}
+    con = duckdb.connect(str(db_path), read_only=True)
+    try:
+        rows = con.execute(
+            "SELECT dataset, n_total, n_kept, n_dropped, drop_rate, n_partitions, "
+            "       n_devices, n_channels, avg_len, last_event_date "
+            "FROM ads_dataset_health ORDER BY n_total DESC"
+        ).fetchall()
+        runs = con.execute(
+            "SELECT run_id, job_name, batch_date, status, duration_s "
+            "FROM job_runs ORDER BY started_at DESC LIMIT 8"
+        ).fetchall()
+    except Exception as e:  # 表/列不在 = 库还没跑过这个阶段
+        return {"ok": False, "why": f"{type(e).__name__}: {e}"}
+    finally:
+        con.close()
+    cols = (
+        "dataset n_total n_kept n_dropped drop_rate n_partitions "
+        "n_devices n_channels avg_len last_event_date"
+    ).split()
+    fleet = [dict(zip(cols, r)) for r in rows]
+    return {
+        "ok": True,
+        "fleet": fleet,
+        "runs": runs,
+        "n_total": sum(int(r["n_total"]) for r in fleet),
+        "n_dropped": sum(int(r["n_dropped"]) for r in fleet),
+        "n_datasets": len(fleet),
+        "n_partitions": sum(int(r["n_partitions"]) for r in fleet),
+    }
+
+
+def fleet_section(d: dict) -> str:
+    """渲染「真实数据跑批看板」一节。
+
+    **双轨渲染**：ECharts 出图（有网时），同时永远输出一份等价的数据表。
+    理由：作品集页会被HR 在内网/断网环境打开，一个「必须联网才能看数字」的页面
+    在那个场景下等于零信息。降级路径不能是「看不到」，必须是「看到表」。
+    """
+    if not d["ok"]:
+        return (
+            "<h2>真实数据跑批</h2>"
+            f"<p class='muted'>看板暂不可用（{d['why']}）。"
+            "跑一次 <code>python -m mm_curation.cli run</code> 再生成本页即可。</p>"
+        )
+
+    fleet = d["fleet"]
+    # ---- 表格（永远在）----
+    trs = "\n        ".join(
+        f"<tr><td><b>{r['dataset']}</b></td><td class='num'>{r['n_total']:,}</td>"
+        f"<td class='num'>{r['n_kept']:,}</td><td class='num'>{r['n_dropped']:,}</td>"
+        f"<td class='num'>{(float(r['drop_rate']) * 100):.1f}%</td>"
+        f"<td class='num'>{r['n_partitions']}</td>"
+        f"<td class='num'>{r['n_devices'] or 0}</td>"
+        f"<td>{r['last_event_date'] or '—'}</td></tr>"
+        for r in fleet
+    )
+    # 图表数据（内联 JSON，ECharts 直接吃）—— 单独算好，拼进 f-string 时不再超长行
+    chart_data = {
+        "names": [r["dataset"] for r in fleet],
+        "kept": [int(r["n_kept"]) for r in fleet],
+        "dropped": [int(r["n_dropped"]) for r in fleet],
+        "rates": [round(float(r["drop_rate"]) * 100, 2) for r in fleet],
+    }
+    chart_attr = json.dumps(chart_data, ensure_ascii=False)
+    return f"""<h2><span class="n">03</span>真实数据跑批 · 这一页上的数字是跑出来的</h2>
+    <p class="muted">下面每一行都是一次真实跑批的落盘结果，读自
+    <code>prod</code> 环境的 DuckDB（<code>ads_dataset_health</code> 视图）——
+    不是手写的示例数据。<b>共 {d["n_datasets"]} 个数据集 / {d["n_total"]:,} 行 /
+    {d["n_partitions"]} 个分区</b>，被漏斗拦下 {d["n_dropped"]:,} 行。</p>
+    <div id="fleetChart" class="chart" data-chart='{chart_attr}'></div>
+    <noscript><p class="muted">（图表需要 JS，下面的表格是等价数据。）</p></noscript>
+    <table>
+      <thead><tr><th>数据集</th><th class="num">总行数</th><th class="num">保留</th>
+      <th class="num">拦下</th><th class="num">丢弃率</th><th class="num">分区</th>
+      <th class="num">设备</th><th>最后事件日</th></tr></thead>
+      <tbody>
+        {trs}
+      </tbody>
+    </table>
+    <p class="muted">这一节回答的是「这些结论在<b>真实数据</b>上还成立吗」——
+    合成轨的 P/R 再漂亮，也得先在真数据上跑通全链路
+    （ods→dims→dwd→dws→ads→视图→契约→观测→晋升→服务）。
+    拦下比例高的三个（image_funnel / finance_funnel / fhir_funnel）是
+    <b>合成脏数据</b>，它们的丢弃率是设计值；真实传感器轨
+    （metropt3 / cmapss / skab_w64）丢弃率为 0，因为那批数据本身干净。</p>"""
+
+
 def build(registry: dict) -> str:
     claims = {c["id"]: c for c in registry["claims"]}
     fmts = facades_by_source(registry)
@@ -247,6 +354,7 @@ def build(registry: dict) -> str:
         .replace("{{TESTS}}", f"{base['tests_main']} + {base['tests_pkg']} = {base['tests_total']}")
         .replace("{{COVERAGE_LINE}}", "{{COVERAGE}}")
         .replace("{{REPO_URL}}", REPO_URL)
+        .replace("{{FLEET}}", fleet_section(load_fleet(PROD_DB)))
     )
     return out
 
@@ -263,7 +371,40 @@ def coverage_report(html: str, registry: dict, derived: set[str]) -> tuple[str, 
     expected·tol·desc 文本 / 由 claim 现算出的派生值）。**在注册表里找不到的，
     就是页面上手写的数字**——那才是要报出来的东西。
     """
+    # 「真实跑批看板」整节豁免（2026-10-05）：这批数字**每次跑批都会变**，
+    # 而 `claims.json`锁的是不随运行漂移的结论。把它们登记进去只有两种结局——
+    # 门禁天天红，或者放松成摆设。正确做法是**走独立通道 + 页面写明来源**，
+    # 也就是上面那句「读自 prod 环境的 DuckDB」，它比任何注册表条目都更可核。
+    #
+    # ⚠️ 必须在剥标签**之前**切（第一版切在之后，于是 `(?=<h2|</table>)` 永远
+    # 不命中 —— 标签早被 `<[^>]+>` 吃掉了，豁免静默失效，正是本项目最熟的那种坑）。
+    # ⚠️ 判据也不许假设 `<h2>` 后面直接就是文字（第二版栽在这）：模板里 h2 内嵌
+    # 章节号 `<h2><span class="n">03</span>真实数据跑批…`，所以按**标题文字**定位，
+    # 起点用「含该标题的那个 h2」，终点用下一个 h2。判据只依赖语义（这是哪一节），
+    # 不依赖标签细节——**换个模板就失效的判据不是判据，是巧合**。
+    heads = list(
+        re.finditer(r"<h2[^>]*>[^<]*(?:<[^>]+>[^<]*)*真实数据跑批[\s\S]*?(?=<h2|\Z)", html)
+    )
+    m_fleet = heads[0] if heads else None
+    if m_fleet:
+        n_fleet = len(
+            set(
+                re.findall(
+                    r"(?<![0-9.])\d[\d,.]*(?![0-9])", re.sub(r"<[^>]+>", " ", m_fleet.group(0))
+                )
+            )
+        )
+        html = html.replace(m_fleet.group(0), "<!--FLEET-->")
+    else:
+        n_fleet = 0
+
     body = html.split("</style>", 1)[-1]
+    # ⚠️ `<script>` 必须一起豁免（2026-10-05 修）：图表配置里全是数字
+    # （`left: 56` / `top: 42` / `'#b4530a'` 里的 `4530`），它们是**渲染参数**
+    # 不是页面结论。第一版漏了这条，于是自检把 56/42/22/4530 全报成「未追溯」——
+    # **自检把自己不理解的代码当成了内容**，这是所有「覆盖率」类指标最容易犯的错：
+    # 分子分母的口径没对齐，报出来的东西既不可信也不可行动。
+    body = re.sub(r"<script[\s\S]*?</script>", " ", body)
     body = re.sub(r'<span class="n">[\s\S]*?</span>', " ", body)  # 章节号 01–04
     body = re.sub(r"<pre>[\s\S]*?</pre>", " ", body)  # 命令块："怎么跑"，不是"结论"
     body = re.sub(r"<code>[\s\S]*?</code>", " ", body)
@@ -300,6 +441,13 @@ def coverage_report(html: str, registry: dict, derived: set[str]) -> tuple[str, 
             f"不是本页的问题；生成器把它们列在 stdout。"
             if missing
             else " 全部可追溯。"
+        )
+        + (
+            f" 「真实跑批看板」一节的 <code>{n_fleet}</code> 个数值<b>刻意不登记</b>"
+            f"（每次跑批都会变，锁进注册表只会让门禁天天红）；它们标注了来源库与视图名，"
+            f"可核性由 DuckDB 查询保证。"
+            if n_fleet
+            else ""
         )
     )
     return line, missing, detail

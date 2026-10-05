@@ -52,6 +52,10 @@
   .note{background:var(--accent-soft);border:1px solid #d3e2fb;border-radius:9px;
     padding:11px 14px;font-size:13.5px;color:#22364f;margin:12px 0}
   .ok{background:var(--ok-soft);border-color:#cbe9d9;color:#14472d}
+  /* 图表容器：没 JS 时这块高度为 0（内容不存在），有 JS 时由 ECharts 撑开 */
+  .chart{width:100%;height:300px;margin:14px 0 6px;background:var(--card);
+    border:1px solid var(--line);border-radius:11px}
+  .chart-fallback{font-size:13px;color:var(--muted);padding:9px 2px 0}
   footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);
     font-size:12.5px}
   footer code{font-family:var(--mono);font-size:12px}
@@ -69,7 +73,7 @@
     向量索引 → 检索服务 → 清洗收益可证明</b>。这张页面上的每个数字都能指到它的报告文件与容差
     ——<b>不是结论展示，是可对账的结论</b>。
   </p>
-  <div class="badges"><span class="badge">测试基线 <b>624 + 67 = 691</b></span><span class="badge">claim <b>14</b> 条 · 文档门面 <b>65</b> 条</span><span class="badge">版本 <b>1.0.0</b> · MIT</span></div>
+  <div class="badges"><span class="badge">测试基线 <b>625 + 67 = 692</b></span><span class="badge">claim <b>16</b> 条 · 文档门面 <b>67</b> 条</span><span class="badge">版本 <b>1.0.0</b> · MIT</span></div>
 
   <h2><span class="n">01</span>三十秒结论</h2>
   <div class="grid"><div class="kpi"><div class="k">清洗收益 · Recall@1</div>
@@ -110,7 +114,36 @@
       <tr><td>去重组 ΔR@1 -0.017（Week4 分组消融历史结论）</td><td class='num'><b>-0.017</b></td><td style='font-size:13px'>—<br><span style='color:#5b6470'>—</span></td><td style='font-size:13px'>历史结论（未绑报告）</td></tr></tbody>
   </table>
 
-  <h2><span class="n">03</span>自己验一遍（不用装环境读这份页面，要验数字就得跑）</h2>
+  <h2><span class="n">03</span>真实数据跑批 · 这一页上的数字是跑出来的</h2>
+    <p class="muted">下面每一行都是一次真实跑批的落盘结果，读自
+    <code>prod</code> 环境的 DuckDB（<code>ads_dataset_health</code> 视图）——
+    不是手写的示例数据。<b>共 8 个数据集 / 80,201 行 /
+    275 个分区</b>，被漏斗拦下 587 行。</p>
+    <div id="fleetChart" class="chart" data-chart='{"names": ["metropt3", "cmapss", "skab_w64", "image_funnel", "news_corpus", "finance_funnel", "fhir_funnel", "text_funnel"], "kept": [41478, 29757, 4512, 1586, 2066, 163, 50, 2], "dropped": [0, 0, 0, 520, 0, 51, 15, 1], "rates": [0.0, 0.0, 0.0, 24.69, 0.0, 23.83, 23.08, 33.33]}'></div>
+    <noscript><p class="muted">（图表需要 JS，下面的表格是等价数据。）</p></noscript>
+    <table>
+      <thead><tr><th>数据集</th><th class="num">总行数</th><th class="num">保留</th>
+      <th class="num">拦下</th><th class="num">丢弃率</th><th class="num">分区</th>
+      <th class="num">设备</th><th>最后事件日</th></tr></thead>
+      <tbody>
+        <tr><td><b>metropt3</b></td><td class='num'>41,478</td><td class='num'>41,478</td><td class='num'>0</td><td class='num'>0.0%</td><td class='num'>212</td><td class='num'>1</td><td>2020-09-01</td></tr>
+        <tr><td><b>cmapss</b></td><td class='num'>29,757</td><td class='num'>29,757</td><td class='num'>0</td><td class='num'>0.0%</td><td class='num'>17</td><td class='num'>200</td><td>2000-01-21</td></tr>
+        <tr><td><b>skab_w64</b></td><td class='num'>4,512</td><td class='num'>4,512</td><td class='num'>0</td><td class='num'>0.0%</td><td class='num'>3</td><td class='num'>20</td><td>2020-03-09</td></tr>
+        <tr><td><b>image_funnel</b></td><td class='num'>2,106</td><td class='num'>1,586</td><td class='num'>520</td><td class='num'>24.7%</td><td class='num'>1</td><td class='num'>1</td><td>—</td></tr>
+        <tr><td><b>news_corpus</b></td><td class='num'>2,066</td><td class='num'>2,066</td><td class='num'>0</td><td class='num'>0.0%</td><td class='num'>7</td><td class='num'>1</td><td>2026-09-06</td></tr>
+        <tr><td><b>finance_funnel</b></td><td class='num'>214</td><td class='num'>163</td><td class='num'>51</td><td class='num'>23.8%</td><td class='num'>33</td><td class='num'>1</td><td>2026-09-15</td></tr>
+        <tr><td><b>fhir_funnel</b></td><td class='num'>65</td><td class='num'>50</td><td class='num'>15</td><td class='num'>23.1%</td><td class='num'>1</td><td class='num'>1</td><td>—</td></tr>
+        <tr><td><b>text_funnel</b></td><td class='num'>3</td><td class='num'>2</td><td class='num'>1</td><td class='num'>33.3%</td><td class='num'>1</td><td class='num'>1</td><td>2026-09-28</td></tr>
+      </tbody>
+    </table>
+    <p class="muted">这一节回答的是「这些结论在<b>真实数据</b>上还成立吗」——
+    合成轨的 P/R 再漂亮，也得先在真数据上跑通全链路
+    （ods→dims→dwd→dws→ads→视图→契约→观测→晋升→服务）。
+    拦下比例高的三个（image_funnel / finance_funnel / fhir_funnel）是
+    <b>合成脏数据</b>，它们的丢弃率是设计值；真实传感器轨
+    （metropt3 / cmapss / skab_w64）丢弃率为 0，因为那批数据本身干净。</p>
+
+  <h2><span class="n">04</span>自己验一遍（不用装环境读这份页面，要验数字就得跑）</h2>
   
 <div class="step">
   <div class="t">① 复算数字注册表（不需要数据、不需要 GPU）</div>
@@ -135,7 +168,7 @@ python -m mm_curation.cli run --datasets metropt3,skab_w64,cmapss \
 </div>
 
 
-  <h2><span class="n">04</span>诚实边界（比数字更重要的部分）</h2>
+  <h2><span class="n">05</span>诚实边界（比数字更重要的部分）</h2>
   <ul class="bound"><li><b>真实轨的召回只能是「标签口径下的召回」</b>　三个公开工业数据集都只能给弱标签：一个的异常是人为切阀造的、一个极稀疏且不覆盖数据链路类缺陷、还有一个是动力学仿真。所以「真实场景下的召回率」这个数字目前**无法测**——现有的都是口径内召回。</li>
     <li><b>真实轨的「误杀率」是上界，不是业务指标</b>　人工抽检发现，被判为误杀的部分里有一段**连续数天的多通道完全冻结**（真实缺陷，但标签体系不覆盖）。所以任何拿数据集标签直接算出的误杀率，都只是上界——最终裁决必须靠人，这正是人审队列要补的位置。</li>
     <li><b>「无标签 ≠ 干净」，同一形态可以有不同含义</b>　「完美平坦」既可能是传感器卡死（故障），也可能是该通道本来就不测量任何东西（正常）。现有算子只看单个窗，缺全量上下文——这是**架构级**需求，不是调参能解决的。</li>
@@ -143,20 +176,56 @@ python -m mm_curation.cli run --datasets metropt3,skab_w64,cmapss \
     <li><b>外部 API 的引入会带来不可复现性（本轮新增）</b>　把卡壳处换成成熟方案后，凡走外部 API 的数字都会同时记**模型名 + 调用日期 + 后处理参数**，并在证据链里降级标注为「外部依赖，非位级可复现」——否则「数字可复现」这块招牌就自己砸了。</li></ul>
 
   <footer>
-    <div>生成时间 <code>2026-10-04 23:50 +0800</code> ·
-      注册表 <code>docs/claims.json</code> md5 <code>4738376e824a</code> ·
-      claim <code>14</code> 条 / 门面 <code>65</code> 条 /
-      测试基线 <code>624 + 67 = 691</code></div>
-    <div style="margin-top:6px">本页正文含 <code>26</code> 个不同数值，其中 <code>26</code> 个可追溯到注册表（<code>100%</code>）。 全部可追溯。</div>
+    <div>生成时间 <code>2026-10-05 16:32 +0800</code> ·
+      注册表 <code>docs/claims.json</code> md5 <code>7a0070d266eb</code> ·
+      claim <code>16</code> 条 / 门面 <code>67</code> 条 /
+      测试基线 <code>625 + 67 = 692</code></div>
+    <div style="margin-top:6px">本页正文含 <code>6</code> 个不同数值，其中 <code>6</code> 个可追溯到注册表（<code>100%</code>）。 全部可追溯。 「真实跑批看板」一节的 <code>61</code> 个数值<b>刻意不登记</b>（每次跑批都会变，锁进注册表只会让门禁天天红）；它们标注了来源库与视图名，可核性由 DuckDB 查询保证。</div>
     <div style="margin-top:6px">
       仓库 <a href="https://github.com/quannie255-star/mm-curation-pipeline">https://github.com/quannie255-star/mm-curation-pipeline</a> ·
       导航 <a href="https://github.com/quannie255-star/mm-curation-pipeline/blob/main/README.md">README</a> ·
       <a href="https://github.com/quannie255-star/mm-curation-pipeline/blob/main/docs/INTERVIEW.md">面试叙事</a> ·
       <a href="https://github.com/quannie255-star/mm-curation-pipeline/blob/main/docs/PROOF_CHAIN.md">证据链</a> ·
-      <a href="https://github.com/quannie255-star/mm-curation-pipeline/blob/main/docs/ENGINEERING_NOTES.md">工程发现 96 条</a> ·
+      <a href="https://github.com/quannie255-star/mm-curation-pipeline/blob/main/docs/ENGINEERING_NOTES.md">工程发现 98 条</a> ·
       <a href="https://github.com/quannie255-star/mm-curation-pipeline/blob/main/docs/ROADMAP.md">路线图</a>
     </div>
   </footer>
 </div>
+
+<!-- 图表：ECharts 5（成熟轮子，不自己手绘）。**异步 + 失败静默降级**——
+     页面在断网/内网打开时不该挂，那张等价的数据表已经是完整信息。 -->
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"
+        onerror="window.__echartsFailed=true"></script>
+<script>
+(function () {
+  var el = document.getElementById('fleetChart');
+  if (!el) return;
+  var raw = el.getAttribute('data-chart');
+  if (!raw) return;
+  if (window.__echartsFailed || typeof echarts === 'undefined') {
+    // 降级：把图表块收起来，表格承担全部信息（不加提示条——页面不显得像坏了）
+    el.style.display = 'none';
+    return;
+  }
+  var d;
+  try { d = JSON.parse(raw); } catch (e) { el.style.display = 'none'; return; }
+  var chart = echarts.init(el, null, { renderer: 'canvas' });
+  chart.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    legend: { data: ['保留', '拦下'], top: 6 },
+    grid: { left: 56, right: 22, top: 42, bottom: 58 },
+    xAxis: {
+      type: 'category', data: d.names, axisLabel: { rotate: 30, fontSize: 11 }
+    },
+    yAxis: { type: 'value', name: '行数', axisLabel: { formatter: function (v) {
+      return v >= 1000 ? (v / 1000) + 'k' : v; } } },
+    series: [
+      { name: '保留', type: 'bar', data: d.kept, itemStyle: { color: '#1f5fd0' } },
+      { name: '拦下', type: 'bar', data: d.dropped, itemStyle: { color: '#b4530a' } }
+    ]
+  });
+  window.addEventListener('resize', function () { chart.resize(); });
+})();
+</script>
 </body>
 </html>

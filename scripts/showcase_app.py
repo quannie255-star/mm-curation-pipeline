@@ -812,6 +812,171 @@ def _inline_md(text: str) -> str:
     return "".join(p if i % 2 == 0 else f"<b>{p}</b>" for i, p in enumerate(parts))
 
 
+@st.cache_resource(show_spinner=False)
+def _ops_core():
+    """起一个 `ServiceCore`（prod 环境）并跑一次启动闸门，进程内复用。
+
+    DuckDB 连接不能每次 rerun 都重建（会占文件锁），所以用 `cache_resource` 缓存。
+    **这一页与其它页签的根本区别**：其它页签读`data/reports/*.json`（预计算快照），
+    这一页读的是**活的库**——同一个 REST 服务 prod 环境的消费者（curl 那些端点拿到
+    的就是这些数）。所以它能回答一个快照回答不了的问题：「现在这台机器上的数据，
+    到底是什么状态」。
+    """
+    from mm_curation.platform.envs import ENV_PROD
+    from mm_curation.platform.service import ServiceCore
+
+    core = ServiceCore(REPO, env=ENV_PROD)
+    return core, core.startup()
+
+
+def render_ops() -> None:
+    """第 10 页签：平台运行态 —— **唯一接真后端的一页**。
+
+    为什么放在最后而不是第一个：前9 页讲的都是「这套方法对不对」，
+    这一页讲的是「这台机器现在怎么样」。混在一起会让访客以为这也是个demo 数据，
+    而它不是——它连的是 prod 库，服务不ready 时会明确说「不 ready」而不是降级假装。
+    """
+    st.markdown(
+        "**这一页是活的**，不是快照：它直接连 `prod` 环境的库，"
+        "走的是服务对外的那些端点（`ads_dataset_health` / `dws_dataset_day` / "
+        "`dim_device` / `job_runs`）。前面的页签读的是落盘报告，"
+        "这一页读的是**此刻这台机器上的状态**——所以它会随着你跑批而变。"
+    )
+
+    try:
+        core, gate = _ops_core()
+    except Exception as e:  # 没装 duckdb / 库不存在 / 权限
+        st.warning(f"连不上 prod 库：{type(e).__name__}: {e}")
+        st.code(
+            "python -X utf8 -m mm_curation.cli run\npython -X utf8 -m mm_curation.cli promote",
+            language="bash",
+        )
+        return
+
+    p = core.authorize("mmc-admin-demo")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("服务就绪", "是" if core.ready else "否", border=True)
+    c2.metric("启动契约检查", f"{gate['n_checks']} 条", border=True)
+    c3.metric(
+        "契约失败 / 报错",
+        f"{gate['n_fail']} / {gate['n_error']}",
+        border=True,
+        delta_color="inverse" if (gate["n_fail"] or gate["n_error"]) else "normal",
+    )
+    st.caption(
+        f"环境 `prod` · 湖 `{core.spec.lake_dir}` · 启动闸门在"
+        "**服务进程内**跑（和 `serve --env prod` 走同一条代码路径）"
+    )
+
+    if not core.ready:
+        st.error(f"服务未就绪，闸门阻塞项：{gate.get('blocking')}")
+        return
+
+    _, rows = core.list_datasets(p)
+    st.subheader("数据集健康度（`ads_dataset_health` 视图）")
+    if not rows:
+        st.info("prod 库还没有跑过批。跑一次 `python -m mm_curation.cli run` 再 promote 过来。")
+        return
+
+    total = sum(int(r["n_total"]) for r in rows)
+    dropped = sum(int(r["n_dropped"]) for r in rows)
+    st.caption(
+        f"共 **{len(rows)}** 个数据集 / **{total:,}** 行 / "
+        f"分区 **{sum(int(r['n_partitions']) for r in rows)}** 个 / "
+        f"漏斗拦下 **{dropped:,}** 行"
+    )
+    st.dataframe(
+        [
+            {
+                "数据集": r["dataset"],
+                "总行数": f"{int(r['n_total']):,}",
+                "保留": f"{int(r['n_kept']):,}",
+                "拦下": int(r["n_dropped"]),
+                "丢弃率": f"{float(r['drop_rate']) * 100:.1f}%",
+                "分区": int(r["n_partitions"]),
+                "设备": int(r["n_devices"] or 0),
+                "通道": int(r["n_channels"] or 0),
+                "平均长度": round(float(r["avg_len"] or 0), 1),
+                "最后事件日": str(r["last_event_date"] or "—"),
+                "新鲜度(天)": int(r["freshness_days"] or 0),
+            }
+            for r in rows
+        ],
+        hide_index=True,
+        width="stretch",
+    )
+
+    # 逐个数据集的日趋势与维表——这两个是「有后端才问得出」的问题
+    labels = [r["dataset"] for r in rows]
+    pick = st.selectbox("看哪个数据集的明细", labels, key="ops_ds")
+    t1, t2 = st.tabs(["日趋势（`dws_dataset_day`）", "维表（`dim_device` 视图）"])
+
+    with t1:
+        _, daily = core.dataset_daily(p, pick, limit=400)
+        if daily:
+            st.line_chart(
+                [{"日期": str(r["event_date"]), "总行数": int(r["n_total"])} for r in daily],
+                x="日期",
+                y="总行数",
+            )
+            st.caption(f"{len(daily)} 个事件日")
+        else:
+            st.info("这个数据集没有日聚合记录")
+
+    with t2:
+        _, dims = core.dataset_dims(p, pick, limit=200)
+        if dims:
+            st.dataframe(
+                [
+                    {
+                        "设备": r.get("device_id"),
+                        "通道": r.get("channel"),
+                        "版本": r.get("version"),
+                        "当前": bool(r.get("is_current")),
+                        "单位": r.get("unit"),
+                        "采样Hz": r.get("sampling_hz"),
+                    }
+                    for r in dims
+                ],
+                hide_index=True,
+                width="stretch",
+            )
+            st.caption(
+                f"{len(dims)} 条维行 · **维表是湖上 Parquet 的视图**（不是 DuckDB 物理表）"
+                "——这是 2026-10-05 修掉的缺陷：它原先不在湖上，晋升到 prod 会丢，"
+                "而契约闸门因为只查四个视图层所以没抓到"
+            )
+        else:
+            st.info("这个数据集没有维表行（无通道/设备字段的纯文本语料属正常）")
+
+    st.subheader("跑批台账（`job_runs`，最近 12 条）")
+    try:
+        runs = core.runs(p, limit=12)
+        st.dataframe(
+            [
+                {
+                    "run_id": r["run_id"],
+                    "任务": r["job_name"],
+                    "日期": r["batch_date"],
+                    "状态": r["status"],
+                    "秒": round(float(r.get("duration_s") or 0), 2),
+                    "git": (r.get("git_sha") or "")[:8],
+                }
+                for r in runs
+            ],
+            hide_index=True,
+            width="stretch",
+        )
+    except Exception as e:
+        st.caption(f"台账读不到：{type(e).__name__}: {e}")
+
+    st.caption(
+        "服务对外的 9 个端点（`/api/datasets`、`/api/datasets/{ds}/{health,daily,ops,dims}`、"
+        "`/api/runs`、`/api/health`、`/healthz`、`/metrics`）都能开浏览器直接调："
+        "`python -m mm_curation.cli serve --env prod --port 18099`"
+    )
+
+
 def render_real() -> None:
     """第 9 页签：真实工业数据（消费 F1 预计算 JSON，交互回路里不跑算子）。"""
     payload = load_report(REAL_REPORT)
@@ -1073,6 +1238,7 @@ def main() -> None:
         tab_proc,
         tab_cal,
         tab_real,
+        tab_ops,
     ) = st.tabs(
         [
             "总览",
@@ -1084,6 +1250,7 @@ def main() -> None:
             "清洗过程",
             "阈值沙盘",
             "真实数据",
+            "平台运行态",
         ]
     )
 
@@ -1314,12 +1481,32 @@ def main() -> None:
     with tab_real:
         render_real()
 
+    with tab_ops:
+        render_ops()
+
     st.sidebar.markdown("### 想看得更深？")
-    st.sidebar.caption("这些是专题工作台，日常演示用本页就够：")
-    st.sidebar.code("streamlit run scripts/streamlit_app.py\n  # 图文检索体验", language="text")
-    st.sidebar.code("streamlit run scripts/ops_dashboard.py\n  # 每日运维驾驶舱", language="text")
-    st.sidebar.code("streamlit run scripts/judge_studio.py\n  # 训练你的领域判官", language="text")
-    st.sidebar.code("streamlit run scripts/platform_app.py\n  # 微调平台控制台", language="text")
+    st.sidebar.caption(
+        "本页是**唯一日常入口**。下面这些是历史阶段（V3/V4 运维期）的专题工作台，"
+        "代码与测试都还在，**不删也不维护**——它们各自对应当时的一个专题，"
+        "合并进来只会变成一个没人敢动的巨型页面。需要复现某段能力时从下面直接起："
+    )
+    with st.sidebar.expander("专题工作台（归档 · 4 个）", expanded=False):
+        st.code(
+            "streamlit run scripts/streamlit_app.py\n  # 图文检索体验（V1/V2 阶段）",
+            language="text",
+        )
+        st.code(
+            "streamlit run scripts/ops_dashboard.py\n  # 每日运维驾驶舱（V3 阶段）",
+            language="text",
+        )
+        st.code(
+            "streamlit run scripts/judge_studio.py\n  # 训练你的领域判官（V3 η 偏好闭环）",
+            language="text",
+        )
+        st.code(
+            "streamlit run scripts/platform_app.py\n  # 微调平台控制台（V3 η+ 成本选型）",
+            language="text",
+        )
     st.sidebar.markdown("### 自己动手")
     st.sidebar.page_link(
         "https://github.com/quannie255-star/mm-curation-pipeline", label="GitHub 仓库"
