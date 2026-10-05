@@ -55,26 +55,13 @@ python -X utf8 scripts/mutation_test_claims_gate.py
 
 > 复现：`streamlit run scripts/streamlit_app.py`（依赖见下文快速开始）。
 
-> 状态：✅ 主线（Week 1-4）+ Phase 2（P1-P10）+ **V2 全阶段完成（α 协议 / β 文本语料 / γ Ray 双运行时 / δ LLM-judge / ε 数据 CI）** + **V3 全阶段收官（ζ 域专属判官 κ +0.560 / η 偏好闭环 0.933 / θ 工坊判官 0.839）** + **V4–V7：医疗 FHIR 模态 / 工业传感器模态 / 文本改写通道 / 数据平台轨（湖 + DuckDB 四层 + 契约闸门 + 观测）**。路线图见 [docs/ROADMAP.md](docs/ROADMAP.md)。
->
-> **V4–V7 一句话**：V4/V5 用**零框架特例**的同一套协议接进第二批模态（医疗 FHIR、工业传感器，
-> 都是"合成轨有 ground truth 的门禁 + 真实轨只报低误杀与逐条可归因"）；V6 发现**协议缺一条通道**
-> 而补了与算子**并列**的 `Transformer`（归一化必须是打分之前的工序，不能塞进算子序列）；
-> V7 另起一条**有状态**的平台轨（`ods→dims→dwd→dws→ads→views→contracts→obs→metrics`），
-> 回答旧轨答不了的问题：「这是第几次运行、跑到哪了、上次为什么失败」。
-> **平台轨的数字不在这里重抄**——唯一真相源是 [docs/PLATFORM.md](docs/PLATFORM.md)（每节都附实点命令）。
-> 面试叙事见 [docs/INTERVIEW.md](docs/INTERVIEW.md)，自测题库见 [docs/INTERVIEW_SELFTEST.md](docs/INTERVIEW_SELFTEST.md)（44 题：数字 / 根因 / 取舍 / 拆现场四层）。
->
-> **V2 定位**：从「一条多模态清洗管道」升级为「模态可插拔的数据质量框架」。
-> 协议与算子 SDK 收口进 `curation-eval` 包，图文管道与纯文本语料管道是它的两个
-> 实例——共享同一注册表、同一执行器、同一评测协议，**零框架特例**。
-> 设计见 [docs/ARCHITECTURE_V2.md](docs/ARCHITECTURE_V2.md)。
->
-> **V3 定位**：在框架上长出「个人微调平台」——域数据获取 → 自建 benchmark
-> （300 条版本冻结 + 防污染）→ LoRA 域判官微调（本机 8GB）→ 冻结评测出分。
-> 三个锚点全部达标：**域判官 κ -0.024 → +0.560**（验收线 ≥0.5）、
-> **偏好判官命中率 0.933 / 0.867**（分歧率 0.783）、**工坊判官 0.532 → 0.839**
-> ——「通用不行，微调自己的就行」有全链路证据。见 [docs/PRD.md](docs/PRD.md)。
+> **代码演进史（不是产品分期）**：V1 一条图文清洗管道 → V2 协议与算子 SDK 收口成
+> `curation-eval` 包（图文 / 纯文本 / 医疗 FHIR / 工业传感器四个模态是它的实例，
+> **零框架特例**）→ V3 在框架上长出个人微调平台（自己的数据 → 自己的 benchmark →
+> 自己的域判官）→ V6 补了与算子**并列**的 `Transformer` 通道（归一化必须在打分之前）
+> → V7 另起有状态的数据平台轨（`ods→…→metrics`）。
+> **现在只剩一条线**，下一步只做三件，见 [docs/ROADMAP.md](docs/ROADMAP.md)。
+> 平台轨数字不在这里重抄，唯一真相源是 [docs/PLATFORM.md](docs/PLATFORM.md)。
 
 ## 核心结果（所有数字来自真实实验，可一键复现）
 
@@ -88,32 +75,24 @@ python -X utf8 scripts/mutation_test_claims_gate.py
 | **消融归因**（分组消融） | 去重组贡献 | **R@1 -0.017**（唯一显著组） |
 | **算子级评测**（独立评测口径） | phash_near 主靶 recall / 误杀 | 84% / 0.24% |
 | | clip_alignment 主靶 recall / 误杀 | 96% / 0.19% |
-| **Phase2 · 自训检测器**（防循环论证） | testB 泛化 / 主靶召回 / 误杀 | **87.3% / 100% / 0.8%** |
-| **Phase2 · CLIP 微调对比**（训练级证据） | clean_ft vs dirty_ft R@1 | **0.688 vs 0.636（差 5.2pp）** |
-| **Phase2 · 实时质量门** | POST /api/ingest | 质量评分 + 三层增量判重 + accept 一次返回 |
-| **Phase2 · 生产化切片** | 跨集去污染 / PSI 漂移监控 / 成本核算 | 召回 94.4% / 换源批 0.36-0.66 告警 / 四维成本表 |
-| **V2 β · 文本去重基准**（10 万档） | exact 召回 / near 召回 / 耗时 | **1.0 / 0.9714 / 21.1s**（30 万档 60.4s，近线性） |
-| **V2 β · GPT-2 zh 微调对比**（文本版训练证据） | clean_ft vs dirty_ft held-out ppl | **7.16 vs 7.70（脏语料 +7.5%，超 5% 验收线）** |
-| **V2 β · 文本全量漏斗**（30.2 万篇中文维基） | 保留率 | **302,002 → 181,980（60.3%）** |
-| **V3 ζ · 域专属判官**（judge_news_v1 冻结 benchmark） | 通用 κ → LoRA 微调 κ | **-0.024 → +0.560**（P=0.706 / R=0.960 / 解析率 100%，验收线 ≥0.5） |
-| **V3 η · 偏好闭环**（DPO + persona-oracle 协议） | 双判官命中率 / 分歧率 | **0.933 / 0.867 · 0.783**（线 ≥0.75 / ≥40%）；域外 κ 0.560→0.178 如实报 |
-| **V3 θ · 偏好判官工坊**（五步向导，冻结考卷 77 题） | 通用 → 个人判官命中率 | **0.532 → 0.839（+30.6pp）**；学习曲线 188 对未学会 / 488 对达标 |
-| **工程** | 单元测试 | **624 + 67 = 691**（主仓库 + curation-eval 包；包侧 5 条 Ray 测试需装 ray 才被收集，未装的环境/CI 为 62） |
+| **自训检测器**（防循环论证） | testB 泛化 / 主靶召回 / 误杀 | **87.3% / 100% / 0.8%** |
+| **CLIP 微调对比**（训练级证据） | clean_ft vs dirty_ft R@1 | **0.688 vs 0.636（差 5.2pp）** |
+| **实时质量门** | POST /api/ingest | 质量评分 + 三层增量判重 + accept 一次返回 |
+| **生产化切片** | 跨集去污染 / PSI 漂移监控 / 成本核算 | 召回 94.4% / 换源批 0.36-0.66 告警 / 四维成本表 |
+| **文本去重基准**（10 万档） | exact 召回 / near 召回 / 耗时 | **1.0 / 0.9714 / 21.1s**（30 万档 60.4s，近线性） |
+| **GPT-2 zh 微调对比**（文本版训练证据） | clean_ft vs dirty_ft held-out ppl | **7.16 vs 7.70（脏语料 +7.5%，超 5% 验收线）** |
+| **文本全量漏斗**（30.2 万篇中文维基） | 保留率 | **302,002 → 181,980（60.3%）** |
+| **域专属判官**（judge_news_v1 冻结 benchmark） | 通用 κ → LoRA 微调 κ | **-0.024 → +0.560**（P=0.706 / R=0.960 / 解析率 100%，验收线 ≥0.5） |
+| **偏好闭环**（DPO + persona-oracle 协议） | 双判官命中率 / 分歧率 | **0.933 / 0.867 · 0.783**（线 ≥0.75 / ≥40%）；域外 κ 0.560→0.178 如实报 |
+| **偏好判官工坊**（五步向导，冻结考卷 77 题） | 通用 → 个人判官命中率 | **0.532 → 0.839（+30.6pp）**；学习曲线 188 对未学会 / 488 对达标 |
+| **工程** | 单元测试 | **625 + 67 = 692**（主仓库 + curation-eval 包；包侧 5 条 Ray 测试需装 ray 才被收集，未装的环境/CI 为 62） |
 
-> 灵魂叙事：**脏数据 → 11 级漏斗 → 干净集（R@1 +21%）→ 分层采样（再 +18~24%）**
-> → Phase 2 把"代理指标"升级为"训练证据"（脏集微调 CLIP 比 clean 低 5.2pp R@1）。
-> 全链路收益可证、可复现、可归因。
->
-> **V2 把同一个闭环推广到第二个模态**：同一套协议零特例接入 30.2 万篇中文维基语料，
-> 文本侧同样拿到训练级证据（脏语料微调困惑度 +7.5%）——证明这不是一条管道，
-> 而是一个框架。
->
-> **V3 把框架长成平台**：δ 的阴性结果（通用 0.5B 判官 κ≈0）催生「个人微调平台」
-> ——自己的数据 → 自己的 benchmark（judge_news_v1，300 条版本冻结 + 防污染）
-> → 自己的模型（LoRA + Qwen2.5-0.5B，本机 8GB）。锚点任务达标：**通用 κ=-0.024
-> → 微调 κ=+0.560**——「通用不行，微调自己的就行」有全链路证据。
-> 再往前两步：η 证明**主观偏好也能进训练信号**（双 persona 判官 0.933/0.867、
-> 分歧率 0.783），θ 把它做成**非开发者可用的五步向导**（冻结考卷上 0.532 → 0.839）。
+> **一条线的完整读法**：脏数据 → 11 级漏斗 → 干净集（R@1 +21%）→ 分层采样（再 +18~24%）
+> → 把「代理指标」升级为「训练证据」（脏集微调 CLIP 比 clean 低 5.2pp R@1；文本侧脏语料困惑度 +7.5%）
+> → 数据系统层（湖分区 / 契约闸门 / 晋升 / 观测）回答「这是第几次运行、跑到哪了、上次为什么失败」
+> → 域判官（通用 κ=-0.024 不可用 → 微调 +0.560 可用，**阴性结果是这条路线的起点**）。
+> 全链路收益可证、可复现、可归因。追问预案见 [docs/INTERVIEW.md](docs/INTERVIEW.md)，
+> 自测题库见 [docs/INTERVIEW_SELFTEST.md](docs/INTERVIEW_SELFTEST.md)（44 题：数字 / 根因 / 取舍 / 拆现场四层）。
 
 ## 架构总览
 
@@ -133,7 +112,7 @@ python -X utf8 scripts/mutation_test_claims_gate.py
                                        Streamlit Demo
 ```
 
-同一套协议支撑两个模态实例（V2 β 起）：
+同一套协议支撑两个模态实例：
 
 | 实例 | 模态 | 数据规模 | 算子 | 去重 | 下游证据 |
 |---|---|---|---|---|---|
@@ -166,23 +145,23 @@ pytest
 make eval-op                          # data/reports/operator_pr.{json,md}
 make threshold-scan                   # data/reports/threshold_scan.{json,md,png}
 
-# 6. Phase 2（可选，需 GPU）
+# 6. 训练级证据（可选，需 GPU）
 make train-detector                   # 自训水印/NSFW 检测器 → models/detector/
 make finetune-clip                    # 干净/脏集 CLIP 微调对比 → data/reports/finetune_eval.{json,md}
 
-# 7. V2 β：文本语料实例（make-free 等价命令见 docs/RUNBOOK.md 第 1.5 节）
+# 7. 文本语料实例（make-free 等价命令见 docs/RUNBOOK.md 第 1.5 节）
 python -X utf8 scripts/download_text_corpus.py        # 30.2 万篇中文维基
 python -X utf8 scripts/text_dedup_benchmark.py        # 去重吞吐/召回基准
 python -X utf8 scripts/run_pipeline.py --config configs/text_funnel.yaml
 python -X utf8 scripts/finetune_gpt2.py               # 干净/脏语料训练对比（需 GPU）
 
-# 8. V3 ζ：个人微调平台·专属数据判官（四步闭环，详见 docs/PRD.md + RUNBOOK 1.10）
+# 8. 专属数据判官：四步闭环（详见 docs/PRD.md + RUNBOOK 1.10）
 make fetch-news                       # ① 原始数据获取（爬虫，robots 合规/幂等）
 make build-benchmark                  # ② 构建自己的 benchmark（300 条版本冻结+防污染）
 make finetune-judge                   # ③ LoRA 微调自己的模型（8GB 本机 ~70 分钟）
 make eval-judge                       # ④ 冻结 benchmark 出成绩表：通用 κ-0.024 → 微调 κ+0.560
 
-# 9. V3 η/θ：偏好闭环 + 判官工坊（非开发者五步向导）
+# 9. 偏好闭环 + 判官工坊（非开发者五步向导）
 make studio                           # 五步向导：导入 → 标注 → 训练 → 评测 → 试用
 make platform                         # 平台控制台：能力矩阵 / 成本计算器 / A-B 标注
 make judge-cost                       # 判官成本核算：本机 vs API vs 人工
@@ -207,15 +186,15 @@ src/mm_curation/  # 核心包
   index/          # FAISS 索引
   serving/        # FastAPI 检索服务
   eval/           # 检索评测 + 算子评测
-  benchmarks/     # V3：benchmark 构建器（版本冻结 + 防污染 + 泄漏检查）
-  tuning/         # V3：LoRA 判官微调（SFT 数据生成 + 训练对隔离）
-benchmarks/       # V3 产物：冻结评测集（items.jsonl + manifest，入库资产）
-runs/             # V3：实验 ledger（配置/loss/评测数字追加式）
+  benchmarks/     # benchmark 构建器（版本冻结 + 防污染 + 泄漏检查）
+  tuning/         # LoRA 判官微调（SFT 数据生成 + 训练对隔离）
+benchmarks/       # 冻结评测集（items.jsonl + manifest，入库资产）
+runs/             # 实验 ledger（配置/loss/评测数字追加式）
 tests/            # pytest
 data/             # raw / interim / processed / reports（git 忽略不入库；全量可由脚本重生成）
 ```
 
-## 独立评测包：curation-eval（V2 起是协议与 SDK 的单一来源）
+## 独立评测包：curation-eval（协议与 SDK 的单一来源）
 
 [`packages/curation-eval/`](packages/curation-eval/) — 数据清洗的
 **ground-truth 评测框架**（pip 可装）。定位：Data-Juicer 等清洗系统提供算子，
@@ -232,7 +211,7 @@ python -m pytest packages/curation-eval/tests   # 67 项协议测试（含 5 条
 
 协议约定、五分钟上手示例与变更记录见 [包内 README](packages/curation-eval/README.md)。
 
-## 跨项目联动：findata 巡检 stage（V2 α 之后的生态延伸）
+## 跨项目联动：findata 巡检 stage（生态延伸）
 
 mm-curation 的清洗是**采样级**质量控制（每条样本进/出）。要回答"清洗后的样本集合，作为整体健康吗？"，需要**仓库级**健康巡检——这是 [FinData-Agent](https://github.com/quannie255-star/findata-agent) 的活。
 
@@ -270,7 +249,7 @@ python scripts/findata_health_stage.py \\
 | **架构**（模态可插拔框架 + 数据流/失效路径） | [ARCHITECTURE_V2](docs/ARCHITECTURE_V2.md) · [ARCHITECTURE](docs/ARCHITECTURE.md) |
 | **数据系统**（湖分区 / DuckDB 契约闸门 / 观测 / 晋升 / 容器交付） | [PLATFORM](docs/PLATFORM.md) — 平台轨数字的唯一真相源 |
 | **求职**（简历描述 / JD 映射 / 追问预案 / 自测题库） | [RESUME](docs/RESUME.md) · [JD_RESEARCH](docs/JD_RESEARCH.md) · [INTERVIEW](docs/INTERVIEW.md) · [自测题库](docs/INTERVIEW_SELFTEST.md) |
-| **踩坑与判据**（96 条工程发现 + 评测口径 + 常见问题） | [ENGINEERING_NOTES](docs/ENGINEERING_NOTES.md) · [PROOF_CHAIN](docs/PROOF_CHAIN.md) · [FAQ](docs/FAQ.md) |
+| **踩坑与判据**（98 条工程发现 + 评测口径 + 常见问题） | [ENGINEERING_NOTES](docs/ENGINEERING_NOTES.md) · [PROOF_CHAIN](docs/PROOF_CHAIN.md) · [FAQ](docs/FAQ.md) |
 
 **这条线现在到哪了、下一步只做哪三件** → [ROADMAP](docs/ROADMAP.md)。
 **领域增强包规范 / 产品需求** → [DOMAIN_PACKS](docs/DOMAIN_PACKS.md) · [PRD](docs/PRD.md) ·

@@ -1,7 +1,7 @@
 {
   "meta": {
     "purpose": "简历/文档数字版本锁定：每条 claim 绑定 报告文件+json 指针+期望值+容差，verify_claims.py 逐条校验，漂移即红。",
-    "updated": "2026-09-30",
+    "updated": "2026-10-05",
     "data_fingerprints": {
       "data/interim/contaminated/samples.jsonl": {
         "md5": "e1dfdae8e04818a599f5e84f81106089",
@@ -13,7 +13,7 @@
     "baselines_note": "baselines 是不来自报告 JSON、但同样要全文档一致的“基线数字”（测试条数）。改一处，门禁列出所有没跟上的文档。2026-09-30 实点：主仓 624（glm 39946ba 补了 1 条 store 搬迁回归测试，文档未同步）+ 包 67 = 691。",
     "derived_note": "derived：可由源文档自己数出来的结构性计数（笔记条数 / 题库题数）。声明「文件 + 正则 + 计数语义」，verify_claims.py 现算；kind=count_contiguous 额外要求编号连续无重号。门面可用 {\"derived\": \"<id>\"} 引用——这样「N 条」不会跟着文档一起腐烂。",
     "coverage_note": "coverage_ceiling：门面正文的数字覆盖率棘轮。脚本扫描正文里「数字形状」的 token，减去已登记字面量 / 基线 / 派生值 / number_allowlist，剩下的未登记清单长度必须 ≤ 上限——只许降不许升。来源：实点「66 条门面只覆盖 11 个不同字面量」。",
-    "facade_floor": 65,
+    "facade_floor": 67,
     "number_allowlist": [
       "3.11",
       "8000",
@@ -24,7 +24,7 @@
       "2026"
     ],
     "coverage_ceiling": {
-      "README.md": 72,
+      "README.md": 71,
       "docs/INTERVIEW.md": 167
     }
   },
@@ -157,12 +157,30 @@
       "tol": null,
       "comparator": "historical",
       "note": "分组结果未落盘（现有 ablation_eval.json 为逐算子口径，单算子 Δ=0）；引用时必须标注为历史数字，重跑分组口径进 backlog"
+    },
+    {
+      "id": "clip_align_recall",
+      "desc": "clip_alignment 算子主靶（mismatched_pair）召回——README 写 96%",
+      "file": "data/reports/operator_pr.json",
+      "pointer": "operators[9].primary_recall.mismatched_pair",
+      "expected": 0.9577,
+      "tol": 0.0,
+      "comparator": "approx"
+    },
+    {
+      "id": "clip_align_clean_kill",
+      "desc": "clip_alignment 算子干净集误杀率——README 写 0.19%",
+      "file": "data/reports/operator_pr.json",
+      "pointer": "operators[9].clean_kill_rate",
+      "expected": 0.0019,
+      "tol": 0.0,
+      "comparator": "approx"
     }
   ],
   "baselines": {
-    "tests_main": 624,
+    "tests_main": 625,
     "tests_pkg": 67,
-    "tests_total": 691
+    "tests_total": 692
   },
   "facades": [
     {
@@ -785,7 +803,7 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "624",
+      "literal": "625",
       "min_count": 1,
       "note": "README.md 引用测试基线 tests_main"
     },
@@ -811,7 +829,7 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "624",
+      "literal": "625",
       "min_count": 1,
       "note": "AGENTS.md 引用测试基线 tests_main"
     },
@@ -837,7 +855,7 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "691",
+      "literal": "692",
       "min_count": 1,
       "note": "AGENTS.md 引用测试基线 tests_total"
     },
@@ -850,7 +868,7 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "624",
+      "literal": "625",
       "min_count": 1,
       "note": "docs/PLATFORM.md 引用测试基线 tests_main"
     },
@@ -876,7 +894,7 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "691",
+      "literal": "692",
       "min_count": 1,
       "note": "docs/PLATFORM.md 引用测试基线 tests_total"
     },
@@ -889,7 +907,7 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "624",
+      "literal": "625",
       "min_count": 1,
       "note": "docs/PROOF_CHAIN.md 引用测试基线 tests_main"
     },
@@ -915,10 +933,10 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "96",
+      "literal": "98",
       "min_count": 1,
-      "note": "README 文档表里「96 条工程发现」由源文档现算（derived），不手写",
-      "must_contain": "96 条工程发现"
+      "note": "README 文档表里「98 条工程发现」由源文档现算（derived），不手写",
+      "must_contain": "98 条工程发现"
     },
     {
       "id": "README_md__selftest_count",
@@ -957,10 +975,10 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "96",
+      "literal": "98",
       "min_count": 1,
       "note": "INTERVIEW 的「工程笔记 N 条」由源文档现算",
-      "must_contain": "工程笔记有 96 条"
+      "must_contain": "工程笔记有 98 条"
     },
     {
       "id": "INTERVIEW_SELFTEST_md__notes_count",
@@ -971,10 +989,10 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "96",
+      "literal": "98",
       "min_count": 1,
       "note": "自测题库第 13 题答案里的「N 条工程笔记」由源文档现算",
-      "must_contain": "96 条工程笔记"
+      "must_contain": "98 条工程笔记"
     },
     {
       "id": "INTERVIEW_SELFTEST_md__main_tests",
@@ -985,10 +1003,10 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "624",
+      "literal": "625",
       "min_count": 1,
       "note": "自测题库第 13 题答案里的「主仓 N」基线",
-      "must_contain": "主仓 624"
+      "must_contain": "主仓 625"
     },
     {
       "id": "INTERVIEW_SELFTEST_md__pkg_tests",
@@ -1013,10 +1031,37 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "96",
+      "literal": "98",
       "min_count": 1,
       "note": "ROADMAP 文末的「（N 条）」由源文档现算",
-      "must_contain": "ENGINEERING_NOTES.md（96 条）"
+      "must_contain": "ENGINEERING_NOTES.md（98 条）"
+    },
+    {
+      "id": "README_md__clip_align_recall",
+      "doc": "README.md",
+      "source": {
+        "claim": "clip_align_recall"
+      },
+      "fmt": ".0f",
+      "scale": 100,
+      "suffix": "%",
+      "literal": "96%",
+      "min_count": 1,
+      "note": "README 算子表里 clip_alignment 主靶 recall，由 operator_pr.json 现算",
+      "must_contain": "clip_alignment 主靶 recall / 误杀 | 96% / 0.19%"
+    },
+    {
+      "id": "README_md__clip_align_clean_kill",
+      "doc": "README.md",
+      "source": {
+        "claim": "clip_align_clean_kill"
+      },
+      "fmt": ".2f",
+      "scale": 100,
+      "suffix": "%",
+      "literal": "0.19%",
+      "min_count": 1,
+      "note": "README 算子表里 clip_alignment 干净集误杀率，由 operator_pr.json 现算"
     }
   ],
   "derived": [

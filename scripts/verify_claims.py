@@ -37,6 +37,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -242,16 +243,34 @@ def _doc_numbers(text: str) -> list[str]:
 
 
 def _known_literals(registry: dict, derived: dict, doc: str) -> set[str]:
-    """该文档里「有出处」的数字集合：已登记门面 + 基线 + 派生值 + 显式白名单。"""
+    r"""该文档里「有出处」的数字集合：已登记门面 + 基线 + 派生值 + 显式白名单。
+
+    **必须剥掉单位/后缀**（`%` / `pp` / `×`…）：`_doc_numbers` 用正则
+    `\d+\.\d+|\d{2,4}` 扫出来的是**裸数字**，而 `facades[].literal` 为了和文档
+    逐字对齐往往带后缀（`'1.23%'`、`'0.19%'`）。不剥的话：①覆盖棘轮把已登记的
+    数字当成未登记（假报警）；②更坏的是**该文档里所有带单位的数字从此完全失去
+    门禁**——而这类数字恰恰是最容易腐烂的（百分比、倍数）。
+    2026-10-05 实测：把 `96` 改成 `96%` 之后 README 未登记数从 71 跳回 73。
+
+    （本docstring 是 raw string：里面的 `\d` 是给读者看的正则，不是 Python 转义。）
+    """
     known: set[str] = set()
     for f in registry.get("facades", []):
         if f.get("doc") == doc:
-            known.add(f["literal"])
+            known.add(_strip_unit(f["literal"]))
     for v in registry.get("baselines", {}).values():
         known.add(str(v))
     known |= {str(v) for v in derived.values() if v is not None}
-    known |= set(registry.get("meta", {}).get("number_allowlist", []))
-    return known
+    known |= {str(x) for x in registry.get("meta", {}).get("number_allowlist", [])}
+    return {k for k in known if k}
+
+
+_UNIT_RE = re.compile(r"[^\d.]+$")
+
+
+def _strip_unit(literal: str) -> str:
+    """`'1.23%'` → `'1.23'`；`'96'` → `'96'`；`'0.19 pp'` → `'0.19'`。"""
+    return _UNIT_RE.sub("", str(literal))
 
 
 def check_coverage(registry: dict, derived: dict, repo: Path = REPO) -> list[dict]:

@@ -89,6 +89,8 @@ def test_dim_scd2_row_per_natural_key_and_no_row_without_channel(lake_root: Path
         assert rep["n_current"] == 3
         assert rep["n_versions"] == 3
         assert rep["n_changes"] == 0
+        # 落湖后要 `refresh_views` 才能在库里查到（#97：维表不再是 BASE TABLE）
+        modeling.refresh_views(con, lake)
         # 代理键必须唯一且非空（SCD-2 的主键约束）
         bad = con.execute("SELECT count(*) FROM dim_device WHERE device_sk IS NULL").fetchone()[0]
         assert bad == 0
@@ -124,6 +126,8 @@ def test_scd2_closes_old_version_and_opens_new_one(lake_root: Path, metropt3_row
         assert r2["n_current"] == 3, "同一自然键只能有一个当前版本"
         assert r2["n_changes"] >= 1
 
+        # 落湖后要 `refresh_views` 才能在库里查到（#97）
+        modeling.refresh_views(con, lake)
         old = con.execute(
             "SELECT valid_to, is_current FROM dim_device "
             "WHERE device_id='compressor_01' AND channel='TP2' AND version=1"

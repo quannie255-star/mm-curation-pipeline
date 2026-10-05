@@ -245,9 +245,41 @@ CREATE TABLE IF NOT EXISTS dim_device_changes (
     changed_at  DATE,
     version     INTEGER,
     old_attrs   VARCHAR,
-    new_attrs   VARCHAR
+    new_attrs  VARCHAR
 );
 """
+
+# 首批跑批时湖上还没有 `dims/` 分区，而 DuckDB 扫一个没有文件的 glob 会抛
+# `IO Error: No files found that match the pattern`（**不是**返回空表）。
+# 所以「上批状态为空」要显式造一张**带 schema 的空表**。
+#
+# ⚠️ **列序必须显式指定**（#97 的第二个坑）：从湖上读时`dataset` 是 Hive 分区列，
+# DuckDB 把它放在**文件列之后**；而这里手写的空表把 `dataset` 放在第2 位。
+# 两边列序不同 → `INSERT INTO _dim SELECT ...`（无列名清单，按位置插入）会把
+# `unit`（'K'）塞进 `sampling_hz`（DOUBLE），报
+# `Conversion Error: Could not convert string 'K' to DOUBLE`。
+# 所以：读、写、空表初值三处**都用同一份显式列名清单**，不靠位置对齐。
+_DIM_COLS = (
+    "device_sk, dataset, device_id, channel, device_type, unit, "
+    "sampling_hz, operating_mode, valid_from, valid_to, is_current, version"
+)
+_DIM_CHG_COLS = "device_sk, dataset, device_id, channel, changed_at, version, old_attrs, new_attrs"
+_DIM_EMPTY_SQL = {
+    "dim_device": (
+        "SELECT CAST(NULL AS VARCHAR) AS device_sk, CAST(NULL AS VARCHAR) AS dataset, "
+        "CAST(NULL AS VARCHAR) AS device_id, CAST(NULL AS VARCHAR) AS channel, "
+        "CAST(NULL AS VARCHAR) AS device_type, CAST(NULL AS VARCHAR) AS unit, "
+        "CAST(NULL AS DOUBLE) AS sampling_hz, CAST(NULL AS VARCHAR) AS operating_mode, "
+        "CAST(NULL AS DATE) AS valid_from, CAST(NULL AS DATE) AS valid_to, "
+        "CAST(NULL AS BOOLEAN) AS is_current, CAST(NULL AS INTEGER) AS version"
+    ),
+    "dim_device_changes": (
+        "SELECT CAST(NULL AS VARCHAR) AS device_sk, CAST(NULL AS VARCHAR) AS dataset, "
+        "CAST(NULL AS VARCHAR) AS device_id, CAST(NULL AS VARCHAR) AS channel, "
+        "CAST(NULL AS DATE) AS changed_at, CAST(NULL AS INTEGER) AS version, "
+        "CAST(NULL AS VARCHAR) AS old_attrs, CAST(NULL AS VARCHAR) AS new_attrs"
+    ),
+}
 
 
 def _attr_expr(prefix: str = "") -> str:
@@ -287,8 +319,47 @@ def build_dims(
     本实现只保留首次观测到的属性（`arg_min`）。要支持多次变化必须按事件日
     逐步迭代。真实数据实测（212 个事件日 × 8 通道）**变化次数为 0**，
     因此这条限制在当前数据上不会被触发，但它是真限制，写在这里而不是藏着。
+
+    **维表落湖（2026-10-05，`ENGINEERING_NOTES` #97）**：SCD-2 算完后把两张表整表写进
+    `data/lake/dims/`，库里的 `dim_device` / `dim_device_changes` 随后被 `refresh_views`
+    建成**指向湖上 Parquet 的视图**（不再是 BASE TABLE）。
+
+    为什么要改：原先维表只活在 DuckDB 的 BASE TABLE 里，而 `promote` 只搬
+    `data/lake/**` 的 Parquet 分区 + 重建视图——**维表两边都不沾**。后果是
+    晋升报`ok=True`、契约闸门 10/10 全绿，服务的 `/api/datasets/{ds}/dims`
+    在 prod 上仍然 500（`Table with name dim_device does not exist`）。
+    实测：dev 库 16 个对象 / prod 库 14 个，缺的正好是这两张维表；7 个端点里1 个 500。
+
+    为什么不是「promote 多搬一步」：那样维表仍然**不在对账指纹里、不在契约覆盖范围内**，
+    下一个 BASE TABLE 还会再漏一次。落湖之后它和事实表受同一套闸门管。
+
+    **实现上为什么用 TEMP 工作表**：SCD-2 是增量的，要读上一批的维表状态来封口/开新版本。
+    落湖后库里的 `dim_device` 是**视图**，DuckDB 视图不可 UPDATE。所以上一批状态直接
+    **从湖上 Parquet 读**（不依赖库里的对象形态），SCD-2 在 `_dim` / `_dim_chg` 两张
+    TEMP 表上算完再整表落湖。首批跑时湖上还没有 `dims/` 分区，读出来是空表——
+    那是正确初值，不是错误。
     """
-    con.execute(_DIM_DDL)
+    # 把上批状态从湖上读进 TEMP 表（首批为空 = 正确初值）
+    con.execute("DROP TABLE IF EXISTS _dim")
+    con.execute("DROP TABLE IF EXISTS _dim_chg")
+    for tmp, table, cols in (
+        ("_dim", "dim_device", _DIM_COLS),
+        ("_dim_chg", "dim_device_changes", _DIM_CHG_COLS),
+    ):
+        if lake.has("dims", table):
+            # 显式列名：湖上`dataset` 是 Hive 分区列，DuckDB 放在文件列**之后**，
+            # 与手写空表的列序不同 → 无列名清单的 INSERT 会把 unit('K') 塞进 sampling_hz。
+            con.execute(
+                f"CREATE TEMP TABLE {tmp} AS "
+                f"SELECT {cols} FROM ({lake.scan_sql('dims', table=table)})"
+            )
+        else:
+            # 首批：湖上还没有 dims/ 分区。**建带 schema 的空表**而不是跳过——
+            # 跳过会让后面的 `max(version)` 报「表不存在」，把「初值」伪装成「故障」。
+            con.execute(
+                f"CREATE TEMP TABLE {tmp} AS "
+                f"SELECT {cols} FROM ({_DIM_EMPTY_SQL[table]}) WHERE false"
+            )
 
     conds = ["channel <> ''"]  # 没有通道/设备的记录不该产生维行（如文本语料）
     if datasets:
@@ -312,7 +383,7 @@ def build_dims(
     # 1) 封口：属性与当前版本不同 → valid_to = 本批首见日
     con.execute(
         f"""
-        UPDATE dim_device AS d
+        UPDATE _dim AS d
         SET valid_to = o.first_seen, is_current = FALSE
         FROM _obs o
         WHERE d.dataset = o.dataset AND d.device_id = o.device_id AND d.channel = o.channel
@@ -323,8 +394,8 @@ def build_dims(
 
     # 2) 开新版本：当前版本缺失的自然键
     con.execute(
-        """
-        INSERT INTO dim_device
+        f"""
+        INSERT INTO _dim ({_DIM_COLS})
         SELECT md5(concat_ws('|', o.dataset, o.device_id, o.channel,
                             cast(v.next_version as varchar))),
                o.dataset, o.device_id, o.channel,
@@ -333,13 +404,13 @@ def build_dims(
         FROM _obs o
         JOIN (
             SELECT o2.dataset, o2.device_id, o2.channel,
-                   coalesce((SELECT max(d.version) FROM dim_device d
+                   coalesce((SELECT max(d.version) FROM _dim d
                              WHERE d.dataset = o2.dataset AND d.device_id = o2.device_id
                                AND d.channel = o2.channel), 0) + 1 AS next_version
             FROM _obs o2
         ) v ON v.dataset = o.dataset AND v.device_id = o.device_id AND v.channel = o.channel
         WHERE NOT EXISTS (
-            SELECT 1 FROM dim_device d2
+            SELECT 1 FROM _dim d2
             WHERE d2.dataset = o.dataset AND d2.device_id = o.device_id
               AND d2.channel = o.channel AND d2.is_current
         )
@@ -349,33 +420,132 @@ def build_dims(
     # 3) 变更审计（幂等：device_sk 是版本级唯一键）
     con.execute(
         f"""
-        INSERT INTO dim_device_changes
+        INSERT INTO _dim_chg ({_DIM_CHG_COLS})
         SELECT d.device_sk, d.dataset, d.device_id, d.channel, d.valid_to, d.version,
                {_attr_expr("d")},
                (SELECT {_attr_expr("n")}
-                FROM dim_device n
+                FROM _dim n
                 WHERE n.dataset = d.dataset AND n.device_id = d.device_id
                   AND n.channel = d.channel AND n.version = d.version + 1)
-        FROM dim_device d
+        FROM _dim d
         WHERE d.is_current = FALSE AND d.valid_to IS NOT NULL
-          AND NOT EXISTS (SELECT 1 FROM dim_device_changes c WHERE c.device_sk = d.device_sk)
+          AND NOT EXISTS (SELECT 1 FROM _dim_chg c WHERE c.device_sk = d.device_sk)
         """
     )
 
-    n_dim = con.execute("SELECT count(*) FROM dim_device").fetchone()[0]
-    n_cur = con.execute("SELECT count(*) FROM dim_device WHERE is_current").fetchone()[0]
-    n_chg = con.execute("SELECT count(*) FROM dim_device_changes").fetchone()[0]
+    n_dim = con.execute("SELECT count(*) FROM _dim").fetchone()[0]
+    n_cur = con.execute("SELECT count(*) FROM _dim WHERE is_current").fetchone()[0]
+    n_chg = con.execute("SELECT count(*) FROM _dim_chg").fetchone()[0]
+
+    # -- 整表落湖（2026-10-05，#97）------------------------------------------------
+    # 顺序要紧：先把 `_dim` / `_dim_chg` 落湖，`refresh_views` 随后才能把库里的
+    # `dim_device` 建成指向湖的视图。这里读的是 TEMP 工作表（SCD-2 真正的算完结果）。
+    lake_rep = _dump_dims_to_lake(con, lake)
+
     return {
         "n_dim_rows": int(n_dim),
         "n_current": int(n_cur),
         "n_versions": int(n_dim),
         "n_changes": int(n_chg),
         "n_observed_keys": int(con.execute("SELECT count(*) FROM _obs").fetchone()[0]),
+        "lake": lake_rep,
     }
 
 
+def _dim_lake_schema() -> dict[str, Any]:
+    """维表落湖时**显式固定**的 Parquet schema（#97）。
+
+    为什么必须显式：`_infer_schema` 对「这批全是 NULL 的列」一律判`string`。
+    维表 `valid_to` 恰好天生如此——SCD-2 里「还没被封口的当前版本」`valid_to`
+    全是 NULL，于是首批落湖它是 `string`，第二批（出现了封口版本）变成 `date32`：
+    **同一张表两批不同 schema**。后果不是「类型不好看」，而是下游 SQL 直接崩：
+
+        Cannot compare values of type DATE and type VARCHAR
+
+    （`build_dwd` 里的有效期区间 join 就会撞上。）
+    显式 schema 让 Parquet 的物理类型与库里 `_DIM_DDL` 的声明一致。
+    """
+    import pyarrow as pa
+
+    return {
+        "dim_device": pa.schema(
+            [
+                pa.field("device_sk", pa.string()),
+                pa.field("dataset", pa.string()),
+                pa.field("device_id", pa.string()),
+                pa.field("channel", pa.string()),
+                pa.field("device_type", pa.string()),
+                pa.field("unit", pa.string()),
+                pa.field("sampling_hz", pa.float64()),
+                pa.field("operating_mode", pa.string()),
+                pa.field("valid_from", pa.date32()),
+                pa.field("valid_to", pa.date32()),
+                pa.field("is_current", pa.bool_()),
+                pa.field("version", pa.int64()),
+            ]
+        ),
+        "dim_device_changes": pa.schema(
+            [
+                pa.field("device_sk", pa.string()),
+                pa.field("dataset", pa.string()),
+                pa.field("device_id", pa.string()),
+                pa.field("channel", pa.string()),
+                pa.field("changed_at", pa.date32()),
+                pa.field("version", pa.int64()),
+                pa.field("old_attrs", pa.string()),
+                pa.field("new_attrs", pa.string()),
+            ]
+        ),
+    }
+
+
+def _dim_rows(con, table: str, cols: str) -> list[dict[str, Any]]:
+    """按 `cols` 的**显式顺序**读 TEMP 工作表。
+
+    显式顺序而不是 `SELECT *`：`lake.write` 用第一行的 key 定列序，
+    而 TEMP 表的列序来自湖上 Parquet（Hive 分区列在末尾）。两者不一致时
+    写出去的 Parquet 列序会变，虽然 DuckDB 按名字读不受影响，但「同一批输入
+    重复写产物逐字节一致」这个幂等前提就破了（列序变了压缩布局就变了）。
+    """
+    cur = con.execute(f"SELECT {cols} FROM {table}")
+    names = [d[0] for d in cur.description]
+    return [dict(zip(names, r)) for r in cur.fetchall()]
+
+
+def _dump_dims_to_lake(con, lake: Lake) -> dict[str, Any]:
+    """把 SCD-2 两张表整表写进 `data/lake/dims/`，**按 dataset 单键分区**。
+
+    读的是 TEMP 工作表 `_dim` / `_dim_chg`（`build_dims` 里的 SCD-2 算完的结果），
+    不是库里的 `dim_device`——落湖后后者已是视图，读它会绕回湖上再读一遍。
+
+    不用 `(dataset, event_date)`：维表是**状态**不是**事件**，一个设备的当前版本
+    只应有一行；按事件日分区会让同一设备在每个事件日各存一份全量快照。
+    `valid_from` / `valid_to` 已经是列，事件日语义不丢。
+    """
+    rep: dict[str, Any] = {}
+    schemas = _dim_lake_schema()
+    for table, src, cols in (
+        ("dim_device", "_dim", _DIM_COLS),
+        ("dim_device_changes", "_dim_chg", _DIM_CHG_COLS),
+    ):
+        rows = _dim_rows(con, src, cols)
+        rep[table] = lake.write(
+            "dims",
+            rows,
+            table=table,
+            partition_by=("dataset",),
+            replace=True,
+            schema=schemas[table],
+        )
+    rep["n_rows"] = rep["dim_device"]["n_rows"] + rep["dim_device_changes"]["n_rows"]
+    return rep
+
+
 def dim_summary(con) -> dict[str, Any]:
-    con.execute(_DIM_DDL)
+    # ⚠️ **不要在这里执行 `_DIM_DDL`**（#97）：落湖后 `dim_device` 是**指向湖上
+    # Parquet 的视图**，`CREATE TABLE IF NOT EXISTS` 撞上同名视图会让 DuckDB 报
+    # `Catalog Error`，而服务启动路径会调本函数。维表在老库里可能是 BASE TABLE、
+    # 在新库里是视图——本函数**只读**，两种形态都能查，所以不需要建表。
     rows = con.execute(
         "SELECT dataset, count(*) AS n_versions, "
         "       sum(CASE WHEN is_current THEN 1 ELSE 0 END) AS n_current "
@@ -411,6 +581,15 @@ def build_dwd(
     )
     conds = " AND ".join(c for c in (ds_cond, ed_cond) if c)
     ods = lake.scan_sql("ods", table="ods_samples", where=conds)
+    # 维表**直接读湖上**（#97），不读库里的 `dim_device`：dwd 是本批的产物，
+    # 维表也是本批刚落湖的，读湖保证两者口径同源；而库里的对象在不同环境下
+    # 形态不同（旧库 BASE TABLE / 新库 VIEW），读库会让同一段 SQL 在 dev 与
+    # prod 上行为不一致——那正是 #97 的原始故障。
+    dims_sql = (
+        f"SELECT {_DIM_COLS} FROM ({lake.scan_sql('dims', table='dim_device')})"
+        if lake.has("dims", "dim_device")
+        else f"SELECT {_DIM_COLS} FROM ({_DIM_EMPTY_SQL['dim_device']}) WHERE false"
+    )
 
     win_sql = f"""
         SELECT o.dataset, try_cast(o.event_date AS DATE) AS event_date,
@@ -418,10 +597,11 @@ def build_dwd(
                o.text_len, o.chars_han, o.has_image, o.is_kept, o.dropped_by,
                d.device_sk, d.version AS device_version
         FROM ({ods}) o
-        LEFT JOIN dim_device d
+        LEFT JOIN ({dims_sql}) d
           ON d.dataset = o.dataset AND d.device_id = o.device_id AND d.channel = o.channel
-         AND try_cast(o.event_date AS DATE) >= d.valid_from
-         AND (d.valid_to IS NULL OR try_cast(o.event_date AS DATE) < d.valid_to)
+         AND try_cast(o.event_date AS DATE) >= try_cast(d.valid_from AS DATE)
+         AND (d.valid_to IS NULL
+              OR try_cast(o.event_date AS DATE) < try_cast(d.valid_to AS DATE))
     """
     rows = _rows(con, win_sql)
     rep_w = lake.write("dwd", rows, table="dwd_window")
@@ -648,29 +828,149 @@ _VIEWS = {
     "dws_dataset_day": ("dws", "dws_dataset_day", "*"),
     "dws_op_day": ("dws", "dws_op_day", "*"),
     "ads_dataset_health": ("ads", "ads_dataset_health", "*"),
+    # SCD-2 维表（#97）：落湖后建成视图，`promote` 搬湖即搬维表。
+    # `hive_partitioning=true` 会把dataset 变成列，所以下面不必再 select 它。
+    "dim_device": ("dims", "dim_device", "*"),
+    "dim_device_changes": ("dims", "dim_device_changes", "*"),
+}
+
+# 某层还没有任何 Parquet 时，空视图要**投影出正确的列**（`SELECT *` 只在真有表时合法）。
+# 列名不是猜的：每条都注明它从哪来，且真库 `describe <view>` 与此一致（2026-10-05 实点）。
+# ⚠️ 改动这些列名时必须同步改真库口径，否则「空态能查」只在首批成立、
+# 第二批（有数据后列变了）就崩——那比直接报错更难查。
+_EMPTY_VIEW_SQL = {
+    "dim_device": f"SELECT {_DIM_COLS} FROM ({_DIM_EMPTY_SQL['dim_device']}) WHERE false",
+    "dim_device_changes": (
+        f"SELECT {_DIM_CHG_COLS} FROM ({_DIM_EMPTY_SQL['dim_device_changes']}) WHERE false"
+    ),
+    # 来源：`build_ods` 写的 `ods_samples` 列清单（与 _VIEWS["ods_all"] 那串一致）
+    "ods_all": (
+        "SELECT CAST(NULL AS VARCHAR) AS dataset, CAST(NULL AS VARCHAR) AS event_date, "
+        "CAST(NULL AS VARCHAR) AS modality, CAST(NULL AS VARCHAR) AS sample_id, "
+        "CAST(NULL AS VARCHAR) AS device_id, CAST(NULL AS VARCHAR) AS device_type, "
+        "CAST(NULL AS VARCHAR) AS channel, CAST(NULL AS VARCHAR) AS unit, "
+        "CAST(NULL AS DOUBLE) AS sampling_hz, CAST(NULL AS VARCHAR) AS operating_mode, "
+        "CAST(NULL AS VARCHAR) AS window_start, CAST(NULL AS VARCHAR) AS window_end, "
+        "CAST(NULL AS BIGINT) AS text_len, CAST(NULL AS BIGINT) AS chars_han, "
+        "CAST(NULL AS BOOLEAN) AS has_image, CAST(NULL AS VARCHAR) AS text_md5, "
+        "CAST(NULL AS BOOLEAN) AS is_kept, CAST(NULL AS VARCHAR) AS dropped_by WHERE false"
+    ),
+    # 来源：`build_dwd` 的 `win_sql` 投影
+    "dwd_window": (
+        "SELECT CAST(NULL AS VARCHAR) AS sample_id, CAST(NULL AS VARCHAR) AS device_id, "
+        "CAST(NULL AS VARCHAR) AS channel, CAST(NULL AS BIGINT) AS text_len, "
+        "CAST(NULL AS BIGINT) AS chars_han, CAST(NULL AS BOOLEAN) AS has_image, "
+        "CAST(NULL AS BOOLEAN) AS is_kept, CAST(NULL AS VARCHAR) AS dropped_by, "
+        "CAST(NULL AS VARCHAR) AS device_sk, CAST(NULL AS BIGINT) AS device_version, "
+        "CAST(NULL AS VARCHAR) AS dataset, CAST(NULL AS DATE) AS event_date WHERE false"
+    ),
+    # 来源：`build_dws` 的 `day_sql` 投影
+    "dws_dataset_day": (
+        "SELECT CAST(NULL AS BIGINT) AS n_total, CAST(NULL AS BIGINT) AS n_kept, "
+        "CAST(NULL AS BIGINT) AS n_dropped, CAST(NULL AS DOUBLE) AS drop_rate, "
+        "CAST(NULL AS BIGINT) AS n_devices, CAST(NULL AS BIGINT) AS n_channels, "
+        "CAST(NULL AS DOUBLE) AS avg_len, CAST(NULL AS DOUBLE) AS median_len, "
+        "CAST(NULL AS BIGINT) AS n_ops, CAST(NULL AS DOUBLE) AS score_coverage, "
+        "CAST(NULL AS VARCHAR) AS dataset, CAST(NULL AS VARCHAR) AS event_date WHERE false"
+    ),
+    # 来源：`build_ads` 的 `ads_dataset_health` 投影
+    "ads_dataset_health": (
+        "SELECT CAST(NULL AS BIGINT) AS n_total, CAST(NULL AS BIGINT) AS n_kept, "
+        "CAST(NULL AS BIGINT) AS n_dropped, CAST(NULL AS DOUBLE) AS drop_rate, "
+        "CAST(NULL AS DATE) AS first_event_date, CAST(NULL AS DATE) AS last_event_date, "
+        "CAST(NULL AS BIGINT) AS n_partitions, CAST(NULL AS BIGINT) AS n_undated_partitions, "
+        "CAST(NULL AS BIGINT) AS freshness_days, CAST(NULL AS BIGINT) AS n_devices, "
+        "CAST(NULL AS BIGINT) AS n_channels, CAST(NULL AS DOUBLE) AS avg_len, "
+        "CAST(NULL AS BIGINT) AS n_ops, CAST(NULL AS DOUBLE) AS score_coverage, "
+        "CAST(NULL AS VARCHAR) AS dataset WHERE false"
+    ),
+    # 来源：`_explode_scores` 的输出列
+    "dwd_op_score": (
+        "SELECT CAST(NULL AS VARCHAR) AS sample_id, CAST(NULL AS VARCHAR) AS op, "
+        "CAST(NULL AS DOUBLE) AS score, CAST(NULL AS VARCHAR) AS dataset, "
+        "CAST(NULL AS VARCHAR) AS event_date WHERE false"
+    ),
+    # 来源：`build_dws` 的 `op_sql` 投影
+    "dws_op_day": (
+        "SELECT CAST(NULL AS VARCHAR) AS op, CAST(NULL AS BIGINT) AS n_scored, "
+        "CAST(NULL AS BIGINT) AS n_dropped, CAST(NULL AS DOUBLE) AS drop_rate, "
+        "CAST(NULL AS DOUBLE) AS score_p50, CAST(NULL AS VARCHAR) AS dataset, "
+        "CAST(NULL AS VARCHAR) AS event_date WHERE false"
+    ),
 }
 
 
 def refresh_views(con, lake: Lake) -> list[str]:
-    """在 platform 库里重建指向湖上 Parquet 的视图。"""
+    """在 platform 库里重建指向湖上 Parquet 的视图。
+
+    **先 DROP 再 CREATE**：2026-10-05 起 `dim_device` / `dim_device_changes` 也在这份
+    名单里（#97），而它们在**旧库里是 BASE TABLE**——`CREATE OR REPLACE VIEW` 撞上同名
+    实表会报 `Catalog Error: Existing object is of type Table`，视图根本建不出来。
+    这也是「同名不同形态」的历史包袱：库升级前跑过一次 `build_dims` 的库必须能被
+    幂等刷新，否则服务启动时直接崩。
+    """
     made: list[str] = []
     for name, (layer, table, cols) in _VIEWS.items():
-        con.execute(
-            f"CREATE OR REPLACE VIEW {name} AS {lake.scan_sql(layer, table=table, columns=cols)}"
-        )
+        _drop_any(con, name)
+        if not lake.has(layer, table):
+            # 该层还没有任何 Parquet（首批、或只跑了子集阶段）→ 建**空视图**。
+            # 直接 `CREATE VIEW … read_parquet(空glob)` 会抛
+            # `IO Error: No files found that match the pattern`，而那会让
+            # 「还没跑」和「跑挂了」变成同一个错误——排查时最贵的那种歧义。
+            #
+            # 已知 schema 的层用 `WHERE false` 零行派生，列名与真表一致；
+            # 未知的层退化成单列占位（服务启动要能在「只跑了 ods」的库上活下来）。
+            empty_sql = _EMPTY_VIEW_SQL.get(name)
+            if empty_sql is None:
+                con.execute(
+                    f"CREATE VIEW {name} AS SELECT CAST(NULL AS VARCHAR) AS _empty WHERE false"
+                )
+            else:
+                con.execute(f"CREATE VIEW {name} AS {empty_sql}")
+            made.append(name)
+            continue
+        con.execute(f"CREATE VIEW {name} AS {lake.scan_sql(layer, table=table, columns=cols)}")
         made.append(name)
-    con.execute("CREATE OR REPLACE VIEW ods_samples AS SELECT * FROM ods_all")
-    con.execute("CREATE OR REPLACE VIEW dwd_samples AS SELECT * FROM dwd_window")
-    con.execute("CREATE OR REPLACE VIEW dwd_scores AS SELECT * FROM dwd_op_score")
-    con.execute(
-        "CREATE OR REPLACE VIEW dws_dataset_profile AS "
+    for name, sql in _ALIAS_VIEWS.items():
+        _drop_any(con, name)
+        con.execute(f"CREATE VIEW {name} AS {sql}")
+        made.append(name)
+    return made
+
+
+def _drop_any(con, name: str) -> None:
+    """把 `name` 上的**任何**对象（视图 / 基表 / 临时表）删掉，不报「不存在」。
+
+    为什么不能直接 `DROP VIEW IF EXISTS` + `DROP TABLE IF EXISTS`（#97 真实库实测）：
+    DuckDB 的 `DROP VIEW IF EXISTS x` 在 `x` 是 **BASE TABLE** 时**不**静默跳过，
+    而是抛 `Catalog Error: Existing object x is of type Table, trying to drop type View`
+    —— 也就是说「先 VIEW 后 TABLE」这个看起来最稳的顺序，在旧库（维表是实表）
+    上必然炸。而旧库正是**库升级后第一次跑**要面对的东西。
+
+    所以先查 `information_schema` 看它到底是什么类型，再发对应的 DROP。
+    """
+    row = con.execute(
+        "SELECT table_type FROM information_schema.tables "
+        "WHERE table_name = ? AND table_schema = current_schema()",
+        [name],
+    ).fetchone()
+    if row is None:
+        return
+    kind = "VIEW" if str(row[0]).upper().endswith("VIEW") else "TABLE"
+    con.execute(f"DROP {kind} IF EXISTS {name}")
+
+
+_ALIAS_VIEWS = {
+    "ods_samples": "SELECT * FROM ods_all",
+    "dwd_samples": "SELECT * FROM dwd_window",
+    "dwd_scores": "SELECT * FROM dwd_op_score",
+    "dws_dataset_profile": (
         "SELECT dataset, sum(n_total) n_total, sum(n_kept) n_kept, sum(n_dropped) n_dropped, "
         "       sum(n_dropped)*1.0/nullif(sum(n_total),0) drop_rate, count(*) n_partitions "
         "FROM dws_dataset_day GROUP BY dataset"
-    )
-    con.execute("CREATE OR REPLACE VIEW ads_metrics AS SELECT * FROM ads_dataset_health")
-    made += ["ods_samples", "dwd_samples", "dwd_scores", "dws_dataset_profile", "ads_metrics"]
-    return made
+    ),
+    "ads_metrics": "SELECT * FROM ads_dataset_health",
+}
 
 
 # ---------------------------------------------------------------------------

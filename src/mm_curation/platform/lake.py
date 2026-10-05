@@ -37,10 +37,29 @@ from __future__ import annotations
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import TYPE_CHECKING, Any, Iterable, Sequence
 
-LAYERS = ("ods", "dwd", "dws", "ads")
+if TYPE_CHECKING:  # pragma: no cover —— 只为类型注解，运行时不 import pyarrow
+    import pyarrow as pa
+
+LAYERS = ("ods", "dims", "dwd", "dws", "ads")
+"""湖上的层。
+
+`dims` 是 2026-10-05 加进来的（见 `ENGINEERING_NOTES` #97）：SCD-2 维表原先只存在于
+DuckDB 的 BASE TABLE 里，而 `promote` 只搬 `data/lake/**` 的 Parquet 分区 + 重建视图
+——**维表两边都不沾**，于是晋升后服务的 `/api/datasets/{ds}/dims` 端点在 prod 上必然 500，
+而契约闸门因为只查 ods/dwd/dws/ads 一层，10/10 全绿也抓不到。
+
+维表上湖不是为了"更好看"，是为了让它进入**晋升的对账指纹**与**契约的覆盖范围**：
+只有落成 Parquet，它才和事实表受同一套闸门管。
+"""
+
 DEFAULT_PARTITION = ("dataset", "event_date")
+"""默认分区键（ODS/DWD/DWS/ADS 按事件日切）。
+
+`dims` 层不用它：维表是**状态**不是**事件**，按 `dataset` 单键分区即可
+（见 `modeling.build_dims` 落湖时传的 `partition_by`）。
+"""
 
 HIVE_DEFAULT_PARTITION = "__HIVE_DEFAULT_PARTITION__"
 """分区值为空时 DuckDB 落盘的目录名（Hive 生态的既定约定，不是我们发明的）。
@@ -117,6 +136,17 @@ class Lake:
 
     def parquet_glob(self, layer: str, table: str = "") -> str:
         return (self._base(layer, table) / "**" / "*.parquet").as_posix()
+
+    def has(self, layer: str, table: str = "") -> bool:
+        """该层/表在湖上是否**已有 Parquet 落盘**（路径级判断，不读数据）。
+
+        为什么要它：DuckDB 扫一个没有文件的 glob 会抛
+        `IO Error: No files found that match the pattern`，而不是返回空表。
+        首批跑批时 `dims/` 还没有任何分区，上批状态必须是「空」而不是「报错」——
+        这两者语义完全不同，所以要显式判一次，而不是靠try/except 吞异常。
+        """
+        base = self._base(layer, table)
+        return base.exists() and any(base.rglob("*.parquet"))
 
     def part_dir(self, layer: str, values: Sequence[str], table: str = "") -> Path:
         """`<层>/<表>/dataset=X/event_date=Y`。"""
@@ -230,12 +260,21 @@ class Lake:
         table: str = "",
         partition_by: Sequence[str] = DEFAULT_PARTITION,
         replace: bool = True,
+        schema: pa.Schema | None = None,
     ) -> dict[str, Any]:
         """把一批行写成按 `partition_by` 分区的 Parquet 数据集。
 
         返回写入报告（行数 / 分区数 / 文件数 / 字节数 / 分区清单）。
         `replace=True`（默认）先清目标分区目录再写 → **幂等**：
         同一批输入重复写，产物逐字节一致，指纹必然相同。
+
+        `schema` 显式给列类型。**什么时候必须给**：某一列在这批里恰好全是
+        NULL 时，`_infer_schema` 会把它定成 `string`（它分不清「这列是字符串」
+        和「这列碰巧没值」），下一批有值了又变成 `date32`——**同一张表两批
+        不同 schema**，Parquet 读回来类型不一致，下游 SQL 会在类型比较上报
+        `Cannot compare values of type DATE and type VARCHAR`。
+        维表的 `valid_to` / `changed_at` 就有这个特性（SCD-2 里「还没封口的
+        版本」`valid_to` 全 NULL），所以 `modeling._dump_dims_to_lake` 显式传 schema。
         """
         if not rows:
             return {
@@ -247,7 +286,7 @@ class Lake:
                 "partitions": [],
             }
         names = list(rows[0].keys())
-        schema = _infer_schema(names, rows)
+        schema = schema if schema is not None else _infer_schema(names, rows)
 
         import duckdb
         import pyarrow as pa

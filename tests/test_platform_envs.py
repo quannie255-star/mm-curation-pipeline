@@ -263,6 +263,56 @@ def test_promote_copies_the_tree_and_records_a_run_in_the_target_ledger(lake_roo
     assert n > 0
 
 
+def test_promote_leaves_every_relation_the_service_queries_readable_in_prod(lake_root):
+    """**晋升后服务会打的每个端点都还能查** —— 2026-10-05 真实 prod 库上 500 的回归门禁。
+
+    发现的原始缺陷：`dim_device` 曾是 DuckDB 里的 **BASE TABLE**，不在湖上 Parquet 上，
+    而 `promote` 只搬湖上产物 → prod 库少了这两张表，`/api/datasets/{ds}/dims` 直接 500。
+    **契约闸门 10/10 全绿却没抓到**，因为它只查 `ods/dwd/dws/ads` 四个视图层，
+    维表既不在湖上、也不在契约范围里。
+
+    判据**从 service 源码现取**（扫 `FROM <名字>`），不是硬编码一张表清单——
+    硬编码的清单会随新端点一起腐烂，而"清单没更新"与"端点坏了"看起来一模一样。
+    扫不出来时直接 `assert` 失败，不跳过：跳过的门禁等于没有门禁，
+    而且它会报出一个漂亮的绿灯。
+    """
+    import re as _re
+
+    from mm_curation.platform import service as service_mod
+
+    src = Path(service_mod.__file__).read_text(encoding="utf-8")
+    tables = sorted(set(_re.findall(r"FROM\s+([a-z_][a-z0-9_]*)", src)))
+    assert tables, "扫不到 service 查询的任何表名——判据本身失效了，不许静默跳过"
+
+    _run(lake_root)
+    rep = envs.promote(lake_root, from_env=ENV_DEV, to_env=ENV_PROD)
+    assert rep["ok"] is True, rep["reason"]
+
+    prod = envs.resolve(lake_root, ENV_PROD)
+    con = duckdb.connect(str(prod.warehouse_db))
+    try:
+        missing, empty = [], []
+        for t in tables:
+            try:
+                con.execute(f"SELECT * FROM {t} LIMIT 1").fetchall()
+            except duckdb.Error as e:  # 表不存在 / 湖上分区缺失
+                missing.append(f"{t}: {type(e).__name__}")
+                continue
+            # 端点还要能返回**列**（`SELECT * ... LIMIT 0` 也要能拿到 description），
+            # 否则 `/dims` 会在 `rows[0].keys()` 上炸。
+            con.execute(f"SELECT * FROM {t} LIMIT 0").fetchall()
+            if con.description is None:
+                empty.append(t)
+        # 台账表也必须在（`/api/runs` 读它）
+        for t in ("job_runs",):
+            con.execute(f"SELECT * FROM {t} LIMIT 1").fetchall()
+    finally:
+        con.close()
+
+    assert not missing, f"晋升后 prod 库查不了这些关系（服务对应端点会 500）：{missing}"
+    assert not empty, f"这些关系查不出列：{empty}"
+
+
 def test_promote_second_time_is_a_no_op(lake_root):
     """幂等：第二次晋升 0 新增、0 删除、指纹不变。老实现每次都 `rmtree` + 全量重写。"""
     _run(lake_root)

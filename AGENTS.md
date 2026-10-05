@@ -15,7 +15,7 @@
 ## 收工（必做，缺一视为未完成）
 
 1. **质量门全绿**：`python -X utf8 -m ruff check .` + `python -X utf8 -m pytest -q --tb=no`
-   （主仓库与 `packages/curation-eval` 各跑一次）。测试基线：**主仓 624 + 包 67 = 691**，不得倒退
+   （主仓库与 `packages/curation-eval` 各跑一次）。测试基线：**主仓 625 + 包 67 = 692**，不得倒退
    （**改测试后实点回写**；`pytest` 必带 `--basetemp=` 指向盘符形式的全新目录，取准数用 `--junitxml`）。
 2. **数字门禁全绿**：`python -X utf8 scripts/verify_claims.py`。
    任何对外数字只能改 `docs/claims.json`（唯一真相源），不许直接改文档里的字面量——
