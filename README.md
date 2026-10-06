@@ -11,8 +11,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 
-> **想先看结论再读代码？** → [产品页（单页自包含）](docs/product.html)：
-> 三十秒结论 + 每个数字的出处 + **诚实边界** + 自己验一遍的三条命令。
+> **想先看结论再读代码？** → **[在线产品页](https://mm-curation-showcase.app.workbuddy.host/)**（免安装，直接打开）
+> 或本地打开 [docs/product.html](docs/product.html)（单页自包含）：
+> 三十秒结论 + 每个数字的出处 + **诚实边界** + 真实跑批看板 + 自己验一遍的三条命令。
 > 页面数字不手写——由 [`docs/claims.json`](docs/claims.json) 现算，页面对不上注册表就**生成失败**。
 
 ## 自己验一遍（三条命令，不用 GPU、不用下载数据）
