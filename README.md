@@ -11,10 +11,15 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 
-> **想先看结论再读代码？** → **[在线产品页](https://mm-curation-showcase.app.workbuddy.host/)**（免安装，直接打开）
-> 或本地打开 [docs/product.html](docs/product.html)（单页自包含）：
+> **想先看结论再读代码？** → **[在线产品页](docs/product.html)**（单页自包含，免安装）：
 > 三十秒结论 + 每个数字的出处 + **诚实边界** + 真实跑批看板 + 自己验一遍的三条命令。
 > 页面数字不手写——由 [`docs/claims.json`](docs/claims.json) 现算，页面对不上注册表就**生成失败**。
+>
+> 想看**跑完之后的库长什么样**（真实数据、免安装）→ **[平台运行态演示](https://mm-curation-showcase.app.workbuddy.host/)**。
+> 它是 prod 环境一次真实跑批结果的**只读快照**（导出时间戳常驻页面上，不是实时库）：
+> 数据集健康、日趋势、设备维表、运行台账，端点形状与真实 `ServiceCore` 一致。
+> 数字不在此手抄——页面上每个数都来自 [`webdemo/data/`](webdemo/) 的快照文件，
+> 导出命令 `python -X utf8 scripts/export_ops_snapshot.py`。
 
 ## 自己验一遍（三条命令，不用 GPU、不用下载数据）
 
