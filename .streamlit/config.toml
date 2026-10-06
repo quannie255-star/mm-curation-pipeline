@@ -1,5 +1,6 @@
-# Streamlit 主题（洁净室蓝绿：配合 showcase_app.py 的净水厂设计语言）
-# 影响仓库内所有 Streamlit 应用，保持统一皮肤。
+# Streamlit 主题（洁净室蓝绿）
+# 影响仓库内 4 个存量专题应用（streamlit_app / ops_dashboard / judge_studio / platform_app）。
+# 产品首页不是 Streamlit——是 webdemo/ 那个零依赖静态页 + stdlib 服务。
 [theme]
 base = "light"
 primaryColor = "#0E7490"

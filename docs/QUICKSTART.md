@@ -9,17 +9,25 @@
 
 ## 第 0 步 · 先看一眼它在干什么（0 下载 / 0 GPU / 30 秒）
 
+**浏览器打开这一个链接就行，不用装任何东西：**
+
+<https://mm-curation-showcase.app.workbuddy.host/>
+
+页面上依次是：这个项目是什么 → 三组硬数字与它们各自回答什么质疑 → 想自己跑的三条命令
+→ 真实跑批后的库长什么样 → 这个项目**没做**什么。
+
+> 这一页是 prod 环境**一次真实跑批结果的只读快照**（导出时间戳常驻页面上）。
+> 看数字的人因此知道自己在看什么时候的数据，而不是误以为这是实时库。
+
+想在本机看同一份东西：
+
 ```bash
 cd /c/Users/10393/Desktop/mm-curation-pipeline
-"C:/Program Files/Python311/python.exe" -m streamlit run scripts/showcase_app.py
+"C:/Program Files/Python311/python.exe" scripts/export_ops_snapshot.py   # 从prod 库导出快照
+cd webdemo && "C:/Program Files/Python311/python.exe" serve.py               # 起本地服务，默认 8080 端口
 ```
 
-浏览器自动打开 `http://localhost:8501`。你会看到六个页签：
-**总览 / 图文数据 / 文本数据 / 医疗数据 / 工业传感器 / 效果证据**。
-
-第一件事：点「医疗数据」页签 → 按「重跑门禁」。它会**当场真跑一遍质检**（约 1.5 秒），
-不是放的截图。这就是本项目的核心动作：拿一批"标准答案已知"的脏数据，验证清洗能不能
-全部抓住、又不冤枉干净数据。
+浏览器打开 `http://127.0.0.1:8080`。服务只依赖 Python 标准库，**不需要装 DuckDB 或任何第三方包**。
 
 ---
 

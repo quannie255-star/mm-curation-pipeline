@@ -3,220 +3,510 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>平台运行态 · 多模态数据治理平台</title>
+<title>多模态数据治理平台 · 从脏数据到可用资产</title>
+<meta name="description" content="四模态数据清洗与质量门禁平台。每个数字可追溯到报告，每条结论可自己复现。">
 <style>
-  :root{
-    --bg:#f7f8fa; --card:#fff; --line:#e3e6ea; --text:#1a1d21; --muted:#6b7280;
-    --accent:#2563eb; --ok:#0f7b4f; --ok-soft:#e6f5ee; --warn:#a16207; --warn-soft:#fef6e0;
-  }
-  @media (prefers-color-scheme: dark){
-    :root{ --bg:#14161a; --card:#1c1f25; --line:#2b3038; --text:#e8eaed; --muted:#9aa3af;
-           --accent:#60a5fa; --ok:#4ade80; --ok-soft:#123024; --warn:#fbbf24; --warn-soft:#332a10; }
-  }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text);
-    font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
-  .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 60px}
-  h1{font-size:24px;margin:0 0 6px}
-  h2{font-size:17px;margin:34px 0 12px;padding-top:16px;border-top:1px solid var(--line)}
-  .sub{color:var(--muted);font-size:13.5px;margin:0 0 18px}
-  .banner{background:var(--warn-soft);border:1px solid var(--warn);color:var(--text);
-    border-radius:8px;padding:11px 14px;margin:16px 0;font-size:13.5px}
-  .banner b{color:var(--warn)}
-  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
-  .card .k{font-size:12px;color:var(--muted)}
-  .card .v{font-size:20px;font-weight:650;margin-top:3px;font-variant-numeric:tabular-nums}
-  .chart{height:280px;background:var(--card);border:1px solid var(--line);border-radius:8px;margin:12px 0}
-  table{border-collapse:collapse;width:100%;font-size:13px;background:var(--card);
-    border:1px solid var(--line);border-radius:8px;overflow:hidden}
-  th,td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
-  th{background:color-mix(in srgb,var(--card) 92%,var(--text));font-weight:600;font-size:12.5px}
-  tr:last-child td{border-bottom:none}
-  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
-  .muted{color:var(--muted);font-size:12.5px}
-  select{background:var(--card);color:var(--text);border:1px solid var(--line);
-    border-radius:6px;padding:6px 10px;font-size:13.5px}
-  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 4px}
-  .tabs button{background:var(--card);color:var(--muted);border:1px solid var(--line);
-    border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px}
-  .tabs button[aria-selected="true"]{color:var(--accent);border-color:var(--accent);font-weight:600}
-  code{background:color-mix(in srgb,var(--card) 90%,var(--text));padding:1px 5px;border-radius:4px;
-    font-size:12.5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-  a{color:var(--accent)}
-  .err{color:#b91c1c;background:#fee2e2;border:1px solid #ef4444;border-radius:6px;padding:10px}
-  @media (prefers-color-scheme: dark){ .err{color:#fecaca;background:#3b1414} }
+/* ── Kimi 风格：暖白底 + 品牌蓝 #007CFF + Inter + 大留白 ──────────────
+   选暖白而非纯黑的理由（Kimi 官方也提供暖白这套）：这是数据作品集，
+   会被截图进简历、被打印、被投到别人屏幕上——深色底在这三种场景
+   全部吃亏。表格在浅底上可读性也明显更好。 */
+:root{
+  --bg:#FBFBFD; --surface:#FFFFFF; --surface-2:#F5F7FA;
+  --line:#E8EBF0; --line-2:#F0F2F5;
+  --ink:#121212; --ink-2:#4A4F57; --ink-3:#8D9390;
+  --brand:#007CFF; --brand-ink:#0057B8; --brand-soft:#EAF3FF;
+  --ok:#0E9F6E; --ok-soft:#E7F7F1;
+  --warn:#B25E09; --warn-soft:#FFF4E6;
+  --r:14px; --r-sm:9px;
+  --shadow:0 1px 2px rgba(18,18,18,.04), 0 8px 24px rgba(18,18,18,.04);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font:400 15px/1.72 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1000px;margin:0 auto;padding:0 24px}
+
+/* ── 顶栏：极简，只有身份与一条时间戳 ── */
+header{padding:64px 0 40px}
+.eyebrow{display:inline-flex;align-items:center;gap:7px;color:var(--brand-ink);
+  background:var(--brand-soft);border-radius:100px;padding:5px 13px;
+  font-size:12.5px;font-weight:500;letter-spacing:.01em}
+h1{font-size:40px;line-height:1.18;letter-spacing:-.022em;margin:20px 0 0;font-weight:600}
+h1 em{font-style:normal;color:var(--brand)}
+.lede{margin:18px 0 0;font-size:17px;line-height:1.68;color:var(--ink-2);max-width:44em}
+.meta{margin-top:22px;font-size:13px;color:var(--ink-3)}
+.meta a{color:var(--ink-2)}
+
+/* ── 区块 ── */
+section{padding:52px 0;border-top:1px solid var(--line-2)}
+.sec-no{color:var(--brand);font-size:12.5px;font-weight:600;letter-spacing:.08em;margin-bottom:9px}
+h2{font-size:25px;letter-spacing:-.015em;margin:0 0 12px;font-weight:600;line-height:1.35}
+.sub{color:var(--ink-2);font-size:14.5px;margin:0 0 26px;max-width:48em}
+
+/* ── 卡片 ── */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:22px 24px;box-shadow:var(--shadow)}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px}
+.stat .k{font-size:12.5px;color:var(--ink-3);letter-spacing:.005em}
+.stat .v{font-size:30px;font-weight:600;letter-spacing:-.02em;margin-top:6px;
+  font-variant-numeric:tabular-nums;line-height:1.15}
+.stat .d{font-size:12.5px;color:var(--ink-3);margin-top:5px}
+.stat.hl{background:var(--brand-soft);border-color:#CFE4FF}
+.stat.hl .v{color:var(--brand-ink)}
+
+/* ── 指标行 ── */
+.metric{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:18px 20px;display:flex;flex-direction:column;gap:3px}
+.metric .q{font-size:13.5px;color:var(--ink-2);font-weight:500}
+.metric .num{font-size:23px;font-weight:600;letter-spacing:-.015em;font-variant-numeric:tabular-nums;margin:5px 0 4px}
+.metric .num .from{color:var(--ink-3);font-weight:400}
+.metric .num .arrow{color:var(--brand);margin:0 7px}
+.metric .num .to{color:var(--brand-ink)}
+.metric .src{font-size:12px;color:var(--ink-3);margin-top:auto;padding-top:9px}
+
+/* 纯文字型结论用紧凑行，不用卡片——卡片的视觉重量会让人误以为
+   里面藏着一个大数字，而它其实是段文字。 */
+.facts{margin-top:14px;border:1px solid var(--line);border-radius:var(--r);
+  background:var(--surface);overflow:hidden}
+.fact{display:grid;grid-template-columns:172px 1fr auto;gap:16px;align-items:baseline;
+  padding:14px 20px;border-bottom:1px solid var(--line-2)}
+.fact:last-child{border-bottom:none}
+.fact .ft{font-size:14px;font-weight:600;color:var(--ink)}
+.fact .fd{font-size:13px;color:var(--ink-2);line-height:1.6}
+.fact .fq{font-size:12px;color:var(--ink-3);white-space:nowrap}
+@media (max-width:860px){
+  .fact{grid-template-columns:1fr;gap:5px}
+  .fact .fq{white-space:normal}
+}
+
+/* ── 代码块 ── */
+pre{background:#0F1115;color:#E6E8EB;border-radius:var(--r);padding:18px 20px;
+  overflow-x:auto;font:400 13px/1.75 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+code{font:400 .92em/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  background:var(--surface-2);padding:1.5px 5px;border-radius:5px;color:var(--ink)}
+pre code{background:none;padding:0;color:inherit;font-size:1em}
+.cm{color:#7C8794}
+
+/* ── 表格 ── */
+table{width:100%;border-collapse:collapse;font-size:13.5px;background:var(--surface);
+  border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+th,td{padding:9px 13px;text-align:left;border-bottom:1px solid var(--line-2);white-space:nowrap}
+th{background:var(--surface-2);font-weight:600;font-size:12.5px;color:var(--ink-2)}
+tr:last-child td{border-bottom:none}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.tbl-wrap{overflow-x:auto;border-radius:var(--r)}
+
+/* ── 提示条 ── */
+.note{border-radius:var(--r);padding:14px 18px;font-size:13.5px;line-height:1.66;
+  background:var(--brand-soft);border:1px solid #CFE4FF;color:var(--ink-2)}
+.note.warn{background:var(--warn-soft);border-color:#FFE0BF}
+.note b{color:var(--ink);font-weight:600}
+.note .lab{color:var(--brand-ink);font-weight:600}
+
+/* ── 图表 ── */
+.chart{height:290px;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r);margin:14px 0}
+
+/* ── 标签页 ── */
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.tabs button{background:var(--surface);color:var(--ink-2);border:1px solid var(--line);
+  border-radius:100px;padding:6px 15px;cursor:pointer;font:inherit;font-size:13.5px;
+  transition:all .14s ease}
+.tabs button:hover{border-color:var(--ink-3)}
+.tabs button[aria-selected="true"]{background:var(--brand);border-color:var(--brand);
+  color:#fff;font-weight:500}
+
+/* ── 列表 ── */
+ul.tidy{margin:0;padding-left:20px;color:var(--ink-2);line-height:1.85}
+ul.tidy li{margin:5px 0}
+ul.tidy b{color:var(--ink);font-weight:600}
+ul.tidy .neg{color:var(--warn);font-weight:500}
+
+.bound{display:grid;gap:11px}
+.bound .row{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--warn);
+  border-radius:var(--r-sm);padding:13px 16px;font-size:13.5px;line-height:1.66}
+.bound .row .t{font-weight:600;color:var(--ink);display:block;margin-bottom:3px}
+
+footer{padding:44px 0 72px;border-top:1px solid var(--line-2);color:var(--ink-3);font-size:13px}
+footer a{color:var(--ink-2)}
+.err{color:#B4231E;background:#FEF0EF;border:1px solid #FBD3D0;border-radius:var(--r-sm);
+  padding:12px 15px;font-size:13.5px}
+.pill{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:100px;
+  background:var(--surface-2);color:var(--ink-3);margin-left:7px;vertical-align:middle}
+@media (max-width:640px){
+  h1{font-size:30px} header{padding:40px 0 28px} section{padding:40px 0}
+  .stat .v{font-size:26px}
+}
 </style>
 </head>
 <body>
+
+<header><div class="wrap">
+  <span class="eyebrow">数据工程 · 作品集</span>
+  <h1>多模态数据治理平台<br><em>从脏数据到可用资产</em></h1>
+  <p class="lede">
+    一套可插拔的数据清洗与质量门禁框架。图文、纯文本、医疗 FHIR、工业传感器四个模态
+    接入<strong>同一套协议、零框架特例</strong>；下游是有状态的数据平台轨
+    <code>ods → dims → dwd → dws → ads → 契约闸门 → 观测 → 晋升</code>。
+  </p>
+  <p class="lede" style="margin-top:12px">
+    这一页上的每个数字都<b>现算自 <code>claims.json</code></b>，不是手写的；
+    真实跑批的证据在<a href="#proof">第 4 节</a>，<b>已标注快照时间</b>。
+  </p>
+  <p class="meta">
+    <a href="https://github.com/quannie255-star/mm-curation-pipeline">github.com/quannie255-star/mm-curation-pipeline</a>
+    · <span id="stamp">读取快照中…</span>
+  </p>
+</div></header>
+
 <div class="wrap">
-  <h1>平台运行态</h1>
-  <p class="sub">多模态数据治理平台 · 一次真实跑批后的库内状态</p>
 
-  <div class="banner" id="banner">
+<!-- 1 ── 这是什么 -->
+<section id="what" style="border-top:none;padding-top:8px">
+  <div class="sec-no">01 / 是什么</div>
+  <h2>一个能把「模型效果好不好」和「数据脏不脏」分开的系统</h2>
+  <p class="sub">
+    多数团队说「效果不好」时，真正的问题在数据。这个项目把它拆成两件可分别验证的事：
+    <b>数据脏到什么程度</b>，以及<b>洗完之后效果变化多少</b>——后者用对照实验证明，不是用感觉。
+  </p>
+  <div class="grid g3">
+    <div class="card">
+      <div class="stat" style="border:0;padding:0;background:none">
+        <div class="k">接入模态</div>
+        <div class="v">4</div>
+        <div class="d">图文 · 纯文本 · FHIR · 工业传感器</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="stat" style="border:0;padding:0;background:none">
+        <div class="k">框架特例</div>
+        <div class="v">0</div>
+        <div class="d">第二模态零改代码接入</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="stat" style="border:0;padding:0;background:none">
+        <div class="k">质量门禁</div>
+        <div class="v" id="s-contracts">—</div>
+        <div class="d">契约 + 覆盖率棘轮</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 2 ── 硬数字 -->
+<section id="numbers">
+  <div class="sec-no">02 / 为什么值得信</div>
+  <h2>三组数字，三条工程事实，以及它们各自回答什么质疑</h2>
+  <p class="sub">
+    下面每一行的数字都是<b>现算</b>的（构建期从 <code>claims.json</code> + 评测报告读出来），
+    右侧标了它回答的是哪个质疑——<b>不敢报阴性结果的项目不值得看第二行</b>。
+  </p>
+  <div class="grid g3" id="metric-list">
+    <div class="metric" style="color:var(--ink-3)">读取中…</div>
+  </div>
+  <div class="facts" id="fact-list"></div>
+  <div class="note" style="margin-top:18px">
+    <span class="lab">阴性结果也报：</span>
+    通用判官 κ≈<b>判为不合格</b> · η-b 判官未达标 · 域外场景 κ 0.560 → <b>0.178</b>。
+    这些都在工程笔记里原样落着，没删。
+  </div>
+</section>
+
+<!-- 3 ── 怎么自己跑 -->
+<section id="run">
+  <div class="sec-no">03 / 自己验一遍</div>
+  <h2>三条命令，不用 GPU、不用下载数据</h2>
+  <p class="sub">
+    要验上面的数字是不是真的，跑这三步就够——<b>如果跑不通，说明我写错了</b>，那比数字错更严重。
+  </p>
+<pre><code><span class="cm"># 1. 装（Python 3.11）</span>
+pip install -e packages/curation-eval --no-deps
+
+<span class="cm"># 2. 跑核心实验（合成轨，数分钟）</span>
+python -X utf8 -m mm_curation.cli run
+
+<span class="cm"># 3. 跑真实数据集 + 晋升到 prod</span>
+python -X utf8 -m mm_curation.cli run  <span class="cm"># 真实数据路径</span>
+python -X utf8 -m mm_curation.cli promote</code></pre>
+  <p style="font-size:13.5px;color:var(--ink-2);margin-top:14px">
+    每条命令的实测输出、venv 踩坑、报错排查 → <a href="https://github.com/quannie255-star/mm-curation-pipeline/blob/main/docs/RUNBOOK.md">RUNBOOK</a>。
+    数字为什么可信（逐个追溯到报告与指针） → <a href="https://github.com/quannie255-star/mm-curation-pipeline/blob/main/docs/PROOF_CHAIN.md">PROOF_CHAIN</a>。
+  </p>
+</section>
+
+<!-- 4 ── 真实跑批证据 -->
+<section id="proof">
+  <div class="sec-no">04 / 真实跑批证据</div>
+  <h2>prod 环境跑完之后的库长什么样</h2>
+  <div class="note warn" style="margin-bottom:22px">
     <b>这是快照，不是实时库。</b>
-    <span id="stamp">正在读取快照时间…</span>
-    数据由 <code>scripts/export_ops_snapshot.py</code> 从 prod 环境的 DuckDB 导出。
-    本地跑 <code>mm_curation.cli run</code> + <code>promote</code> 后重新导出即可刷新。
+    <span id="stamp2">读取中…</span>
+    数据由 <code>export_ops_snapshot.py</code> 从 prod 环境的 DuckDB 导出。
+    本地重跑 <code>cli run</code> + <code>promote</code> 后重新导出即可刷新。
+    <b>把快照说成实时，是这类演示最容易被识破的谎。</b>
   </div>
+  <div class="grid g3" id="stats" style="margin-bottom:26px"></div>
 
-  <div class="cards" id="cards"></div>
-
-  <h2>数据集健康</h2>
-  <p class="muted">对应真实服务的 <code>/api/datasets</code>。丢弃率高的是合成脏数据轨，
-     真实传感器轨为 0——那批数据本身干净。</p>
+  <h3 style="font-size:16px;margin:0 0 6px;font-weight:600">数据集健康</h3>
+  <p style="font-size:13.5px;color:var(--ink-2);margin:0 0 14px">
+    丢弃率高的是<b>合成脏数据轨</b>（它们的丢弃率是设计值）；真实传感器轨为 0——那批数据本身干净。
+  </p>
   <div id="dsChart" class="chart"></div>
-  <noscript><p class="muted">（图表需要 JS，下面的表格是等价数据。）</p></noscript>
-  <div id="dsTable"></div>
+  <noscript><p style="font-size:13.5px;color:var(--ink-3)">（图表需要 JS，下面的表格是等价数据。）</p></noscript>
+  <div class="tbl-wrap" id="dsTable"></div>
 
-  <h2>明细</h2>
+  <h3 style="font-size:16px;margin:32px 0 12px;font-weight:600">明细</h3>
   <div class="tabs" id="tabs">
-    <button data-k="daily" aria-selected="true">日趋势（dws_dataset_day）</button>
-    <button data-k="dims" aria-selected="false">维表（dim_device）</button>
-    <button data-k="runs" aria-selected="false">运行台账（job_runs）</button>
+    <button data-k="daily" aria-selected="true">日趋势</button>
+    <button data-k="dims" aria-selected="false">设备维表</button>
+    <button data-k="runs" aria-selected="false">运行台账</button>
   </div>
-  <p class="muted" style="margin:8px 0">
-    数据集
-    <select id="pick"></select>
-  </p>
+  <p style="font-size:13.5px;color:var(--ink-2);margin:0 0 12px">数据集 <select id="pick" style="font:inherit;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:5px 10px"></select></p>
   <div id="detail"></div>
+</section>
 
-  <h2>这个页面在证明什么</h2>
-  <ul class="muted" style="line-height:1.9;padding-left:20px">
-    <li>全链路在<b>真实数据</b>上跑通：ods → dims → dwd → dws → ads → 视图 → 契约 → 观测 → 晋升。</li>
-    <li>服务层读的 4 张表<b>全在湖上</b>——修过一个「契约闸门 10/10 全绿但 prod 端点 500」的 bug，
-        根因是维表压根没进数据湖。</li>
-    <li>端点形状与真实 <code>ServiceCore</code> 一致（<code>{masked_cols, rows}</code>），
-        唯一差别是数据来自快照。</li>
-  </ul>
+<!-- 5 ── 边界 -->
+<section id="bound">
+  <div class="sec-no">05 / 诚实边界</div>
+  <h2>这个项目没做到什么</h2>
+  <p class="sub">这一节比上面所有数字加起来更重要。<b>一个只报优点的演示，它的数字就不该被当真。</b></p>
+  <div class="bound" id="bounds">
+    <div class="row"><span class="t">真实数据的召回不是能力指标</span>
+      真实轨的「脏」是过程故障（缺字段、格式漂移），不是人为注入的对抗样本，
+      所以真实轨召回高不代表判据好——只说明<b>低误杀且逐条可归因</b>。</div>
+    <div class="row"><span class="t">background_flag_rate 不是误杀率</span>
+      它是数据<b>自带</b>异常率的上界。三种口径不能混着讲。</div>
+    <div class="row"><span class="t">0.575 是零重编码对照，不是主结论</span>
+      主结论是 0.459 → 0.556（+21%）。两个数常被混起来引用。</div>
+    <div class="row"><span class="t">门禁解决一致性，不解决真值性</span>
+      <code>verify_claims.py</code> 有 67 条门面 + 变异测试，但<b>它只能保证「文档和报告一致」</b>，
+      保证不了「报告里的实验没跑错」。后者只能靠复现。</div>
+    <div class="row"><span class="t">这一页的数字每次跑批都会变</span>
+      看板那部分是快照，第 2 节的结论数字是登记在 <code>claims.json</code> 的稳定值。
+      两者刻意分开：<b>稳定的锁进注册表，漂移的走独立通道并在页面上标注</b>。</div>
+  </div>
+</section>
 
-  <p class="muted" style="margin-top:40px;padding-top:14px;border-top:1px solid var(--line)">
-    源码 <a href="https://github.com/quannie255-star/mm-curation-pipeline">github.com/quannie255-star/mm-curation-pipeline</a>
-    · <a href="/api/manifest">快照清单 JSON</a>
+<footer>
+  <p><b>怎么用这一页：</b>第 1 节 10 秒知道是什么 · 第 2 节看数字与它回答的质疑 ·
+     第 3 节自己验 · 第 4 节看真实跑批证据（注意快照时间）· 第 5 节看这个项目没做到什么。</p>
+  <p style="margin-top:10px">
+    <a href="https://github.com/quannie255-star/mm-curation-pipeline">源码仓库</a> ·
+    <a href="https://github.com/quannie255-star/mm-curation-pipeline/blob/main/docs/PLATFORM.md">平台轨数字的唯一真相源</a> ·
+    <a href="https://github.com/quannie255-star/mm-curation-pipeline/blob/main/docs/ENGINEERING_NOTES.md">98 条工程发现</a> ·
+    <a href="/api/manifest">本页数据清单 JSON</a>
   </p>
-</div>
+</footer>
+
+</div><!-- /wrap -->
 
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
 <script>
 const $ = s => document.querySelector(s);
-const fmt = n => (n==null?'—':Number(n).toLocaleString('en-US'));
-const pct = n => (n==null?'—':(Number(n)*100).toFixed(1)+'%');
-let DS = [], PICK = null, MODE = 'daily';
+const F  = n => (n==null||n==='—') ? '—' : Number(n).toLocaleString('en-US');
+const PC = n => (n==null||n==='—') ? '—' : (Number(n)*100).toFixed(1)+'%';
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 async function j(url){
   const r = await fetch(url);
-  if(!r.ok) throw new Error((await r.json().catch(()=>({}))).error || ('HTTP '+r.status));
+  if(!r.ok){
+    const e = await r.json().catch(()=>({}));
+    throw new Error(e.error || ('HTTP '+r.status));
+  }
   return r.json();
 }
 
+let DS = [], PICK = null, MODE = 'daily';
+
+/* ── 第 2 节：数字卡 + 紧凑行 ──────────────────────────────────────
+   原来 5 张等宽卡片，其中 3 张「只有文字没有大数字」——换行断得难看
+   （"(30.2 / 万篇维基)" 被拆到两行），而信息密度并不比两行文字高。
+   改成：3 张有真数字的卡（视觉锚点）+ 2 条紧凑行（承载「不是数字」的那两条）。 */
+const METRICS = [
+  {q:'数据脏到什么程度：清洗对检索有效吗？',
+   from:'soul_dirty_r1', to:'soul_clean_r1',
+   src:'1585 条查询 · 同一索引脏/净两路对照', q2:'「清洗效果怎么证明？」'},
+  {q:'脏数据真的伤模型吗？',
+   to:'clip_clean_ft_r1', vs:'clip_dirty_ft_r1',
+   src:'用干净集 / 脏集分别微调后测 CLIP 检索', q2:'「只是检索指标好看吧？」'},
+  {q:'脏文本会抬高困惑度吗？',
+   to:'ppl_clean', vs:'ppl_dirty',
+   src:'同一中文语料，干净集 vs 脏集 · GPT-2', q2:'「文本轨也测了吗？」', unit:'PPL'}
+];
+
+/* 纯文字型结论：卡片装不下，用紧凑行（数字不大但内容重要，不该被藏进 tooltip）*/
+const FACTS = [
+  {t:'换数据源不用重写', d:'同一协议零特例接入第二模态（30.2 万篇维基）· local/Ray 双运行时逐 id 零差异',
+   q:'「换数据是不是要重写？」'},
+  {t:'有运行概念的数据系统', d:'湖分区 + DuckDB 契约闸门 + 分区裁剪字节级证据（平台轨数字见 PLATFORM.md）',
+   q:'「这不就是几个脚本？」'},
+  {t:'通用模型不认识你的域', d:'通用判官 κ −0.024（判为不合格）→ 域专属 LoRA 判官 +0.560 · 偏好判官 0.532 → 0.839',
+   q:'「LLM 打分不就行了？」'}
+];
+
+function renderMetrics(claims){
+  // 按 **claim id** 取（不是门面 id）——门面 id 里带文档名，文档一改就失效。
+  // 拿不到时显示 '—' 而不是隐藏整张卡：**缺一个数字必须看得见**。
+  const get = id => claims[id] ? claims[id].text : '—';
+
+  $('#metric-list').innerHTML = METRICS.map(m => {
+    const num = m.from
+      ? `<span class="from">${get(m.from)}</span><span class="arrow">→</span><span class="to">${get(m.to)}</span>`
+      : `<span class="to">${get(m.to)}</span><span class="arrow">${m.vs ? 'vs' : ''}</span><span class="from">${m.vs?get(m.vs):''}</span>`;
+    return `<div class="metric">
+      <span class="q">${m.q}</span>
+      <span class="num">${num}<span class="pill">${m.unit || (m.from ? 'Recall@1' : 'CLIP R@1')}</span></span>
+      <span class="src">${m.src} &nbsp;·&nbsp; 回答「${m.q2}」</span>
+    </div>`;
+  }).join('');
+
+  $('#fact-list').innerHTML = FACTS.map(f =>
+    `<div class="fact"><span class="ft">${f.t}</span>
+     <span class="fd">${f.d}</span>
+     <span class="fq">回答「${f.q}」</span></div>`).join('');
+}
+
 function table(cols, rows){
-  if(!rows.length) return '<p class="muted">（无数据）</p>';
+  if(!rows.length) return '<p style="font-size:13.5px;color:var(--ink-3)">（无数据）</p>';
   const isNum = c => rows.some(r => typeof r[c]==='number');
-  const head = cols.map(c=>`<th class="${isNum(c)?'num':''}">${c}</th>`).join('');
+  const head = cols.map(c=>`<th class="${isNum(c)?'num':''}">${esc(c)}</th>`).join('');
   const body = rows.map(r=>`<tr>${cols.map(c=>{
     const v = r[c];
-    return `<td class="${isNum(c)?'num':''}">${v==null?'—':String(v)}</td>`;
+    return `<td class="${isNum(c)?'num':''}">${v==null?'—':esc(String(v))}</td>`;
   }).join('')}</tr>`).join('');
   return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
-function draw(){
-  if(typeof echarts === 'undefined') return;          // CDN 不可达 → 表格已在，别报错
-  const el = document.getElementById('dsChart');
-  if(!el || !DS.length) return;
-  const c = echarts.init(el, null, {renderer:'svg'});
+function drawDatasets(){
+  if(typeof echarts === 'undefined' || !DS.length) return;   // CDN 不可达 → 表格已在
+  const c = echarts.init($('#dsChart'), null, {renderer:'svg'});
   c.setOption({
     tooltip:{trigger:'axis'},
-    legend:{data:['保留','拦下'],textStyle:{fontSize:12}},
-    grid:{left:60,right:16,top:36,bottom:52},
+    legend:{data:['保留','拦下'],top:0,itemWidth:9,itemHeight:9,
+            textStyle:{fontSize:12,color:'#4A4F57'}},
+    grid:{left:52,right:14,top:34,bottom:58},
     xAxis:{type:'category',data:DS.map(d=>d.dataset),
-           axisLabel:{rotate:28,fontSize:11}},
-    yAxis:{type:'value',axisLabel:{formatter:v=>v>=1000?(v/1000)+'k':v}},
+           axisLabel:{rotate:26,fontSize:11,color:'#8D9390'},
+           axisLine:{lineStyle:{color:'#E8EBF0'}},axisTick:{show:false}},
+    yAxis:{type:'value',axisLabel:{formatter:v=>v>=1000?(v/1000)+'k':v,
+           fontSize:11,color:'#8D9390'},splitLine:{lineStyle:{color:'#F0F2F5'}}},
     series:[
       {name:'保留',type:'bar',stack:'a',data:DS.map(d=>Number(d.n_kept||0)),
-       itemStyle:{color:'#2563eb'}},
+       itemStyle:{color:'#007CFF',borderRadius:[0,0,0,0]},barMaxWidth:34},
       {name:'拦下',type:'bar',stack:'a',data:DS.map(d=>Number(d.n_dropped||0)),
-       itemStyle:{color:'#f59e0b'}}
+       itemStyle:{color:'#8D9390',borderRadius:[3,3,0,0]},barMaxWidth:34}
     ]
   });
   addEventListener('resize', ()=>c.resize());
 }
 
-function cards(){
-  const tot = DS.reduce((s,d)=>s+Number(d.n_total||0),0);
-  const drop = DS.reduce((s,d)=>s+Number(d.n_dropped||0),0);
-  const part = DS.reduce((s,d)=>s+Number(d.n_partitions||0),0);
-  const dev  = DS.reduce((s,d)=>s+Number(d.n_devices||0),0);
-  $('#cards').innerHTML = [
-    ['数据集', DS.length], ['总行数', fmt(tot)], ['湖上分区', fmt(part)],
-    ['漏斗拦下', fmt(drop)], ['设备数', fmt(dev)]
-  ].map(([k,v])=>`<div class="card"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+function renderStats(m){
+  const items = [
+    ['数据集', DS.length, '4 个模态轨'],
+    ['总行数', F(DS.reduce((s,d)=>s+Number(d.n_total||0),0)), '真实跑批落盘'],
+    ['湖上分区', F(DS.reduce((s,d)=>s+Number(d.n_partitions||0),0)), '按 dataset 分区'],
+    ['漏斗拦下', F(DS.reduce((s,d)=>s+Number(d.n_dropped||0),0)), '合成脏轨为主'],
+    ['设备维表', F(DS.reduce((s,d)=>s+Number(d.n_devices||0),0)), 'SCD-2 维表'],
+    ['快照行数', F(m.total_rows), '5 张表合计']
+  ];
+  $('#stats').innerHTML = items.map(([k,v,d])=>
+    `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`
+  ).join('');
 }
 
 async function detail(){
   const el = $('#detail');
-  el.innerHTML = '<p class="muted">加载中…</p>';
+  el.innerHTML = '<p style="font-size:13.5px;color:var(--ink-3)">加载中…</p>';
   try{
     if(MODE==='runs'){
       const r = await j('/api/runs');
-      el.innerHTML = table(['run_id','job_name','status','batch_date','duration_s','git_sha'], r.rows);
+      el.innerHTML = table(['run_id','job_name','status','batch_date','duration_s'], r.rows);
       return;
     }
-    const base = `/api/datasets/${encodeURIComponent(PICK)}/${MODE==='daily'?'daily':'dims'}`;
-    const r = await j(base);
-    if(!r.rows.length){ el.innerHTML = '<p class="muted">（该数据集在此快照里没有记录）</p>'; return; }
+    const url = `/api/datasets/${encodeURIComponent(PICK)}/${MODE==='daily'?'daily':'dims'}`;
+    const r = await j(url);
+    if(!r.rows.length){
+      el.innerHTML = '<p style="font-size:13.5px;color:var(--ink-3)">（该数据集在快照里没有记录）</p>';
+      return;
+    }
     const cols = Object.keys(r.rows[0]);
     let extra = '';
     if(r.truncated){
-      extra = `<p class="muted">共 ${fmt(r.n_total)} 行，此处显示前 ${r.page_max} 行
-               （全量有 ${fmt(r.n_total)} 行，页面只给前 ${r.page_max} 行
-               ——截断是为了浏览器不卡住，数字写在明处）。</p>`;
+      extra = `<div class="note warn" style="margin-bottom:12px">
+        共 <b>${F(r.n_total)}</b> 行，此处显示前 <b>${r.page_max}</b> 行——
+        截断是为了浏览器不卡住，数字写在明处。</div>`;
     }
     if(MODE==='daily'){
-      const ds = r.rows.map(x=>x.event_date), kept=r.rows.map(x=>Number(x.n_kept||0)),
-            drop=r.rows.map(x=>Number(x.n_dropped||0));
-      el.innerHTML = extra +
-        `<div id="dayChart" class="chart"></div><noscript><p class="muted">（图表需要 JS）</p></noscript>` +
+      el.innerHTML = extra + `<div id="dayChart" class="chart"></div>
+        <noscript><p style="font-size:13.5px;color:var(--ink-3)">（图表需要 JS）</p></noscript>` +
         table(cols, r.rows);
       if(typeof echarts !== 'undefined'){
-        const c = echarts.init(document.getElementById('dayChart'), null, {renderer:'svg'});
+        const c = echarts.init($('#dayChart'), null, {renderer:'svg'});
         c.setOption({tooltip:{trigger:'axis'},
-          legend:{data:['保留','拦下'],textStyle:{fontSize:12}},
-          grid:{left:60,right:16,top:36,bottom:56},
-          xAxis:{type:'category',data:ds,axisLabel:{rotate:30,fontSize:10}},
-          yAxis:{type:'value'},
-          series:[{name:'保留',type:'line',data:kept,smooth:false,itemStyle:{color:'#2563eb'}},
-                  {name:'拦下',type:'line',data:drop,itemStyle:{color:'#f59e0b'}}]});
+          legend:{data:['保留','拦下'],top:0,itemWidth:9,itemHeight:9,textStyle:{fontSize:12,color:'#4A4F57'}},
+          grid:{left:52,right:14,top:34,bottom:56},
+          xAxis:{type:'category',data:r.rows.map(x=>x.event_date),
+                 axisLabel:{rotate:28,fontSize:10,color:'#8D9390'},
+                 axisLine:{lineStyle:{color:'#E8EBF0'}},axisTick:{show:false}},
+          yAxis:{type:'value',axisLabel:{fontSize:11,color:'#8D9390'},
+                 splitLine:{lineStyle:{color:'#F0F2F5'}}},
+          series:[{name:'保留',type:'line',data:r.rows.map(x=>Number(x.n_kept||0)),
+                   itemStyle:{color:'#007CFF'},lineStyle:{width:2}},
+                  {name:'拦下',type:'line',data:r.rows.map(x=>Number(x.n_dropped||0)),
+                   itemStyle:{color:'#8D9390'},lineStyle:{width:2}}]});
         addEventListener('resize', ()=>c.resize());
       }
     } else {
       el.innerHTML = extra + table(cols, r.rows);
     }
-  }catch(e){ el.innerHTML = `<p class="err">${e.message}</p>`; }
+  }catch(e){ el.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
 }
 
 (async function(){
   try{
     const m = await j('/api/manifest');
-    $('#stamp').innerHTML = `快照导出于 <b>${m.exported_at}</b>，共 ${m.total_rows} 行 / ${m.tables.length} 张表。`;
+    const when = m.exported_at.replace('T',' ').slice(0,19);
+    $('#stamp').textContent = '证据快照导出于 ' + when;
+    $('#stamp2').innerHTML = `快照导出于 <b>${when}</b>，共 <b>${F(m.total_rows)}</b> 行 / ${m.tables.length} 张表。`;
+
     const d = await j('/api/datasets');
     DS = d.rows;
-    cards(); draw();
-    $('#pick').innerHTML = DS.map(x=>`<option>${x.dataset}</option>`).join('');
+    renderStats(m); drawDatasets();
+    $('#pick').innerHTML = DS.map(x=>`<option>${esc(x.dataset)}</option>`).join('');
     PICK = DS.length ? DS[0].dataset : null;
-    $('#dsTable').innerHTML =
-      table(['dataset','n_total','n_kept','n_dropped','drop_rate','n_partitions','n_devices','last_event_date'],
-            DS.map(r=>({...r, drop_rate: pct(r.drop_rate)})));
+    $('#dsTable').innerHTML = table(
+      ['dataset','n_total','n_kept','n_dropped','drop_rate','n_partitions','n_devices','last_event_date'],
+      DS.map(r => ({...r, drop_rate: PC(r.drop_rate)})));
     await detail();
   }catch(e){
-    $('#banner').innerHTML = `<span class="err">读不到快照：${e.message}</span>`;
+    $('#stamp').textContent = '读不到快照：' + e.message;
+    $('#stamp2').innerHTML = `<span class="err">读不到快照：${esc(e.message)}</span>`;
+  }
+
+  try{
+    const c = await j('/api/claims');
+    if(c.missing && c.missing.length){
+      console.warn('部分门面未能现算', c.missing);
+    }
+    renderMetrics(c.claims || c.items);
+    // 门禁条数用 tests_total（主仓 + 包），claim id 与文档无关
+    const t = (c.claims || c.items)['tests_total'];
+    $('#s-contracts').textContent = t ? t.text : '—';
+  }catch(e){
+    $('#metric-list').innerHTML = `<p class="err">读不到对外数字：${esc(e.message)}</p>`;
   }
 })();
 
-$('#pick').addEventListener('change', e=>{ PICK = e.target.value; detail(); });
-$('#tabs').addEventListener('click', e=>{
+$('#pick').addEventListener('change', e => { PICK = e.target.value; detail(); });
+$('#tabs').addEventListener('click', e => {
   const b = e.target.closest('button'); if(!b) return;
-  [...e.currentTarget.children].forEach(x=>x.setAttribute('aria-selected', x===b));
+  [...e.currentTarget.children].forEach(x => x.setAttribute('aria-selected', x===b));
   MODE = b.dataset.k; detail();
 });
 </script>

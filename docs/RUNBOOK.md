@@ -665,23 +665,24 @@ python -X utf8 scripts/mmc.py contracts                  # 数据契约，破坏
 4. **两套表名都在**（`ods_samples`↔`raw_samples`、`dwd_*`↔`stg_*`…），
    但**实现只有一套**，另一套是别名视图——名字多不是模型多。
 
-## 2. 演示（10 分钟，面试/展示）
+## 2. 演示（3 分钟，面试/展示）
 
-**统一入口（V5 β 起，V6 α 扩到八页签，V6 P2 扩到九页签）**：`streamlit run scripts/showcase_app.py`
-——平台总览（四模态门禁卡 + 算子总数 + 测试基线）/ 图文 / 文本 / 医疗 FHIR / 工业传感器
-（后两个支持**现场重跑门禁**，~6 秒）/ 证据链（R@1、ppl、消融、采样）/
-**清洗过程**（逐级水位对照 + 判决台账，可筛滤芯与判决）/ **阈值沙盘**（选滤芯 + 方向 +
-丢弃预算滑块 → 从分数分布反推门限）/ **真实数据**（三数据集 × 旧↔新判据并排读数 ×
-召回-误杀权衡面 × 误杀清单可筛可导出）。报告缺失时页面直接给生成命令与耗时。
+**零安装的公网演示**：<https://mm-curation-showcase.app.workbuddy.host/>
 
-> 两个新页签的数据源是 §1.20 的 A/B 对照实验——**没跑过那个脚本时它们会显示
-> 生成命令**（`data/reports/` 不入库，CI 上走的就是这条降级路径）。
-> 阈值沙盘对**批量算子**（如 `text_minhash`）会显式说明「不适用」：批量算子按集合
-> 裁决、不产生逐样本分数，没有分布就没有阈值的「门」。
-> 反推出来的是**丢弃预算**（愿意最多删多少），**不是误杀率**——误杀率要有人工复核
-> label 才算得出来，界面两处分开标注，不混口径。
+页面结构 = 项目是什么 → 三组硬数字与它们各自回答什么质疑 → 想自己跑的三条命令 →
+真实跑批后的库长什么样 → **没做**什么。数字由 `docs/claims.json` 现算，页面不手抄。
 
-专题深潜（存量应用，门户侧边栏有指引）：
+```bash
+# 本地起同一份东西（只用Python 标准库，不装 DuckDB）
+"C:/Program Files/Python311/python.exe" scripts/export_ops_snapshot.py   # 从 prod 库导出快照
+cd webdemo && "C:/Program Files/Python311/python.exe" serve.py               # 默认 8080 端口
+```
+
+快照是**导出那一刻的状态**，不是活库；页面顶部常驻导出时间戳。视图原本是
+`read_parquet`硬编码本机绝对路径，物化成快照后才与路径无关（见
+`scripts/export_ops_snapshot.py` 的模块 docstring）。
+
+### 2.1 检索服务与专题界面（存量，深潜用）
 
 ```bash
 # 终端 1：检索服务
@@ -695,6 +696,10 @@ python -m streamlit run scripts/streamlit_app.py
    脏索引 top3 里 2 条脏数据、模糊图排第一
 2. `/api/ingest` 同图发两次 → 第二次 `is_duplicate: true`；低质图看 `quality.flags`
 3. `/metrics` → Prometheus 计数 + 延迟直方图 + 质量门漏斗
+
+> 存量 Streamlit 应用共4 个（`streamlit_app` / `ops_dashboard` / `judge_studio` /
+> `platform_app`），主题由 `.streamlit/config.toml` 统一。它们是**深潜入口**，
+> 不是产品首页——首页是上面那个免安装链接。
 
 ## 3. 清洁 venv（可选，彻底修复搬迁问题）
 

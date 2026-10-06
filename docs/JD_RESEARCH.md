@@ -54,7 +54,7 @@
 | 8 | **数据脱敏 / PII / 安全合规**（4/10） | `pii_detect`（通用文本 PII）、`phi_residual`（FHIR PHI 残留）、`wm_nsfw_cnn`（NSFW / 水印） | `operators/text_corpus.py`、`fhir_quality.py`、`detector_quality.py` | ✅ |
 | 9 | **数据采集 / 解析（爬虫、网页解析、OCR、解码）**（4/10） | `data/web_sources.py`：fetch（UA+重试+退避）/ robots.txt / 增量爬 + **站点耦合的手写 `extract_article`**；无 OCR、无 RawDoc 中间态 | `src/mm_curation/data/web_sources.py` | 🟡 **半成品**（V6 W2 正在补） |
 | 10 | **分布式 / 规模化（Spark/Ray/Flink，PB 级）**（5/10） | local / Ray 双运行时，同一 YAML 算子图改一行 `runtime: ray`；10 万~100 万档三口径**逐 id 零差异**（含簇代表） | `scale_crossover.json`、`ray_funnel_benchmark.json` | 🟡 有边界（**如实报告「单机全区间无回本点」**，不吹 PB） |
-| 11 | **可视化平台 / 数据资产化分析**（4/10） | Streamlit **八页签**统一门户（总览/图文/文本/医疗/工业/证据链/清洗过程/阈值沙盘）；日报 + 驾驶舱 | `scripts/showcase_app.py`、`data/reports/daily/` | ✅（V6 W5 计划搬进 pip 包） |
+| 11 | **可视化平台 / 数据资产化分析**（4/10） | 免安装演示页（产品介绍 → 硬数字+出处 → 真实跑批快照 → 诚实边界）+4 个专题 Streamlit 深潜入口 | `webdemo/index.html`、`webdemo/serve.py`、`scripts/ops_dashboard.py` | ✅（零依赖 stdlib 服务，快照与路径解耦） |
 | 12 | **视频 / 音频模态（FFmpeg 抽帧、ASR、Librosa）**（4/10） | 四模态：文本 / 图像 / FHIR / 工业时序；**无视频、无音频** | `DOMAIN_PACKS.md` | 🔴 **缺（V6 未覆盖，需新增）** |
 | 13 | **断点续跑 / 容错 / 幂等**（3/10） | 爬虫侧幂等 + 断点续爬；ops 飞轮「失败仍出日报、单源失败不阻塞」 | `web_sources.py`、`ops_backlog.md` | 🟡 执行层**无 checkpoint**（V6 W4 计划） |
 | 14 | **评测集与训练集物理隔离 / 防污染**（3/10） | benchmark seed 隔离 + md5/MinHash 双重防污染 + SFT 结构性排除（代码级不相交） | `benchmarks/builder.py`、`tuning/judge_data.py` | ✅ |

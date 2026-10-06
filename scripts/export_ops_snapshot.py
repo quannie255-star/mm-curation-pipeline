@@ -165,7 +165,131 @@ def main() -> int:
         f"{manifest['total_bytes'] / 1024:.1f} KB -> {OUT_DIR.relative_to(REPO)}"
     )
     print(f"清单：{MANIFEST.relative_to(REPO)}")
+
+    n_claims = export_claims()
+    print(f"对外数字：{n_claims} 个结论（现算自 claims.json + 评测报告，可按 claim id 取）")
     return 0
+
+
+def export_claims() -> int:
+    """把 `docs/claims.json` 里登记的对外数字**现算**成 `data/claims_rendered.json`。
+
+    ## 为什么页面不直接写死数字
+
+    项目一贯纪律是「数字接唯一真相源」：README /产品页 / 简历里的每个数字都来自
+    `claims.json`，页面对不上注册表就生成失败。**网页也该守同一条**——
+    否则公网那页会变成唯一一个「手抄数字」的地方，而它恰恰是最容易被截图传播、
+    最不容易被发现抄错的地方（本地文档改了，线上那页还挂着旧数字，没人会发现）。
+
+    所以：构建期现算→ 写进快照目录 → 页面运行时读它。数字仍然只有一处来源。
+
+    **只取门面（facades），不取claims**：`claims` 是「报告里必须等于这个值」的门禁，
+    页面要展示的是「文档里该写哪个字面量」——那是 `facades` 的职责，
+    它的 `fmt` / `scale` / `suffix` 正是渲染成人类可读数字所需的三件东西。
+    """
+    reg = json.loads((REPO / "docs" / "claims.json").read_text(encoding="utf-8"))
+    by_facade: dict[str, dict] = {}
+    by_claim: dict[str, dict] = {}
+    missing: list[str] = []
+
+    for f in reg.get("facades", []):
+        src = f.get("source") or {}
+        claim_id = src.get("claim") or src.get("baseline") or src.get("derived")
+        if not claim_id:
+            continue
+        try:
+            value = resolve(reg, claim_id, f)
+        except (KeyError, IndexError, TypeError, ValueError, FileNotFoundError) as exc:
+            missing.append(f"{f['id']}({type(exc).__name__})")
+            continue
+        item = {"value": value, "text": render(value, f), "note": f.get("note", "")}
+        by_facade[f["id"]] = item
+        # 同一个 claim 被多个文档门面引用（实测最多 8 个），渲染结果一样。
+        # **额外按 claim id 索引一份**，让网页不必知道门面 id 长什么样——
+        # 门面 id 里带文档名（`README_md__xxx`），文档一改/新增页面就失效。
+        # 页面真正要的是「`soul_dirty_r1` 这个结论的值」，与它写在哪份文档无关。
+        # 冲突时（同一 claim 被渲染成不同字面量，说明注册表自相矛盾）必须报出来。
+        prev = by_claim.get(claim_id)
+        if prev is not None and prev["text"] != item["text"]:
+            missing.append(f"CONFLICT {claim_id}: {prev['text']} vs {item['text']}")
+        by_claim[claim_id] = item
+
+    # 缺失必须显式报出来，且**计数**——静默少几条会让页面悄悄少一块内容
+    payload = {
+        "rendered_at": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
+        "count": len(by_facade),
+        "claim_count": len(by_claim),
+        "missing": missing,
+        "items": by_facade,
+        "claims": by_claim,
+    }
+    (OUT_DIR / "claims_rendered.json").write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n"
+    )
+    if missing:
+        print(f"  [warn] {len(missing)} 条门面没能现算：{missing[:5]}", file=sys.stderr)
+    return len(by_claim)
+
+
+def _load_json(rel: str) -> object:
+    return json.loads((REPO / rel).read_text(encoding="utf-8"))
+
+
+def _walk(doc: object, pointer: str) -> object:
+    """只支持 `a.b[0].c`（与 `verify_claims.py` 一致；不支持 JSONPath 过滤）。"""
+    cur = doc
+    for part in pointer.split("."):
+        while "[" in part:
+            head, rest = part.split("[", 1)
+            if head:
+                cur = cur[head]
+            idx, part = rest.split("]", 1)
+            cur = cur[int(idx)]
+            part = part.lstrip(".")
+        if part:
+            cur = cur[part]
+    return cur
+
+
+def resolve(reg: dict, claim_id: str, facade: dict) -> float:
+    """取一个门面的底层数值。基线 / 派生 / 报告三种来源分别处理。
+
+    ⚠️ **不要强转 float**。`fmt` 有`'d'`（整数）这一类，强转成 `625.0` 之后
+    `format(625.0, 'd')` 抛 `ValueError: Unknown format code 'd'`。
+    `verify_claims.render_value` 也是直接拿原值 `format`，所以这里必须同样——
+    否则同一个门面在门禁里是过的、在网页导出时炸。
+
+    **派生值直接 import `verify_claims.compute_derived`**，不在这里重写一遍 ——
+    两处各写一份正则算法，早晚会漂移，而漂移的后果是「门禁过了但网页数字错了」
+    或者反过来。**口径只有一处，才谈得上一致。**
+    """
+    src = facade.get("source") or {}
+    if "baseline" in src:
+        return reg["baselines"][claim_id]
+    if "derived" in src:
+        return _derived()[claim_id]
+    for c in reg.get("claims", []):
+        if c.get("id") == claim_id:
+            return _walk(_load_json(c["file"]), c["pointer"])
+    raise KeyError(claim_id)
+
+
+_DERIVED: dict[str, int | None] | None = None
+
+
+def _derived() -> dict[str, int | None]:
+    global _DERIVED
+    if _DERIVED is None:
+        sys.path.insert(0, str(REPO / "scripts"))
+        from verify_claims import compute_derived  # noqa: PLC0415 - 运行时才导入
+
+        _DERIVED = compute_derived(json.loads((REPO / "docs" / "claims.json").read_text("utf-8")))
+    return _DERIVED
+
+
+def render(value: float, f: dict) -> str:
+    """与 `verify_claims.py` 的 `render_value` 同构：`format(v*scale, fmt) + suffix`。"""
+    return format(value * f.get("scale", 1), f.get("fmt", "g")) + f.get("suffix", "")
 
 
 def verify() -> int:

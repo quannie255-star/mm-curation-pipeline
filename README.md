@@ -6,20 +6,32 @@
 > **面向岗位**：AI 数据开发 / AI 数据工程 / 数据平台开发（调研见 [JD_RESEARCH](docs/JD_RESEARCH.md)）。
 > **判据**（下面每一项都能被追问到底，见 [PROOF_CHAIN](docs/PROOF_CHAIN.md)）。
 
+## 30 秒入口（从这里开始）
+
+> 没时间读全文？看这 5 个数，以及它们各自回答什么质疑。
+
+| # | 数据工程能力 | 硬数字 | 回答的质疑 |
+|---|---|---|---|
+| 1 | **质检能证明有效** | 脏索引 → 净索引 Recall@1 **0.459 → 0.556（+21%）** | 「清洗效果怎么证明？」 |
+| 2 | **脏数据真的伤模型** | CLIP 干净集 vs 脏集微调 R@1 **0.688 vs 0.636**；中文语料 GPT-2 困惑度 **7.16 vs 7.70** | 「只是检索指标好看吧？」 |
+| 3 | **换数据源不用重写** | 同一协议**零特例**接入第二模态（30.2 万篇维基）；local/Ray 双运行时**逐 id 零差异** | 「换数据是不是要重写？」 |
+| 4 | **有运行概念的数据系统** | 湖分区 + DuckDB 契约闸门；分区裁剪有**字节级**证据（见 [PLATFORM](docs/PLATFORM.md)） | 「这不就是几个脚本？」 |
+| 5 | **通用模型不认识你的域** | 通用判官 κ **-0.024** → 域专属 LoRA 判官 **+0.560**；偏好判官 0.532 → **0.839** | 「LLM 打分不就行了？」 |
+
+> 敢报阴性结果：δ 判官 κ≈0 判不合格、η-b 未达标、域外 κ 0.560→0.178 —— **全部原样落文档**。
+>
+> 上表 5 个数字的追问预案见 [docs/INTERVIEW.md](docs/INTERVIEW.md)；
+> 自测题库见 [docs/INTERVIEW_SELFTEST.md](docs/INTERVIEW_SELFTEST.md)（44 题四层）。
+
 [![CI](https://github.com/quannie255-star/mm-curation-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/quannie255-star/mm-curation-pipeline/actions/workflows/ci.yml)
 [![Data CI](https://github.com/quannie255-star/mm-curation-pipeline/actions/workflows/data-ci.yml/badge.svg)](https://github.com/quannie255-star/mm-curation-pipeline/actions/workflows/data-ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 
-> **想先看结论再读代码？** → **[在线产品页](docs/product.html)**（单页自包含，免安装）：
-> 三十秒结论 + 每个数字的出处 + **诚实边界** + 真实跑批看板 + 自己验一遍的三条命令。
-> 页面数字不手写——由 [`docs/claims.json`](docs/claims.json) 现算，页面对不上注册表就**生成失败**。
+> **免安装先看结论 →** [公网演示](https://mm-curation-showcase.app.workbuddy.host/)（产品介绍 → 硬数字+出处 → 真实跑批快照 → 诚实边界）
+> ｜ 单机版 [docs/product.html](docs/product.html)
 >
-> 想看**跑完之后的库长什么样**（真实数据、免安装）→ **[平台运行态演示](https://mm-curation-showcase.app.workbuddy.host/)**。
-> 它是 prod 环境一次真实跑批结果的**只读快照**（导出时间戳常驻页面上，不是实时库）：
-> 数据集健康、日趋势、设备维表、运行台账，端点形状与真实 `ServiceCore` 一致。
-> 数字不在此手抄——页面上每个数都来自 [`webdemo/data/`](webdemo/) 的快照文件，
-> 导出命令 `python -X utf8 scripts/export_ops_snapshot.py`。
+> 这两页的数字都不手抄：由 [`docs/claims.json`](docs/claims.json) 现算，**页面对不上注册表就生成失败**。
 
 ## 自己验一遍（三条命令，不用 GPU、不用下载数据）
 
@@ -35,21 +47,6 @@ python -X utf8 scripts/gap_audit_probe.py
 # ③ 证明上面两道门禁不是装饰：6 个变异全部应被拦红（临时沙箱里跑，不碰你的工作区）
 python -X utf8 scripts/mutation_test_claims_gate.py
 ```
-
-## 面试官 30 秒入口
-
-> 没时间读全文？看这 5 个数，以及它们各自回答什么质疑。
-
-| # | 数据工程能力 | 硬数字 | 回答的质疑 |
-|---|---|---|---|
-| 1 | **质检能证明有效** | 脏索引 → 净索引 Recall@1 **0.459 → 0.556（+21%）** | 「清洗效果怎么证明？」 |
-| 2 | **脏数据真的伤模型** | CLIP 干净集 vs 脏集微调 R@1 **0.688 vs 0.636**；中文语料 GPT-2 困惑度 **7.16 vs 7.70** | 「只是检索指标好看吧？」 |
-| 3 | **换数据源不用重写** | 同一协议**零特例**接入第二模态（30.2 万篇维基）；local/Ray 双运行时**逐 id 零差异** | 「换数据是不是要重写？」 |
-| 4 | **有运行概念的数据系统** | 湖分区 + DuckDB 契约闸门；分区裁剪有**字节级**证据（见 [PLATFORM](docs/PLATFORM.md)） | 「这不就是几个脚本？」 |
-| 5 | **通用模型不认识你的域** | 通用判官 κ **-0.024** → 域专属 LoRA 判官 **+0.560**；偏好判官 0.532 → **0.839** | 「LLM 打分不就行了？」 |
-
-敢报阴性结果：δ 判官 κ≈0 判不合格、η-b 未达标、域外 κ 0.560→0.178 —— **全部原样落文档**。
-追问预案见 [docs/INTERVIEW.md](docs/INTERVIEW.md)，自测题库见 [自测题库](docs/INTERVIEW_SELFTEST.md)（44 题四层）。
 
 ## Demo 一览（Streamlit 四 Tab 实录）
 
@@ -91,7 +88,7 @@ python -X utf8 scripts/mutation_test_claims_gate.py
 | **域专属判官**（judge_news_v1 冻结 benchmark） | 通用 κ → LoRA 微调 κ | **-0.024 → +0.560**（P=0.706 / R=0.960 / 解析率 100%，验收线 ≥0.5） |
 | **偏好闭环**（DPO + persona-oracle 协议） | 双判官命中率 / 分歧率 | **0.933 / 0.867 · 0.783**（线 ≥0.75 / ≥40%）；域外 κ 0.560→0.178 如实报 |
 | **偏好判官工坊**（五步向导，冻结考卷 77 题） | 通用 → 个人判官命中率 | **0.532 → 0.839（+30.6pp）**；学习曲线 188 对未学会 / 488 对达标 |
-| **工程** | 单元测试 | **625 + 67 = 692**（主仓库 + curation-eval 包；包侧 5 条 Ray 测试需装 ray 才被收集，未装的环境/CI 为 62） |
+| **工程** | 单元测试 | **600 + 67 = 667**（主仓库 + curation-eval 包；包侧 5 条 Ray 测试需装 ray 才被收集，未装的环境/CI 为 62） |
 
 > **一条线的完整读法**：脏数据 → 11 级漏斗 → 干净集（R@1 +21%）→ 分层采样（再 +18~24%）
 > → 把「代理指标」升级为「训练证据」（脏集微调 CLIP 比 clean 低 5.2pp R@1；文本侧脏语料困惑度 +7.5%）

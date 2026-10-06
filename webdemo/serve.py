@@ -116,6 +116,14 @@ def load_manifest() -> dict:
     return json.loads(MANIFEST.read_text(encoding="utf-8"))
 
 
+def _load_raw(name: str) -> dict:
+    """读一个快照文件，**不做** records 转换（claims_rendered 没有 columns/rows）。"""
+    p = DATA / f"{name}.json"
+    if not p.exists():
+        raise SnapshotMissing(name)
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "mmc-ops-demo/1.0"
     protocol_version = "HTTP/1.1"
@@ -158,6 +166,11 @@ class Handler(BaseHTTPRequestHandler):
                 )
             elif path == "/api/manifest":
                 self._json(load_manifest())
+            elif path == "/api/claims":
+                # 对外数字：**构建期现算**进claims_rendered.json，页面只读不算。
+                # 这样网页上的每个数字仍只有一处来源（claims.json + 评测报告），
+                # 不需要让沙箱里的服务去读仓库里的文档/报告。
+                self._json(_load_raw("claims_rendered"))
             elif path == "/api/datasets":
                 self._json(self._datasets())
             elif path == "/api/runs":
@@ -221,7 +234,8 @@ def main() -> int:
     if not port:
         port = 8080
 
-    missing = [str(p.relative_to(HERE)) for p in (INDEX, MANIFEST) if not p.exists()]
+    needed = (INDEX, MANIFEST, DATA / "claims_rendered.json")
+    missing = [str(p.relative_to(HERE)) for p in needed if not p.exists()]
     if missing:
         print(
             f"[FAIL] 缺文件：{missing}\n先跑 python -X utf8 scripts/export_ops_snapshot.py",
