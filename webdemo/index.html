@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>平台运行态 · 多模态数据治理平台</title>
+<style>
+  :root{
+    --bg:#f7f8fa; --card:#fff; --line:#e3e6ea; --text:#1a1d21; --muted:#6b7280;
+    --accent:#2563eb; --ok:#0f7b4f; --ok-soft:#e6f5ee; --warn:#a16207; --warn-soft:#fef6e0;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#14161a; --card:#1c1f25; --line:#2b3038; --text:#e8eaed; --muted:#9aa3af;
+           --accent:#60a5fa; --ok:#4ade80; --ok-soft:#123024; --warn:#fbbf24; --warn-soft:#332a10; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 60px}
+  h1{font-size:24px;margin:0 0 6px}
+  h2{font-size:17px;margin:34px 0 12px;padding-top:16px;border-top:1px solid var(--line)}
+  .sub{color:var(--muted);font-size:13.5px;margin:0 0 18px}
+  .banner{background:var(--warn-soft);border:1px solid var(--warn);color:var(--text);
+    border-radius:8px;padding:11px 14px;margin:16px 0;font-size:13.5px}
+  .banner b{color:var(--warn)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+  .card .k{font-size:12px;color:var(--muted)}
+  .card .v{font-size:20px;font-weight:650;margin-top:3px;font-variant-numeric:tabular-nums}
+  .chart{height:280px;background:var(--card);border:1px solid var(--line);border-radius:8px;margin:12px 0}
+  table{border-collapse:collapse;width:100%;font-size:13px;background:var(--card);
+    border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  th,td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{background:color-mix(in srgb,var(--card) 92%,var(--text));font-weight:600;font-size:12.5px}
+  tr:last-child td{border-bottom:none}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .muted{color:var(--muted);font-size:12.5px}
+  select{background:var(--card);color:var(--text);border:1px solid var(--line);
+    border-radius:6px;padding:6px 10px;font-size:13.5px}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 4px}
+  .tabs button{background:var(--card);color:var(--muted);border:1px solid var(--line);
+    border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px}
+  .tabs button[aria-selected="true"]{color:var(--accent);border-color:var(--accent);font-weight:600}
+  code{background:color-mix(in srgb,var(--card) 90%,var(--text));padding:1px 5px;border-radius:4px;
+    font-size:12.5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  a{color:var(--accent)}
+  .err{color:#b91c1c;background:#fee2e2;border:1px solid #ef4444;border-radius:6px;padding:10px}
+  @media (prefers-color-scheme: dark){ .err{color:#fecaca;background:#3b1414} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>平台运行态</h1>
+  <p class="sub">多模态数据治理平台 · 一次真实跑批后的库内状态</p>
+
+  <div class="banner" id="banner">
+    <b>这是快照，不是实时库。</b>
+    <span id="stamp">正在读取快照时间…</span>
+    数据由 <code>scripts/export_ops_snapshot.py</code> 从 prod 环境的 DuckDB 导出。
+    本地跑 <code>mm_curation.cli run</code> + <code>promote</code> 后重新导出即可刷新。
+  </div>
+
+  <div class="cards" id="cards"></div>
+
+  <h2>数据集健康</h2>
+  <p class="muted">对应真实服务的 <code>/api/datasets</code>。丢弃率高的是合成脏数据轨，
+     真实传感器轨为 0——那批数据本身干净。</p>
+  <div id="dsChart" class="chart"></div>
+  <noscript><p class="muted">（图表需要 JS，下面的表格是等价数据。）</p></noscript>
+  <div id="dsTable"></div>
+
+  <h2>明细</h2>
+  <div class="tabs" id="tabs">
+    <button data-k="daily" aria-selected="true">日趋势（dws_dataset_day）</button>
+    <button data-k="dims" aria-selected="false">维表（dim_device）</button>
+    <button data-k="runs" aria-selected="false">运行台账（job_runs）</button>
+  </div>
+  <p class="muted" style="margin:8px 0">
+    数据集
+    <select id="pick"></select>
+  </p>
+  <div id="detail"></div>
+
+  <h2>这个页面在证明什么</h2>
+  <ul class="muted" style="line-height:1.9;padding-left:20px">
+    <li>全链路在<b>真实数据</b>上跑通：ods → dims → dwd → dws → ads → 视图 → 契约 → 观测 → 晋升。</li>
+    <li>服务层读的 4 张表<b>全在湖上</b>——修过一个「契约闸门 10/10 全绿但 prod 端点 500」的 bug，
+        根因是维表压根没进数据湖。</li>
+    <li>端点形状与真实 <code>ServiceCore</code> 一致（<code>{masked_cols, rows}</code>），
+        唯一差别是数据来自快照。</li>
+  </ul>
+
+  <p class="muted" style="margin-top:40px;padding-top:14px;border-top:1px solid var(--line)">
+    源码 <a href="https://github.com/quannie255-star/mm-curation-pipeline">github.com/quannie255-star/mm-curation-pipeline</a>
+    · <a href="/api/manifest">快照清单 JSON</a>
+  </p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const fmt = n => (n==null?'—':Number(n).toLocaleString('en-US'));
+const pct = n => (n==null?'—':(Number(n)*100).toFixed(1)+'%');
+let DS = [], PICK = null, MODE = 'daily';
+
+async function j(url){
+  const r = await fetch(url);
+  if(!r.ok) throw new Error((await r.json().catch(()=>({}))).error || ('HTTP '+r.status));
+  return r.json();
+}
+
+function table(cols, rows){
+  if(!rows.length) return '<p class="muted">（无数据）</p>';
+  const isNum = c => rows.some(r => typeof r[c]==='number');
+  const head = cols.map(c=>`<th class="${isNum(c)?'num':''}">${c}</th>`).join('');
+  const body = rows.map(r=>`<tr>${cols.map(c=>{
+    const v = r[c];
+    return `<td class="${isNum(c)?'num':''}">${v==null?'—':String(v)}</td>`;
+  }).join('')}</tr>`).join('');
+  return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+function draw(){
+  if(typeof echarts === 'undefined') return;          // CDN 不可达 → 表格已在，别报错
+  const el = document.getElementById('dsChart');
+  if(!el || !DS.length) return;
+  const c = echarts.init(el, null, {renderer:'svg'});
+  c.setOption({
+    tooltip:{trigger:'axis'},
+    legend:{data:['保留','拦下'],textStyle:{fontSize:12}},
+    grid:{left:60,right:16,top:36,bottom:52},
+    xAxis:{type:'category',data:DS.map(d=>d.dataset),
+           axisLabel:{rotate:28,fontSize:11}},
+    yAxis:{type:'value',axisLabel:{formatter:v=>v>=1000?(v/1000)+'k':v}},
+    series:[
+      {name:'保留',type:'bar',stack:'a',data:DS.map(d=>Number(d.n_kept||0)),
+       itemStyle:{color:'#2563eb'}},
+      {name:'拦下',type:'bar',stack:'a',data:DS.map(d=>Number(d.n_dropped||0)),
+       itemStyle:{color:'#f59e0b'}}
+    ]
+  });
+  addEventListener('resize', ()=>c.resize());
+}
+
+function cards(){
+  const tot = DS.reduce((s,d)=>s+Number(d.n_total||0),0);
+  const drop = DS.reduce((s,d)=>s+Number(d.n_dropped||0),0);
+  const part = DS.reduce((s,d)=>s+Number(d.n_partitions||0),0);
+  const dev  = DS.reduce((s,d)=>s+Number(d.n_devices||0),0);
+  $('#cards').innerHTML = [
+    ['数据集', DS.length], ['总行数', fmt(tot)], ['湖上分区', fmt(part)],
+    ['漏斗拦下', fmt(drop)], ['设备数', fmt(dev)]
+  ].map(([k,v])=>`<div class="card"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+}
+
+async function detail(){
+  const el = $('#detail');
+  el.innerHTML = '<p class="muted">加载中…</p>';
+  try{
+    if(MODE==='runs'){
+      const r = await j('/api/runs');
+      el.innerHTML = table(['run_id','job_name','status','batch_date','duration_s','git_sha'], r.rows);
+      return;
+    }
+    const base = `/api/datasets/${encodeURIComponent(PICK)}/${MODE==='daily'?'daily':'dims'}`;
+    const r = await j(base);
+    if(!r.rows.length){ el.innerHTML = '<p class="muted">（该数据集在此快照里没有记录）</p>'; return; }
+    const cols = Object.keys(r.rows[0]);
+    let extra = '';
+    if(r.truncated){
+      extra = `<p class="muted">共 ${fmt(r.n_total)} 行，此处显示前 ${r.page_max} 行
+               （全量有 ${fmt(r.n_total)} 行，页面只给前 ${r.page_max} 行
+               ——截断是为了浏览器不卡住，数字写在明处）。</p>`;
+    }
+    if(MODE==='daily'){
+      const ds = r.rows.map(x=>x.event_date), kept=r.rows.map(x=>Number(x.n_kept||0)),
+            drop=r.rows.map(x=>Number(x.n_dropped||0));
+      el.innerHTML = extra +
+        `<div id="dayChart" class="chart"></div><noscript><p class="muted">（图表需要 JS）</p></noscript>` +
+        table(cols, r.rows);
+      if(typeof echarts !== 'undefined'){
+        const c = echarts.init(document.getElementById('dayChart'), null, {renderer:'svg'});
+        c.setOption({tooltip:{trigger:'axis'},
+          legend:{data:['保留','拦下'],textStyle:{fontSize:12}},
+          grid:{left:60,right:16,top:36,bottom:56},
+          xAxis:{type:'category',data:ds,axisLabel:{rotate:30,fontSize:10}},
+          yAxis:{type:'value'},
+          series:[{name:'保留',type:'line',data:kept,smooth:false,itemStyle:{color:'#2563eb'}},
+                  {name:'拦下',type:'line',data:drop,itemStyle:{color:'#f59e0b'}}]});
+        addEventListener('resize', ()=>c.resize());
+      }
+    } else {
+      el.innerHTML = extra + table(cols, r.rows);
+    }
+  }catch(e){ el.innerHTML = `<p class="err">${e.message}</p>`; }
+}
+
+(async function(){
+  try{
+    const m = await j('/api/manifest');
+    $('#stamp').innerHTML = `快照导出于 <b>${m.exported_at}</b>，共 ${m.total_rows} 行 / ${m.tables.length} 张表。`;
+    const d = await j('/api/datasets');
+    DS = d.rows;
+    cards(); draw();
+    $('#pick').innerHTML = DS.map(x=>`<option>${x.dataset}</option>`).join('');
+    PICK = DS.length ? DS[0].dataset : null;
+    $('#dsTable').innerHTML =
+      table(['dataset','n_total','n_kept','n_dropped','drop_rate','n_partitions','n_devices','last_event_date'],
+            DS.map(r=>({...r, drop_rate: pct(r.drop_rate)})));
+    await detail();
+  }catch(e){
+    $('#banner').innerHTML = `<span class="err">读不到快照：${e.message}</span>`;
+  }
+})();
+
+$('#pick').addEventListener('change', e=>{ PICK = e.target.value; detail(); });
+$('#tabs').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  [...e.currentTarget.children].forEach(x=>x.setAttribute('aria-selected', x===b));
+  MODE = b.dataset.k; detail();
+});
+</script>
+</body>
+</html>

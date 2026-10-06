@@ -46,6 +46,7 @@ data/reports/
 # 重生成见 RUNBOOK §1.22；改版式改 scripts/templates/real_data_page.html
 docs/real_data.html
 site/
+webdemo/data/
 .cache/
 # 本地转换的模型权重（CLIP ~750MB / GPT-2 zh ~500MB）
 models/
