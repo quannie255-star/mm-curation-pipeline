@@ -13,7 +13,7 @@
   "baselines_note": "baselines 是不来自报告 JSON、但同样要全文档一致的“基线数字”（测试条数）。改一处，门禁列出所有没跟上的文档。2026-09-30 实点：主仓 624（glm 39946ba 补了 1 条 store 搬迁回归测试，文档未同步）+ 包 67 = 691。",
   "derived_note": "derived：可由源文档自己数出来的结构性计数（笔记条数 / 题库题数）。声明「文件 + 正则 + 计数语义」，verify_claims.py 现算；kind=count_contiguous 额外要求编号连续无重号。门面可用 {\"derived\": \"<id>\"} 引用——这样「N 条」不会跟着文档一起腐烂。",
   "coverage_note": "coverage_ceiling：门面正文的数字覆盖率棘轮。脚本扫描正文里「数字形状」的 token，减去已登记字面量 / 基线 / 派生值 / number_allowlist，剩下的未登记清单长度必须 ≤ 上限——只许降不许升。来源：实点「66 条门面只覆盖 11 个不同字面量」。",
-  "facade_floor": 64,
+  "facade_floor": 66,
   "number_allowlist": [
    "3.11",
    "8000",
@@ -1025,6 +1025,33 @@
    "literal": "0.19%",
    "min_count": 1,
    "note": "README 算子表里 clip_alignment 干净集误杀率，由 operator_pr.json 现算"
+  },
+  {
+   "id": "ROADMAP_md__tests_main",
+   "doc": "docs/ROADMAP.md",
+   "source": {
+    "baseline": "tests_main"
+   },
+   "fmt": "d",
+   "scale": 1,
+   "suffix": "",
+   "literal": "600",
+   "min_count": 1,
+   "note": "路线图规模基线里的「主仓 N」"
+  },
+  {
+   "id": "ROADMAP_md__tests_total",
+   "doc": "docs/ROADMAP.md",
+   "source": {
+    "baseline": "tests_total"
+   },
+   "fmt": "d",
+   "scale": 1,
+   "suffix": "",
+   "literal": "667",
+   "min_count": 2,
+   "note": "路线图里出现两处的总基线（34 行与 51 行）",
+   "must_contain": "667 条测试"
   }
  ],
  "derived": [
