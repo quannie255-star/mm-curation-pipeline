@@ -102,6 +102,13 @@ data/golden/
 # Studio 网页版（scripts/run_studio.py）把用户上传数据的清洗产物落在 data/studio/<名>/
 # —— 与 data/processed/ 同性质的可重建运行时产物，绝不能入库
 data/studio/
+# 训练数据集制品（scripts/build_dataset.py 的产物）：Parquet shard + manifest。
+# ⚠️ 与 data/reports/ 同类——**生成物**。入库会与「报告是生成物」的原则冲突：
+#    gate-ci 有条断言「干净检出里 claim 层必须 0 PASS」，而 claims.json 有多条
+#    指向 datasets/*/manifest.json；一旦入库，CI 上 claim 层不再空转 → 断言变红
+#    （2026-10-10 实测栽过：本地全绿、推上去 gate-ci 红）。
+# 重建：RUNBOOK（run_pipeline → build_dataset.py → verify_dataset_consumable.py）。
+datasets/
 # shell 重定向写错位置留下的空文件（本轮 heredoc 事故产物）
 /=
 .genie

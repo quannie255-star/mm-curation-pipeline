@@ -35,22 +35,28 @@
 
 - **入库**：`src/mm_curation/{agent,synthesis,dataset,studio,text_quality_classifier,operators/substring_dedup}`
   + 对应 `tests/` + `scripts/*_gate.py` / 诊断脚本 + `configs/{news_zh_funnel,detection_slo,pipeline.v3_full_coverage}.yaml`
-  + `warehouses/`（dbt）+ 6 份新文档（NARRATIVE / STUDIO / DATASET_PRODUCTION / GAP_ANALYSIS / PLATFORM_ROADMAP / 评审两件）
-  + **`datasets/`（15 文件 / ~2.4 MB）**——它是本轮的**交付物本身**
-  （README 的「可直接训练的数据集」），且 `claims.json` 的 `cmp_raw_leaks` 就指向
-  `datasets/news_zh_v1_raw/manifest.json`；与 `benchmarks/` 同地位，属入库资产。
-- **不入库**：`data/studio/`（Studio 网页版的运行时产物）。本轮补 `.gitignore` 规则
-  ——此前它**没有任何规则覆盖**（`data/processed/` 被忽略了，但 `data/studio/` 没有，
-  又一次「忽略某个子目录 ≠ 忽略整棵树」）。
+  + `warehouses/`（dbt）+ 6 份新文档（NARRATIVE / STUDIO / DATASET_PRODUCTION / GAP_ANALYSIS /
+  PLATFORM_ROADMAP / 评审两件）。
+- **不入库**（本轮补的规则）：
+  - `datasets/`（`build_dataset.py` 产物）。**这条我改过一次，是本轮最贵的一课**：
+    先把 `datasets/` 一并入库，**本地全绿**；推上去 `gate-ci` **红了**——该工作流的
+    断言 1 写着「干净检出里 claim 层必须 0 PASS」，理由是**生成物入库会让「报告」与
+    「代码」出现两份真相**；而 `claims.json` 有 6 条指向 `datasets/*/manifest.json`，
+    一入库它们就在 CI 上真的被校验，断言应声而红。
+    ⇒ **`datasets/` 与 `data/reports/` 同类，属生成物，不进仓库**。
+    （判据早就写在 workflow 注释里，是我没读它。已 `git rm -r --cached datasets` 撤回，磁盘文件保留。）
+  - `data/studio/`（Studio 网页版运行时产物）。此前**没有任何规则覆盖**
+    （`data/processed/` 被忽略了，但 `data/studio/` 没有 —— 又一次「忽略某个子目录 ≠ 忽略整棵树」）。
 - **清掉**：根目录 3 个 0 字节事故文件（`=` 与两个 heredoc 写错位置留下的乱码名文件）。
 
 ## 四、下一个人需要知道的前提
 
 1. **基线只能改 `claims.json`**，改完跑 `verify_claims.py` 会列出全部待同步文档；
    `literal` 与 `must_contain` 必须一起改（只改一边撞另一侧红）。
-2. **`datasets/` 入库后会随重建变化**：`scripts/build_dataset.py` 重建会改
-   parquet 字节 → 产生 diff。若不想每次重建都提交，需在此明确「数据集是快照还是产物」。
-   **当前决定：快照入库**（它是对外可展示的交付物）。
+2. **`datasets/` 不入库（生成物）**：本机跑 `verify_claims.py` 时那 6 条指向
+   `datasets/*/manifest.json` 的 claim 能解析；CI 干净检出里它们走 `--reports-missing skip`。
+   **不要为了「仓库看起来更完整」把它提交** —— `gate-ci.yml` 的「claim 层必须 0 PASS」
+   断言就是为拦这个而存在的（本轮实测踩中一次）。
 3. **未完成未变**：ROADMAP 第 3 项 Agent 编排仍在建；
    「已被注册但长期未复核的 claim 主动标黄」这层棘轮未做；`make verify-claims` 与
    dbt 门禁仍未接 CI（`gate-ci.yml` 已入库，但只覆盖 verify_claims + 5 变异 + 3 静态门禁）。
