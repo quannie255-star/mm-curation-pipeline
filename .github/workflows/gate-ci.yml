@@ -1,0 +1,195 @@
+name: gate-ci
+
+# 结论可信度门禁（G6 / ROADMAP 第三节第 4 项）。
+#
+# ⚠️ 这个工作流回答的是**一个很具体的问题**：
+#   「本项目对外说的那些数字，凭什么第三方能复跑？」
+#
+# 与 ci.yml / data-ci.yml 的分工（**别混**）：
+#   - ci.yml       = 代码逻辑对不对（单测 + lint）
+#   - data-ci.yml  = 质量数字退化了没（阈值回归，合成带标注集）
+#   - **本文件**   = **对外数字与结论本身**有没有漂移，以及
+#                    **这些门禁本身是不是还活着**（变异测试进 CI）
+#
+# 为什么必须单独一个job：前两者都只需要「代码能跑」，
+# 而本工作流要验的是**判据**——判据腐烂不会让任何测试变红，
+# 它只会给你一个漂亮的满分。变异测试是唯一能证明「判据还会红」的手段。
+#
+# ⚠️ 关于 `data/reports/`：**它是生成物、不入库**（见 .gitignore）。
+#   所以干净检出里 `verify_claims.py` 的 15 条 claim 必然是「缺报告」。
+#   → claim 层**结构性地无法在 CI 上校验**，CI 真正能拦的是：
+#     ①facade（87 条）：文档门面 vs注册表的字面量比对，**不依赖 reports**
+#     ② derived（2 条）：结构性计数现算（笔记条数 / 自测题数）
+#     ③ coverage棘轮：未登记数字的上限，只许降不许升
+#     ④ 基线一致性：facade_floor（条数下限，只增不减）
+#   所以这里**显式传 --reports-missing skip**并在下一行断言：
+#   「skip 时 claim 层条数为 0 PASS」必须被看见 —— 否则就是在
+#   「门禁条数看起来齐全、实际一半没扫」的假绿状态里自我安慰。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 4 * * 1" # 每周一 04:00 UTC（比 data-ci 晚一小时，错开跑批）
+  workflow_dispatch:
+
+concurrency:
+  group: gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  claims-gate:
+    name: 对外数字锁定 + 覆盖率棘轮
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # 本门禁是 **纯 stdlib**（json/re/pathlib/unicodedata）。
+      # 刻意不装 pyyaml/torch/datasketch：它要能在最小环境里跑，
+      # 依赖越少，「本机绿 / CI 因缺依赖红」的空间越小。
+      - name: 对外数字 vs 文档门面 逐条比对
+        run: |
+          python -X utf8 scripts/verify_claims.py --reports-missing skip | tee gate-claims.txt
+
+      # ── 断言 1：claim 层确实一条都没校验（把「空转」写在脸上）──────
+      # 这不是形式主义。verify_claims.py 曾经有个真缺陷：
+      # `missing` 只进汇总行、不进 n_drift → 干净检出上 0 PASS / 15 缺失
+      # 却 rc=0。已修（--reports-missing，默认 fail）。此断言是**双保险**：
+      # 哪天有人把默认值改回skip 而忘了这个断言，红的就是这里。
+      - name: 断言 claim 层在 CI 上未被校验（预期空转，必须显式知晓）
+        run: |
+          set -euo pipefail
+          line=$(grep -E '^[0-9]+ 条 claim：' gate-claims.txt | tail -1)
+          echo "汇总行：$line"
+          if echo "$line" | grep -qvE '^[0-9]+ 条 claim：0 PASS'; then
+            echo "::error::干净检出里 claim 层理应 0 PASS（报告是生成物、不入库）。"
+            echo "::error::若这里非 0，说明 data/reports/ 被误提交进仓库了 —— "
+            echo "::error::生成物入库会让'报告'与'代码'出现两份真相。"
+            exit 1
+          fi
+          echo "✅ claim 层0 PASS 已显式确认（facade/derived/coverage 三层仍在生效）"
+
+      # ── 断言 2：facade 与 derived 真的在扫（防「门禁绿了但没在扫」）──
+      # 记忆里的判据纪律：门禁条数 ≠覆盖面；门禁配置项被删 = 静默失效。
+      # 所以这里不满足于 rc=0，还要**核对条数下限**。
+      - name: 断言 facade / derived 条数达到下限
+        run: |
+          set -euo pipefail
+          # ⚠️ `|| true` 不是装饰：`set -e` 下 `x=$(grep ...)` 在 grep 无命中时
+          # 会让整个 step 直接退出（rc=1），报错位置离原因很远。
+          fac=$(grep -E '^[0-9]+ 条门面：' gate-claims.txt | tail -1 || true)
+          der=$(grep -E '^[0-9]+ 条派生计数：' gate-claims.txt | tail -1 || true)
+          floor=$(grep -E '^门面条数' gate-claims.txt | tail -1 || true)
+          echo "$fac"; echo "$der"; echo "$floor"
+
+          # ── 2a：三层汇总行必须都在 ──
+          # 「门禁绿了但没在扫」的最常见形态是**某层被整体删掉/改名**，
+          # 此时 grep 无命中、变量为空，下游 `[ "" -lt 80 ]` 会抛 bash 语法错：
+          # 红了，但红在一个看不懂的地方。先把「缺行」变成一句人话。
+          for v in "$fac" "$der" "$floor"; do
+            if [ -z "$v" ]; then
+              echo "::error::门禁输出缺少某一层的汇总行 —— 该层可能被删除或改名了"
+              echo "::error::这是「门禁绿了但没在扫」：先确认层还在，再谈条数"
+              exit 1
+            fi
+          done
+
+          n=$(echo "$floor" | sed -E 's/^门面条数 ([0-9]+).*/\1/')
+          if [ "$n" -lt 80 ]; then
+            echo "::error::facade 条数 $n 低于硬保底 80 —— 注册表可能被削过"
+            exit 1
+          fi
+          # floor 行自带 `pass` 才说明注册表下限检查本身也跑了
+          case "$floor" in
+            *pass*) ;;
+            *) echo "::error::门面条数行未标pass：注册表下限自检可能没执行"; exit 1;;
+          esac
+
+          # ── 2b：实际校验条数必须 **等于** 注册表条数 ──
+          # 这是原版断言的**真正意图**（注释里写着「facade 报绿但条数不足，属静默
+          # 失效」），但原实现把条件写成 `报绿 && n < 80`：
+          # 上一段已在 n<80 时 exit，所以第二个条件恒假 —— **一段永远不会响的
+          # 「第二道保险」比没有保险更坏**，它让人以为覆盖面被守着。
+          # 正确写法是比较**两个独立的量**：注册表声明了多少 vs 实际扫了多少。
+          fac_total=$(echo "$fac" | sed -E 's/^([0-9]+) 条门面.*/\1/')
+          fac_pass=$(echo "$fac" | sed -E 's/^.*：([0-9]+) PASS.*/\1/')
+          echo "facade：注册表 $fac_total 条，实际通过 $fac_pass 条"
+          if [ "$fac_total" != "$n" ]; then
+            echo "::error::facade 汇总条数 $fac_total != 注册表下限 $n —— 两处真相不一致"
+            exit 1
+          fi
+          if [ "$fac_pass" != "$fac_total" ]; then
+            echo "::error::facade 只校验了 $fac_pass/$fac_total 条 —— 部分门面没被扫到"
+            exit 1
+          fi
+
+          # 派生层同理：扫到的必须等于声明的，否则「0 异常」是空转出来的
+          der_total=$(echo "$der" | sed -E 's/^([0-9]+) 条派生计数.*/\1/')
+          der_pass=$(echo "$der" | sed -E 's/^.*：([0-9]+) PASS.*/\1/')
+          echo "derived：声明 $der_total 条，实际通过 $der_pass 条"
+          if [ "$der_pass" != "$der_total" ]; then
+            echo "::error::derived 只校验了 $der_pass/$der_total 条 —— 「0 异常」可能是空转"
+            exit 1
+          fi
+          echo "✅ facade / derived 两层都在扫，且扫到的条数与声明一致"
+
+      - name: 失败时打印完整门禁输出
+        if: failure()
+        run: cat gate-claims.txt
+
+  mutation-gate:
+    name: 变异测试（证明门禁还会红）
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # ⚠️ 变异测试必须**在任何测试之前**跑，且不许加 continue-on-error。
+      #    理由与 ci.yml 里format-check 的顺序事故同源：
+      #    如果变异测试排在别处且失败了，后面能挡住「变异没拦住」的
+      #    那道断言就永远不会执行 —— **步骤顺序本身就是门禁语义**。
+      #
+      # 本 job 只放**纯 stdlib、秒级**的变异测试：
+      #   claims_gate          = 对外数字门禁（claim/facade/derived/覆盖率）
+      #   no_absolute_paths    = 平台轨可移植性（禁本机绝对路径）
+      # 刻意**不放**另两个（agent_gate / detection_slo）：
+      #   它们要torch / 黄金集 / 数分钟跑批，放这里会让这个 job
+      #   从「秒级门禁」退化成「慢且易超时」。
+      #   要接它们，正确位置是 data-ci.yml（那边已经在装 numpy/pillow）。
+
+      # ⚠️ 必须排在**所有 bash 断言之前**。下面两条断言是本job 唯一的
+      # 「门禁还会红」证据，而它们本身也可能恒真/被写坏 ——
+      # 2026-10-08 实测抓到断言 2 的第二个条件恒假
+      #（`报绿 && n < 80`，而上游已在 n<80 时 exit），即
+      # 一段**永远不会响的第二道保险**，比没有保险更坏。
+      # 下列脚本就是为此存在：它从**本文件现取**断言（判据只定义一次），
+      # 用 4 组输入做双向验证，并自带装置自检。
+      - name: 变异测试：CI 自身的 bash 断言仍会红（6/6）
+        run: python -X utf8 scripts/mutation_test_ci_assertions.py
+
+      - name: 变异测试：对外数字门禁仍会红（6/6）
+        run: python -X utf8 scripts/mutation_test_claims_gate.py
+
+      - name: 变异测试：绝对路径门禁仍会红
+        run: python -X utf8 scripts/mutation_test_no_absolute_paths.py
+
+      # 静态一致性扫描（两个都是纯 stdlib，秒级）
+      - name: 静态门禁：禁本机绝对路径
+        run: python -X utf8 scripts/no_absolute_paths.py
+
+      - name: 静态门禁：YAML 注释不得与值粘连
+        run: python -X utf8 scripts/no_yaml_comment_collision.py
+
+      - name: 静态门禁：文本编码卫生
+        run: python -X utf8 scripts/encoding_hygiene.py

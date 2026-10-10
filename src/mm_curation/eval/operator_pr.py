@@ -66,6 +66,12 @@ OPERATOR_TARGETS: dict[str, list[str]] = {
     # **它不靶向 process_suspect**：多通道共同变化在本判据下是**保留**的，
     # 因为那是设备状态变了、读数合法（见工业算子模块 R9 段）。
     "sensor_multivariate": ["sensor_cal_offset", "sensor_out_of_range", "sensor_flatline"],
+    # G2（2026-10-08）：跨文档**精确子串**去重。
+    # 主靶写「空」而非 `near_duplicate_text`：MinHash 抓的是「整篇近似」，
+    # 本算子抓的是「**共享长逐字子串**」（许可证头、爬虫模板、免责声明）。
+    # 两者在注入数据上是同一类脏，但语义不同 —— 登记成近似重复会让
+    # 报告把它的贡献记到 MinHash 名下，看不出这是**新增的一层去重**。
+    "substring_dedup": [],
 }
 
 

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>多模态数据清洗 Studio</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <h1>多模态数据清洗 Studio</h1>
+  <p class="sub">上传你自己的数据 → 选业务场景 → 得到可直接训练的数据集</p>
+  <p class="privacy">🔒 所有文件只在你自己的电脑上处理，不会上传到任何服务器</p>
+</header>
+
+<main>
+  <!-- 步骤条 -->
+  <nav id="steps">
+    <span class="step active" data-n="1"><b>1</b> 选场景</span>
+    <span class="step" data-n="2"><b>2</b> 上传数据</span>
+    <span class="step" data-n="3"><b>3</b> 跑清洗</span>
+    <span class="step" data-n="4"><b>4</b> 拿数据集</span>
+  </nav>
+
+  <!-- ── 1. 场景 ── -->
+  <section id="panel1" class="panel on">
+    <h2>你的数据是什么类型？</h2>
+    <p class="hint">选一个最接近的。不确定就选最像的 —— 后面能看到清洗了什么、丢了什么。</p>
+    <div id="cards" class="cards"><p class="loading">正在加载场景…</p></div>
+  </section>
+
+  <!-- ── 2. 上传 ── -->
+  <section id="panel2" class="panel">
+    <h2>上传你的数据</h2>
+    <div id="fmt" class="fmtbox"></div>
+
+    <div class="uploadrow">
+      <label class="file">
+        <input type="file" id="dataFile" accept=".jsonl,.json,.csv,.tsv,.txt">
+        <span>① 选择数据文件</span>
+      </label>
+      <span class="fname" id="dataName">未选择</span>
+    </div>
+
+    <div class="uploadrow" id="imgRow">
+      <label class="file">
+        <input type="file" id="imgFile" accept=".zip">
+        <span>② 选择图片包（zip）</span>
+      </label>
+      <span class="fname" id="imgName">未选择</span>
+    </div>
+
+    <div class="trial">
+      <label>
+        <input type="checkbox" id="trialChk"> 先试跑一小批（推荐先做这步，确认效果再全量）
+      </label>
+      <input type="number" id="trialN" value="200" min="1" max="100000" disabled>
+      <span class="unit">条</span>
+    </div>
+
+    <div id="checkResult"></div>
+    <div class="actions">
+      <button id="btnCheck" class="primary">检查文件能不能用</button>
+      <button id="backTo1" class="ghost">上一步</button>
+    </div>
+  </section>
+
+  <!-- ── 3. 清洗 ── -->
+  <section id="panel3" class="panel">
+    <h2>正在清洗</h2>
+    <div id="recipeBox" class="recipe"></div>
+    <div class="actions">
+      <button id="btnRun" class="primary">开始清洗</button>
+      <button id="backTo2" class="ghost">上一步</button>
+    </div>
+    <div id="runResult"></div>
+  </section>
+
+  <!-- ── 4. 数据集 ── -->
+  <section id="panel4" class="panel">
+    <h2>生成训练数据集</h2>
+    <div id="cleanSummary" class="summary"></div>
+
+    <div class="formgrid">
+      <label>数据集名
+        <input type="text" id="dsName" value="my_dataset" placeholder="只能用字母数字-_">
+      </label>
+      <label>切分比例（验证集）
+        <input type="number" id="valRatio" value="0.1" min="0" max="0.4" step="0.05">
+      </label>
+      <label>切分比例（测试集）
+        <input type="number" id="testRatio" value="0.1" min="0" max="0.4" step="0.05">
+      </label>
+      <label>打包块大小（0 = 不打包）
+        <input type="number" id="packSize" value="512" min="0" max="8192" step="128">
+      </label>
+    </div>
+    <p class="hint">
+      打包成定长块（block）后，可以直接丢进 PyTorch 训练，不用自己 padding。<br>
+      只想看看数据长什么样就把「打包块大小」填0。
+    </p>
+
+    <div class="actions">
+      <button id="btnBuild" class="primary">生成数据集</button>
+      <button id="backTo3" class="ghost">上一步</button>
+    </div>
+    <div id="buildResult"></div>
+  </section>
+</main>
+
+<div id="toast" class="toast"></div>
+<script src="/app.js"></script>
+</body>
+</html>

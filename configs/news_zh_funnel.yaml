@@ -1,0 +1,35 @@
+# 中文新闻清洗漏斗（训练数据生产链路的清洗段）。
+# 与 text_funnel.yaml 同结构，仅换语料与阈值标定依据。
+name: news_zh_funnel
+description: 中文新闻清洗：L1 规则 -> MinHash 去重 -> 困惑度（用于生产训练数据集）
+dataset:
+  raw_jsonl: data/interim/news_full_cleaned.jsonl
+output:
+  dir: data/processed/news_zh_funnel
+operators:
+- op: doc_length
+  params:
+    min: 30
+    max: 50000
+- op: chinese_ratio
+  params:
+    min: 0.3
+- op: char_repetition
+  params:
+    min: 0.8
+- op: line_repetition
+  params:
+    min: 0.8
+- op: boilerplate
+  params:
+    min: 0.8
+- op: pii_detect
+  params:
+    min: 0.9
+- op: text_minhash
+  params:
+    threshold: 0.7
+- op: perplexity
+  params:
+    min: 0.2
+    batch_size: 64

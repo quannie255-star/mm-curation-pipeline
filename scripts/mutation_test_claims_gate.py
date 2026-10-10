@@ -58,8 +58,29 @@ def build_sandbox() -> Path:
 
 
 def run_gate(box: Path) -> tuple[int, str]:
+    """在沙箱里跑一次门禁。
+
+    ⚠️ **必须传 `--reports-missing skip`**（2026-10-08 实测踩到）：
+    沙箱只复制注册表触及的**文本**文件，`data/reports/` 是生成物、不入库，
+    所以沙箱里必然「16 条 claim 全部缺报告」→ rc=1。
+    而本脚本要验的是 **facade / derived / 覆盖率**三层（它们不依赖 reports），
+    claim 层在干净检出上本来就无法校验 —— 这正是 `gate-ci.yml` 里
+    显式传 skip 并断言「0 PASS」的原因。
+
+    漏了这个参数的后果很隐蔽：脚本不是「某条变异没拦住」，
+    而是**在第一道基线断言就中止**（rc=1 直接 return），
+    报告上只写「沙箱基线不绿」—— 看起来像门禁坏了，
+    实际是脚本没按 CI 的口径调用门禁。
+    """
     p = subprocess.run(
-        [sys.executable, "-X", "utf8", str(box / "scripts" / "verify_claims.py")],
+        [
+            sys.executable,
+            "-X",
+            "utf8",
+            str(box / "scripts" / "verify_claims.py"),
+            "--reports-missing",
+            "skip",
+        ],
         cwd=str(box),
         capture_output=True,
         text=True,

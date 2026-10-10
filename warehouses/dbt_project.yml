@@ -1,0 +1,76 @@
+# dbt 项目：数仓建模层（**独立模块，可整目录删除**）
+#
+# ## 这个目录是什么
+#
+# 把本仓库已产出的湖/表，用 **SQL** 重写成标准数仓分层，并让 **数据质量测试成为门禁**。
+# 它是现有 Python 链路的**下游消费者**，不是重构。
+#
+# ## 边界（为什么它可以随时删掉）
+#
+# - **只读**：所有 source 指向 `data/envs/prod/data/warehouse/platform.duckdb` 里的**视图**，
+#   一行数据都不改。删掉整个目录 = 回到「只有 Python 链路」的状态，无残留、无副作用。
+# - **不改签名**：`Sample` / `Operator` 的协议、既有 4 份 config，一个字不动。
+# - **不复用现有代码**：SQL 独立写。理由见 `models/schema/_sources.yml` 的注释——
+#   复用会让「删掉它」不再是干净的回退。
+#
+# ## 为什么用 dbt 而不是自己写SQL 调度
+#
+# 数仓岗的三个考点，dbt 是行业标准答案且本地零基础设施：
+# ① 分层建模（staging / intermediate / marts）+ `ref()` 依赖图
+# ② 数据质量测试即门禁（`dbt build` 上游挂了自动拦住下游）
+# ③ **自动血缘**（`manifest.json` 由运行产生，不是手画层名）
+#
+# 选 **dbt 1.x**（1.8.x）：dbt 2.0 于 2026-09 才发布，官方仍建议先用 1.x。
+# 目标引擎 DuckDB（= 本仓库已在用的库），零外部服务。
+#
+# ## 怎么跑
+#
+#     # 一次性：dbt 装在**独立 venv** 里，不污染项目所在的 Python 环境
+#     "%USERPROFILE%/.workbuddy/binaries/python/envs/mm-dbt/Scripts/dbt.exe" build --project-dir warehouses
+#
+#     # 换profile（默认 local）
+#     set DBT_PROFILE=ci
+#
+#产物在 `target/`（编译后的 manifest +血缘图），不入库。
+
+name: 'mm_warehouse'
+version: '1.0.0'
+config-version: 2
+
+profile: 'mm_warehouse'
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+analysis-paths: ["analyses"]
+seed-paths: ["seeds"]
+
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+# 首次建模默认用 table（物化成表，快且可被下游 join）；
+# 增量模型显式覆盖为 incremental。
+models:
+  mm_warehouse:
+    +materialized: table
+    staging:
+      +materialized: view
+      +tags: ['staging']
+    intermediate:
+      +materialized: view
+      +tags: ['intermediate']
+    marts:
+      +materialized: table
+      +tags: ['marts']
+
+# 文档里凡是出现模型的地方都挂到catalog，省得自己列一遍
+seeds:
+  +schema: seeds
+
+vars:
+  # 上游 DuckDB 库的路径。**用相对路径**：写死绝对路径会让别人 clone 下来直接跑不动
+  # （这是本仓库踩过的坑——视图定义里read_parquet 硬编码 C:/Users/... ，见 PLATFORM.md）。
+  # dbt 从 --project-dir 的**上级**当工作目录，所以这个相对路径是 warehouses/ 的兄弟。
+  warehouse_duckdb: 'data/envs/prod/data/warehouse/platform.duckdb'
+  # 源数据的时间下界：增量模型据此判断"第一行还没跑过"，避免全表重复扫
+  project_start_date: '2024-01-01'

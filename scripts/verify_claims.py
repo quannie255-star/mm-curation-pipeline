@@ -62,6 +62,31 @@ def resolve(doc, pointer: str):
     return cur
 
 
+def _fmt_cell(v) -> str:
+    """把 claim 的期望/现值渲染成对齐的表格单元。
+
+    ⚠️ 门禁**绝不能因为一条claim 的值不是标量就崩掉**：
+    崩在打印语句里会让前面所有 PASS 行原样刷屏，看着像「跑通了」，
+    而实际上后面的 claim 根本没被校验 —— 这是最隐蔽的一种假绿。
+    实测栽过：`minhash_leaks` 是 list（3 对泄漏），格式化直接
+    `TypeError: unsupported format string passed to list.__format__`，
+    输出停在倒数第 5 行，**门禁 rc 却因异常而非因漂移**。
+    现在：非标量一律显示为 `<list len=3>`，且 check_claim 提前判为
+    `pointer-broken`，不依赖格式化兜底。
+    """
+    if v is None:
+        return "—"
+    if isinstance(v, bool):
+        return str(v)
+    if isinstance(v, (int, float)):
+        return str(round(v, 4)) if isinstance(v, float) else str(v)
+    if isinstance(v, (list, tuple, set)):
+        return f"<{type(v).__name__} len={len(v)}>"
+    if isinstance(v, dict):
+        return f"<dict {len(v)}键>"
+    return f"<{type(v).__name__}>"
+
+
 def check_claim(claim: dict, repo: Path = REPO) -> dict:
     if claim.get("comparator") == "historical" or not claim.get("file"):
         return {**claim, "status": "historical", "current": None}
@@ -71,8 +96,13 @@ def check_claim(claim: dict, repo: Path = REPO) -> dict:
     doc = json.loads(path.read_text(encoding="utf-8"))
     try:
         current = resolve(doc, claim["pointer"])
-    except (KeyError, IndexError, ValueError):
+    except (KeyError, IndexError, ValueError, TypeError):
         return {**claim, "status": "pointer-broken", "current": None}
+    # 非标量一律不算 pass：claim 要锁的是**可比较的数值**。
+    # 想锁 list/dict 必须改指到其len 或某个标量字段
+    # （manifest 里 `minhash_leaks` 是 list，但 `n_leaks_total` 是标量 —— 用后者）。
+    if not isinstance(current, (int, float, str)) or isinstance(current, bool):
+        return {**claim, "status": "pointer-broken", "current": current}
     expected = claim["expected"]
     if claim["comparator"] == "exact":
         ok = current == expected
@@ -317,6 +347,20 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--update", action="store_true", help="以当前报告值重新锁定 expected")
     parser.add_argument("--claims", default=str(CLAIMS))
+    parser.add_argument(
+        "--reports-missing",
+        choices=("fail", "skip"),
+        default="fail",
+        help=(
+            "claim 绑定的落盘报告不存在时怎么办。fail=红（默认）；"
+            "skip=显式跳过并打印警告。"
+            "⚠️ **不要为省事改默认值**：CI 干净检出里 `data/reports/` 是"
+            "生成物、不入库，于是 16 条 claim 会全部变成「缺报告」。"
+            "若 skip 还不红，等于 claim 层在 CI 上**完全静默失效** ——"
+            "门禁条数看起来齐全，实际只扫了 facade 层。**这是典型的假绿**"
+            "（2026-10-08 在模拟干净检出上实测发现：0 PASS / 15 缺失却 rc=0）。"
+        ),
+    )
     args = parser.parse_args()
 
     claims_path = Path(args.claims)
@@ -332,6 +376,7 @@ def main() -> int:
 
     print(f"{'claim':<32}{'状态':<10}{'期望':>10}{'当前':>12}  说明")
     n_drift = 0
+    missing_rows: list[str] = []
     for r in results:
         flag = {
             "pass": "PASS",
@@ -344,13 +389,38 @@ def main() -> int:
         cur = r["current"]
         line = (
             f"{r['id']:<32}{flag:<10}"
-            f"{exp if exp is not None else '—':>10}"
-            f"{round(cur, 4) if isinstance(cur, float) else (cur if cur is not None else '—'):>12}"
+            f"{_fmt_cell(exp):>10}"
+            f"{_fmt_cell(cur):>12}"
             f"  {r.get('note', r.get('desc', ''))[:44]}"
         )
         print(line)
         if r["status"] == "drift":
             n_drift += 1
+        elif r["status"] in ("missing", "pointer-broken"):
+            # ⚠️ 这两个状态原先**只在汇总行打印、不进 n_drift**，
+            #   于是 `return 1 if n_drift else 0` 在「报告全缺」时给 0——
+            #   而那正是 CI 干净检出的常态（data/reports/ 是生成物、不入库）。
+            #   后果：16 条 claim 在 CI 上全部静默失效，报告却是绿的。
+            #   **门禁条数看起来齐全，实际只扫了 facade 层 = 假绿。**
+            #   现在它们显式计入，且可用 --reports-missing skip 显式豁免
+            #   （豁免会打印警告，不许无声无息）。
+            missing_rows.append(line)
+            if args.reports_missing == "fail":
+                n_drift += 1
+
+    if missing_rows:
+        print()
+        print(
+            f"⚠️ {len(missing_rows)} 条 claim 绑定的报告缺失/指针断裂"
+            f"（策略 = {args.reports_missing}）"
+        )
+        for ln in missing_rows:
+            print(f"   {ln}")
+        if args.reports_missing == "skip":
+            print(
+                "   这些 claim **未被校验**。若非有意豁免，说明报告生成物"
+                "缺失或指针腐烂——门禁在这里是空的。"
+            )
 
     for f in fingerprints:
         md5_head = f.get("md5", "—")[:8]

@@ -17,6 +17,25 @@ from .base import BatchOperator, Operator, Sample
 _TEXT = frozenset({"text_article"})
 _TEXT_FIELDS = frozenset({"text"})
 
+# ⭐ image_caption 也支持的算子在此声明（B 步证伪实验的产物）。
+#
+# 背景：boilerplate_inject / pii_inject / paragraph_repeat 三类污染注入到
+# image_caption 数据集时，召回只有 3.3% / 10.0% / 16.7%。读源码 + 运行时元数据
+# 确认根因**不是阈值**，是模态覆盖缺口：
+#   - 这三个算子原先声明 `_TEXT`（= text_article 单模态），
+#     在 image_caption 上接了也不评；`run_funnel` 对**全不相交**算子直接抛
+#     ValueError（fail fast，不是静默失效）。
+#   - 语义不匹配：`char_repetition` 量的是**最长单字符游程**，而
+#     `paragraph_repeat` 注入的是**段落级重复** → 实测污染组游程率
+#     0.0088~0.0339 vs 干净组 0.0270~0.1250，**两分布完全重叠**，
+#     阈值调低无用。`line_repetition` 才是对的那个算子。
+#
+# 为什么单独声明而不改 `_TEXT`：`_TEXT` 是模块级共享常量，另有 doc_length /
+# perplexity / text_minhash 三个算子在用。改它会连带改变 text_article 的既有
+# 行为 —— 硬约束「既有 4 个 config 一字不动」。这三个算子的 score 逻辑只依赖
+# `text` 字段（caption 同样满足），所以**代码逻辑零改动**即可复用。
+_TEXT_AND_CAPTION = frozenset({"text_article", "image_caption"})
+
 # 广告/版权/导航模板句（真实网文高频 boilerplate 的代表样例）
 _BOILERPLATE_PATTERNS = (
     r"扫码关注.{0,6}公众号",
@@ -51,7 +70,7 @@ class DocLengthOp(Operator):
 
 @register_operator(
     name="line_repetition",
-    modalities=_TEXT,
+    modalities=_TEXT_AND_CAPTION,
     required_fields=_TEXT_FIELDS,
     cost_class=CostClass.RULE,
 )
@@ -72,7 +91,7 @@ class LineRepetitionOp(Operator):
 
 @register_operator(
     name="boilerplate",
-    modalities=_TEXT,
+    modalities=_TEXT_AND_CAPTION,
     required_fields=_TEXT_FIELDS,
     cost_class=CostClass.RULE,
 )
@@ -88,7 +107,7 @@ class BoilerplateOp(Operator):
 
 @register_operator(
     name="pii_detect",
-    modalities=_TEXT,
+    modalities=_TEXT_AND_CAPTION,
     required_fields=_TEXT_FIELDS,
     cost_class=CostClass.RULE,
 )

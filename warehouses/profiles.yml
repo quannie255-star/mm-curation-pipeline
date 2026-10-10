@@ -1,0 +1,46 @@
+# dbt profile：目标是一个DuckDB 文件，不需要任何外部服务
+#
+# ## 为什么路径是相对的
+#
+# 上游的视图定义里硬编码了 `read_parquet('C:/Users/<用户名>/...')`，
+# 结果是**换台机器就彻底跑不起来**——本项目已经为此付过代价（改成物化快照才解决）。
+# 这里的 path 同样必须是相对的：dbt 从 **--project-dir 的上级**解析工作目录，
+# 所以`data/envs/...` 会正确落到仓库根下那个真实文件上。
+#
+# 验证方式见 `scripts/no_absolute_paths.py`：它把绝对路径写进 SQL 就会报红
+# （配套变异测试 `scripts/mutation_test_no_absolute_paths.py`）。
+# 注意该门禁**跳过注释行**——上面这两行注释里就故意留着 `C:/Users/...`，
+# 因为它们正是在描述这个坑，删掉就丢了证据。
+
+mm_warehouse:
+  target: local
+  outputs:
+    local:
+      type: duckdb
+      # 直接给相对路径，**不用 env_var + var 做双层默认值**——
+      # 那写法在 dbt 里是错的：`var()` 读项目 vars、`env_var()` 读环境变量，
+      # 它们不能互为默认值（parse 时报 "Required var 'warehouse_duckdb' not found"）。
+      # 需要指向别处时用环境变量 MM_WAREHOUSE_DB 整体覆盖：
+      #   set MM_WAREHOUSE_DB=D:/other/platform.duckdb
+      path: "{{ env_var('MM_WAREHOUSE_DB', 'data/envs/prod/data/warehouse/platform.duckdb') }}"
+      threads: 4
+      # DuckDB 自己会并行单条写查询，dbt 线程再加收益递减（dbt 官方建议 4）
+      settings:
+        memory_limit: "4GB"
+        preserve_insertion_order: false
+
+    # CI profile：内存库，不落盘。跑得更快，但没有中间状态便于排查
+    ci:
+      type: duckdb
+      path: ":memory:"
+      threads: 4
+      settings:
+        memory_limit: "2GB"
+        preserve_insertion_order: false
+
+    # CI 上把门禁结果写进DuckDB 而不是靠stdout——这样 CI 才能按「有失败」判红，
+    # 而不是靠 grep 输出里的某个词（grep 判据会被门禁自己改措辞骗到）。
+    ci_artifact:
+      type: duckdb
+      path: "target/ci_results.duckdb"
+      threads: 4

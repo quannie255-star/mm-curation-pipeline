@@ -55,6 +55,26 @@ def _find(parent: list[int], x: int) -> int:
     return x
 
 
+def compute_signatures(
+    samples: list,
+    *,
+    num_perm: int = 80,
+    prefix_chars: int = 600,
+    seed: int = 42,
+) -> np.ndarray:
+    """独立可测的签名计算（Q5 混合架构第一步，处置记录 §4）。
+
+    把签名计算从去重算子内部拆出来：并行清洗阶段可以**顺带**算好签名，
+    集中去重阶段只传 `id + 签名`——三段式（并行清洗 → 集中去重 → 并行后处理）
+    的前置条件就是这一步，传输格式换列式反而是最后一步。
+    与 `dedup_texts` 共用同一 `_signature` 函数族，同 seed 逐行一致。
+    """
+    rng = np.random.default_rng(seed)
+    a = rng.integers(1, 1 << 31, size=num_perm, dtype=np.uint64)
+    b = rng.integers(0, 1 << 31, size=num_perm, dtype=np.uint64)
+    return np.stack([_signature(s.text, prefix_chars, a, b) for s in samples])
+
+
 def dedup_texts(
     samples: list,
     *,
@@ -64,17 +84,23 @@ def dedup_texts(
     prefix_chars: int = 600,
     seed: int = 42,
     max_bucket: int = 2000,
+    protect_synthetic: bool = True,
 ) -> FastDedupResult:
-    """文本近似去重：返回每簇的第一个样本（顺序保持）与重复溯源信息。"""
+    """文本近似去重：返回每簇的第一个样本（顺序保持）与重复溯源信息。
+
+    `protect_synthetic`：合成样本（`labels.synthesized_by` 非空）与其
+    `labels.source_id` 声明的源样本**不互相合并**。合成样本与源必然高相似
+    （否则合成失败），按普通重复合并会把「增强后对照」洗掉——J1 红线
+    「合成样本走同一条漏斗」因此才可归因。与**无关**原样本的高相似仍照常
+    去重；两个合成样本之间也照常去重（合成集内去重）。历史语料无该标签，
+    默认开启零行为变化。
+    """
     if not samples:
         return FastDedupResult(kept=[])
     if num_perm % bands:
         raise ValueError("num_perm 必须能被 bands 整除")
 
-    rng = np.random.default_rng(seed)
-    a = rng.integers(1, 1 << 31, size=num_perm, dtype=np.uint64)
-    b = rng.integers(0, 1 << 31, size=num_perm, dtype=np.uint64)
-    sigs = np.stack([_signature(s.text, prefix_chars, a, b) for s in samples])
+    sigs = compute_signatures(samples, num_perm=num_perm, prefix_chars=prefix_chars, seed=seed)
     rows = num_perm // bands
 
     parent = list(range(len(samples)))
@@ -107,6 +133,8 @@ def dedup_texts(
             j = float(np.mean(sigs[x] == sigs[y]))
             if j < threshold:
                 continue
+            if protect_synthetic and _protected_pair(samples[x], samples[y]):
+                continue  # 合成样本 ↔ 其声明源：共存是特性，不合并
             rx, ry = _find(parent, x), _find(parent, y)
             if rx == ry:
                 continue
@@ -126,6 +154,20 @@ def dedup_texts(
             if i in est:
                 est_jaccard[s.id] = round(est[i], 4)
     return FastDedupResult(kept=kept, duplicate_of=duplicate_of, est_jaccard=est_jaccard)
+
+
+def _protected_pair(a, b) -> bool:
+    """合成样本与其 `labels.source_id` 声明的源样本不参与互相合并。
+
+    恰好一方是合成样本且另一方的 id 与其声明的源一致才豁免；两个合成样本
+    之间照常去重（合成集内去重），合成样本与无关原样本的高相似也照常去重。
+    """
+    synth_a = bool(a.labels.get("synthesized_by"))
+    synth_b = bool(b.labels.get("synthesized_by"))
+    if synth_a == synth_b:
+        return False
+    synth, raw = (a, b) if synth_a else (b, a)
+    return raw.id == synth.labels.get("source_id")
 
 
 def exact_text_duplicates(samples: list) -> dict[str, str]:

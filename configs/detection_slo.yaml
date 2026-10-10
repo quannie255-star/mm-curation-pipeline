@@ -1,0 +1,99 @@
+# 形态级质量 SLO 契约：召回 × 误杀 × 错误预算
+#
+# ⭐ 为什么在 quality_slo.yaml 之外另立一份（不是平行体系）
+#   quality_slo.yaml 管的是**维度级**（完整性/准确性/一致性/时效性）的**通过率**，
+#   回答「这个数据集整体质量达标吗」。
+#   本文件管的是**形态级**的**召回与误杀**，回答更尖锐的问题：
+#   「我们声称能抓的脏形态，真的抓得到吗？抓得到的同时误杀了多少干净数据？」
+#   两者粒度不同、消费方不同（SLO 面板 vs 记分卡），故并列而非合并。
+#   —— 纪律「判据清单只能有一个定义处」在此不适用：这两份量纲不同，不是同一判据。
+#
+# ★ 真对标机制（借鉴业界 SLI/SLO 实践，三条都落成可执行检查）：
+#   1. **分子必须属于分母**（Monte Carlo / SRE 口径）：
+#      召回 = 被抓数 / 该形态样本数；误杀 = 干净集被丢数 / 干净集样本数。
+#      两个分母**不同类**，绝不复用同一个 n。
+#   2. **错误预算**（error budget，SRE 惯例）：
+#      每条 SLI 给 budget（允许的失败比例），耗尽即红。
+#      只看target 的话，小幅退化不报警；预算能兜住。
+#   3. **永不静默丢弃**（业界的 no-silent-filter 反模式）：
+#      任何「样本被丢但没记原因」都判 BREACH。本项目 v1 假绿
+#      正是「丢了但归因错了」→ 故契约显式要求归因覆盖率 = 100%。
+#
+# ⚠️ 数值口径纪律（每条都有出处，不许手抄）：
+#   - recall 是**独立构造**黄金集（scripts/build_golden_set.py，**不 import
+#     污染器**）上的实测，不是污染器注入上的召回。两者不同，不得混。
+#     污染器口径见 docs/ROADMAP.md §1.5。
+#   - budget = **棘轮**：允许的失败比例。实测超过即红，能力提升后须收紧。
+#   - target 允许 `null` → 门禁判NO_SLO（**不设目标就不算达标**，
+#     沿用 quality_slo.yaml 第2 条纪律）。
+# ⚠️ 本文件是**真契约**，变异测试一律写入 configs/_mutations/，
+#    绝不在此就地改写（第一版就因为把真路径传进 write() 覆盖过本文件）。
+
+version: 1
+
+# ---------------------------------------------------------------- SLI 定义
+sli:
+  recall:
+    what: 该形态的脏样本里，被漏斗抓到的比例
+    numerator: 被非去重算子丢弃的该形态样本数
+    denominator: 该形态样本数（独立构造黄金集）
+  false_kill:
+    what: 干净样本里，被漏斗误杀的比例
+    numerator: 被丢弃的干净样本数
+    denominator: 干净样本数（黄金集 clean 类）
+  reason_coverage:
+    what: 被丢弃样本中「有明确归因」的比例（no-silent-filter）
+    numerator: dropped 列表中有算子记录的样本数
+    denominator: 全部被丢弃样本数
+    must_be: 1.0
+
+# ---------------------------------------------------------------- 契约
+contracts:
+  forms:
+    mojibake:
+      recall:
+        target: 0.93     # 期望（仅展示）
+        budget: 0.10      # 允许失败率 10% → 要求召回 ≥ 90%（实测 93.3%）
+        note: >-
+          已知**真实能力缺口**：汉字型乱码（如「鏂鎴拷」）中文字符占比
+          0.75~0.90，过得了 chinese_ratio(0.3) → 现有算子查不出
+          「是中文但不成词」的乱。实测 28/30。target 按实测设为棘轮，
+          修好后再抬，**不虚报 100%**。
+    # 以下四个实测均 100%。budget 取 0.05（要求 ≥95%）作棘轮。
+    # ⚠️ truncate_text 的天花板只有 86.7%（26 唯一文本/30），但实测召回 100%——
+    #   因为截断后多条撞成同一短串，**每条都独立跌破 text_length 下限**，
+    #   所以实测能超天花板。判定以实测为准，天花板只用于未达标时归因。
+    truncate_text:      {recall: {target: 1.00, budget: 0.05}}
+    paragraph_repeat:   {recall: {target: 1.00, budget: 0.05}}
+    pii_inject:         {recall: {target: 1.00, budget: 0.05}}
+    boilerplate_inject: {recall: {target: 1.00, budget: 0.05}}
+    mismatched_pair:
+      recall:
+        target: 0.23      # 期望 = 装置天花板（仅展示）
+        budget: 0.80      # 允许失败率 80% → 要求召回 ≥ 20%，实测 23.3%
+        note: >-
+          ⚠️ **装置天花板 23.3%**：文本构造器的结构性上限（30 条挤在 7 段
+          互异描述里，其余被 minhash_lsh 当重复）。实测 23.3% == 天花板
+          → **算子已打满**，调阈值无效。要提高它必须先提高装置
+          （更多供体图 / 换图造真错配）。target 刻意低于天花板，留 3pp 余量。
+    # ⚠️ 以下三个是**图像类**形态，黄金集无独立构造器（见 review_skeleton.json）
+    #故 target/budget 为 null → 门禁判 NO_SLO（不算达标）。
+    #   污染器口径测得的召回**不能**直接搬来当契约 —— 口径不同。
+    watermark:      {recall: {target: null, budget: null, note: 待人标黄金集}}
+    blur:           {recall: {target: null, budget: null, note: 待人标黄金集}}
+    low_resolution: {recall: {target: null, budget: null, note: 待人标黄金集}}
+
+  global:
+    false_kill:
+      target: 0.005   # 目标 ≤ 0.5%（**当前未达成**）
+      budget: 0.030   # 棘轮：允许到 3.0%
+      # ⚠️ 3.0% 来自**实测**（200 条干净集 2026-10-08 = 3.00%，其中
+      #   wm_nsfw_cnn 5 条 + clip_alignment 1 条）。同批在 600 条上是 2.50%
+      #   → 分母越小比率越不可信（本轮踩过：30 条上 6.67% vs 600 条上 1.17%）。
+      #   **没有把 budget 调到比实测更严来「让它绿」** —— 那是自欺。
+      #   降误杀杠杆：wm_nsfw_cnn 阈值 0.30 → 0.20 时误杀降到 1.00%
+      #   （见 scripts/calibrate_image_detector_fp.py 阈值扫描），
+      #   但会牺牲 watermark 召回 —— 真实取舍，须显式决策而非悄悄改。
+    reason_coverage:
+      target: 1.0
+      budget: 0.0     # 归因覆盖率不允许任何缺口

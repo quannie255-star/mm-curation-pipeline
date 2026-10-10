@@ -54,7 +54,13 @@ class PipelineConfig:
                 raise ValueError(f"operators[{i}] 格式错误，应为 {{op: ..., params: ...}}")
             if item["op"] not in known:
                 raise ValueError(
-                    f"operators[{i}] 引用了未注册算子 {item['op']!r}，可用: {sorted(known)}"
+                    f"operators[{i}] 引用了未注册算子 {item['op']!r}，可用: {sorted(known)}。"
+                    + (
+                        ""
+                        if known
+                        else "（可用列表为空：算子注册来自 mm_curation.operators 的导入，"
+                        "请 import mm_curation.operators 或调用 register_all()）"
+                    )
                 )
             specs.append(OperatorSpec(op=item["op"], params=item.get("params", {})))
         if not specs:

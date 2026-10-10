@@ -56,3 +56,67 @@ jobs:
       # 误杀 >0.02 即红），防 imagehash/datasketch 换库版本静默漂移
       - name: Threshold regression gate (curve vs frozen baseline)
         run: python scripts/threshold_regression_gate.py
+
+  # ─────────────────────────────────────────────────────────────────
+  # 变异测试 job（2026-10-08，ROADMAP 第 4 项「变异测试进CI」）
+  #
+  # 为什么单独一个 job 而不是塞进上面：上面是「质量数字退化即红」，
+  # 本job 是「**判据本身是否还会红**」。两者是不同的失效模式 ——
+  # 阈值漂移是数据问题，判据失效是逻辑问题，后者更隐蔽：
+  # 它会让上面所有门禁一起变绿，而实际上它们已经不拦任何东西了。
+  #
+  # ⚠️ 刻意**不加** continue-on-error：不可预演 ≠ 可以不拦
+  #   （container-ci.yml 的同一纪律）。这两个脚本本机已实跑通过
+  #   （mutation_test_detection_slo 7/7、mutation_test_agent_gate 6/6），
+  #   所以它们不是「未知能不能跑」，而是**明确必须拦住**。
+  #
+  # 依赖说明：
+  #   - detection_slo 需要 pyyaml + 黄金集（scripts/build_golden_set.py 可重建，
+  #     但它要 PIL 造图，这里直接调用而非重建，避免 CI 里跑两次造数）
+  #   - agent_gate 只依赖项目自身代码 + stdlib
+  # 因此这个 job 装 pyyaml 即可，**不拉 torch**（保证 1 分钟内跑完）。
+  mutation-gate:
+    name: 变异测试（质量判据还会红）
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install minimal deps (pyyaml only)
+        run: pip install pyyaml pillow numpy
+
+      # 黄金集是**入库的**（data/golden/*.jsonl），所以 CI 干净检出里就有。
+      # 若缺，明确报错而不是让脚本 fallback 自证 ——
+      # 「没有基准也能判过」正是恒真判据最常见的来源。
+      - name: 断言黄金集存在（缺则红，不许fallback）
+        run: |
+          set -euo pipefail
+          if [ ! -f data/golden/golden_set.jsonl ]; then
+            echo "::error::data/golden/golden_set.jsonl 不在工作区。"
+            echo "::error::检测 SLO 门禁**没有基准就等于没有门禁** —— 拒绝对空跑判绿。"
+            exit 1
+          fi
+          n=$(wc -l < data/golden/golden_set.jsonl)
+          echo "黄金集 $n 条"
+          if [ "$n" -lt 100 ]; then
+            echo "::error::黄金集只有 $n 条，明显不是完整基准（正常数百条）"
+            exit 1
+          fi
+
+      # 顺序纪律：检测 SLO 的变异必须**在**静态扫描之前。
+      # 若它排在后面且失败，后面的步骤若带 if: always() 仍会跑，
+      # 但凡有步骤被前面的失败短路，「变异没被拦住」这道断言就永不执行 ——
+      # **步骤顺序本身就是门禁语义**（ci.yml 的 format-check 事故同源）。
+      - name: 变异测试：检测 SLO 门禁仍会红（7/7）
+        run: python -X utf8 scripts/mutation_test_detection_slo.py
+
+      - name: 变异测试：Agent 路由门禁仍会红（6/6）
+        run: python -X utf8 scripts/mutation_test_agent_gate.py
+
+      - name: 失败时保留沙箱输出
+        if: failure()
+        run: ls -la configs/_mutations 2>/dev/null || echo "（无残留沙箱目录）"

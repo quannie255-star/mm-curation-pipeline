@@ -82,3 +82,27 @@ benchmarks/pref_user_v1/
 
 # pytest 临时目录（改用项目内 basetemp，避开系统 Temp 的批量删除护栏）
 .pytest_tmp/
+
+# dbt（数仓建模模块）生成物。**profiles.yml 不忽略**——
+# 它只有相对路径、无凭据，入库才能让「clone 下来就跑得起来」
+# （dbt 惯例是放~/.dbt/ 不入库，那是给有真凭据的场景用的）
+warehouses/target/
+warehouses/dbt_packages/
+warehouses/logs/
+warehouses/.user.yml
+# ── 临时/ 生成物：绝不能入库 ──
+# ⚠️ 本轮实点：、、、 全都**未被忽略**，
+# 也就是说任何一次 （或将来某个脚本批量 add）都会把它们带进仓库。
+# 根因是  被显式忽略了，但  下**别的**目录没被覆盖 ——
+# 「忽略某个子目录」不等于「忽略整棵树」。
+data/tmp/
+data/tmp_*/
+data/tmp_*.zip
+data/golden/
+# Studio 网页版（scripts/run_studio.py）把用户上传数据的清洗产物落在 data/studio/<名>/
+# —— 与 data/processed/ 同性质的可重建运行时产物，绝不能入库
+data/studio/
+# shell 重定向写错位置留下的空文件（本轮 heredoc 事故产物）
+/=
+.genie
+.wbapp_*.genie

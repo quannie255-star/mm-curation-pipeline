@@ -78,7 +78,7 @@ held_out 查询，库大小全部与漏斗相同 = 1585）——三个对照构�
 
 | 层 | 内容 | 在 CI 里吗 |
 |---|---|---|
-| 代码测试 | 主仓 600 + 包 67（= 667；CLIP 用 FakeEncoder，纯 CPU） | ✅ ci.yml 每次 push |
+| 代码测试 | 主仓 876 + 包 67（= 943；CLIP 用 FakeEncoder，纯 CPU） | ✅ ci.yml 每次 push |
 | 数据质量门禁（轻） | 文本去重 0.5s / 图像去重 40s（真跑算子，劣化注入实测变红） | ✅ data-ci.yml |
 | 阈值回归门 | MinHash/pHash 整条阈值曲线 vs 冻结基线，13s | ✅ data-ci.yml |
 | 医疗/工业门禁 | eval-fhir / eval-industrial 各 ~6s | ⚠️ 本地/门户一键，未接 CI（接入是候选任务） |

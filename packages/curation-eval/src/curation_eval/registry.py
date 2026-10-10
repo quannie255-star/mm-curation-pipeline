@@ -122,4 +122,10 @@ def get_operator_class(name: str):
 
 
 def available_operator_metas() -> dict[str, OperatorMeta]:
+    """当前已注册的全部算子元数据。
+
+    ⚠️ 注册是「import 即注册」：只 import 本包时注册表是**空的**（空 dict）——
+    具体算子由消费方导入自己的模块触发注册（如主仓库 `mm_curation.operators`
+    提供 `register_all()`）。空表不是 bug，是还没人 import。
+    """
     return {n: m for n, (_, m) in _REGISTRY.items()}

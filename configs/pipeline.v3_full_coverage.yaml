@@ -1,0 +1,81 @@
+# 清洗漏斗配置 v3 · image_caption 全形态（B 步证伪实验的产物）
+#
+# 与 pipeline.example.yaml 的差异（既有 config 一字不动，这是**新增**的）：
+#   1. 补 wm_nsfw_cnn     —— 仓库里存在、模态匹配，但原配置漏配 → watermark 召回 0/30
+#   2. 补 line_repetition —— 原配置只有 char_repetition（量单字符游程），
+#                           对paragraph_repeat（段落级重复）语义不匹配
+#   3. 补 boilerplate     —— 原配置无 → boilerplate_inject 召回 1/30
+#   4. 补 pii_detect      —— 原配置无 → pii_inject 召回 3/30
+#
+# ⚠️ 排序原则仍是成本递增（RULE → PERCEPTUAL → MODEL → LLM）：
+#    这四个都插在 clip_alignment **之前**，因为它们是 RULE 档（纯正则/哈希，毫秒级），
+#    先跑能缩小后面 GPU 算子的输入规模 —— 便宜的先筛，是漏斗的基本经济学。
+# ⚠️ wm_nsfw_cnn 是 MODEL 档（GPU 批量推理），故放在clip_alignment 之后、
+#    semantic_dedup 之前，与已有L2 模型算子同档位。
+#
+# 阈值来源见每个算子行内注释；所有数字均来自 scripts/ 下的实测，
+# 不从文档手抄（docs/claims.json 是对外数字的唯一真相源）。
+
+name: cn_flickr_curation_v3
+description: >
+  v2 的 image_caption 全形态补齐版：补4 个此前漏配/模态不匹配的算子，
+  覆盖 9 类合成污染形态（mojibake / truncate_text / boilerplate_inject /
+  paragraph_repeat / pii_inject / mismatched_pair / watermark / blur /
+  low_resolution）。
+
+dataset:
+  raw_jsonl: data/interim/contaminated/samples.jsonl
+
+operators:
+  # --- L1 文本（毫秒级RULE，先跑）---
+  - op: text_length
+    params: {min: 5, max: 100}
+  - op: chinese_ratio
+    params: {min: 0.3}
+  - op: char_repetition
+    params: {min: 0.8}
+  # ⭐ 新增：段落级重复。对 paragraph_repeat 污染是**对的那个算子**
+  #   （char_repetition 量单字符游程，实测两分布完全重叠、调阈值无用）。
+  #   阈值 0.67 = **实测分离度间隙中点**：干净组 score恒 1.0000，
+  #   污染组 max=0.3333 → 间隙 [0.3333, 1.0000)，中点 0.67，两侧零误杀零漏检。
+  - op: line_repetition
+    params: {min: 0.67}
+  # ⭐ 新增：广告/版权/导航模板句。对 boilerplate_inject 污染。
+  #   阈值 0.90 = 实测间隙中点（污染组 max=0.80，干净组恒 1.00）。
+  - op: boilerplate
+    params: {min: 0.90}
+  # ⭐ 新增：PII（手机号/邮箱/证件号）。对 pii_inject 污染。
+  #   阈值 0.83 = 实测间隙中点（污染组 max=0.66，干净组恒 1.00）。
+  #   注：生产环境对命中样本应做**脱敏**而非直接丢弃，此处按漏斗约定二值过滤。
+  - op: pii_detect
+    params: {min: 0.83}
+
+  # --- L1 图像（读图）---
+  - op: resolution
+    params: {min: 100}
+  - op: aspect_ratio
+    params: {min: 0.25}
+  - op: blur
+    params: {min: 12}
+
+  # --- 去重组（批量哈希）---
+  - op: md5_exact
+  - op: phash_near
+    params: {threshold: 12}
+  - op: minhash_lsh
+    params: {threshold: 0.65, min_len: 8}
+
+  # --- L2 模型算子（GPU，放最后：尽早就缩小了它们的输入）---
+  - op: clip_alignment
+    params: {min: 0.38}
+  # ⭐ 新增：水印/NSFW 检测。对 watermark 污染召回 0→28/30（实测）。
+  #   成本账：干净集 600 条实测误杀 7条 = 1.17%（scripts/calibrate_image_detector_fp.py
+  #   可复现），与算子 docstring 声称的 1.0% 同量级；接入后干净集总丢弃率
+  #   1.33% → 2.50%。**这是用误杀换召回，对外必须同时报这两个数。**
+  - op: wm_nsfw_cnn
+    params: {min: 0.30}
+  - op: semantic_dedup
+    params: {threshold: 0.93}
+
+output:
+  dir: data/processed/cn_flickr_curation_v3
