@@ -82,8 +82,10 @@ def main() -> int:
 
     samples = load_samples(args.n)
     n = len(samples)
-    print(f"样本 {n} 条 | 阈值 {args.threshold} | {args.num_perm}perm/{args.bands}band "
-          f"| max_bucket {args.max_bucket}")
+    print(
+        f"样本 {n} 条 | 阈值 {args.threshold} | {args.num_perm}perm/{args.bands}band "
+        f"| max_bucket {args.max_bucket}"
+    )
     if n < 1000:
         print("语料不足，退出")
         return 1
@@ -97,7 +99,7 @@ def main() -> int:
     # ── 复刻 dedup_texts 的合并过程，但**记录每条桥边** ──
     parent = list(range(n))
     est: dict[int, float] = {}
-    edge_j: list[float] = []          # 每条union 边的 Jaccard
+    edge_j: list[float] = []  # 每条union 边的 Jaccard
     merged_pairs: list[tuple[int, int]] = []
 
     first_seen: dict[bytes, int] = {}
@@ -113,7 +115,7 @@ def main() -> int:
     for i in range(n):
         s = sigs[i]
         for band in range(args.bands):
-            buckets[(band, s[band * rows:(band + 1) * rows].tobytes())].append(i)
+            buckets[(band, s[band * rows : (band + 1) * rows].tobytes())].append(i)
 
     n_skipped_bucket = 0
     for members in buckets.values():
@@ -145,28 +147,37 @@ def main() -> int:
     sizes = sorted((len(v) for v in clusters.values()), reverse=True)
     total_merged = sum(s for s in sizes if s > 1)
     print("\n=== 诊断 1：簇大小分布 ===")
-    print(f"  簇总数 {len(sizes)} | 被合并样本 {total_merged} "
-          f"({total_merged / n * 100:.2f}%)")
-    print(f"  最大簇 {sizes[0]} | 前 10 大簇合计 {sum(sizes[:10])} "
-          f"（占被合并 {sum(sizes[:10]) / max(total_merged, 1) * 100:.1f}%）")
+    print(f"  簇总数 {len(sizes)} | 被合并样本 {total_merged} ({total_merged / n * 100:.2f}%)")
+    print(
+        f"  最大簇 {sizes[0]} | 前 10 大簇合计 {sum(sizes[:10])} "
+        f"（占被合并 {sum(sizes[:10]) / max(total_merged, 1) * 100:.1f}%）"
+    )
     hist = collections.Counter(min(s, 11) for s in sizes)
     print("  分布（11=≥11）：", {k: hist[k] for k in sorted(hist)})
     big = [s for s in sizes if s > 100]
-    print(f"  >100 的簇:{len(big)} 个，合计 {sum(big)} 样本"
-          f"（占被合并 {sum(big) / max(total_merged, 1) * 100:.1f}%）")
+    print(
+        f"  >100 的簇:{len(big)} 个，合计 {sum(big)} 样本"
+        f"（占被合并 {sum(big) / max(total_merged, 1) * 100:.1f}%）"
+    )
 
     # ── 诊断 2：桥边 Jaccard 分布（贴阈值 = 阈值敏感）──
     print(f"\n=== 诊断 2：桥边 Jaccard（{len(edge_j)} 条union 边）===")
     if edge_j:
         ej = np.array(edge_j)
-        print(f"  min {ej.min():.4f} | p5 {np.percentile(ej, 5):.4f} | "
-              f"中位 {np.median(ej):.4f} | p95 {np.percentile(ej, 95):.4f} | max {ej.max():.4f}")
+        print(
+            f"  min {ej.min():.4f} | p5 {np.percentile(ej, 5):.4f} | "
+            f"中位 {np.median(ej):.4f} | p95 {np.percentile(ej, 95):.4f} | max {ej.max():.4f}"
+        )
         near = float((ej < args.threshold + 0.05).mean())
-        print(f"  ** 贴阈值(<{args.threshold + 0.05:.2f}) 的边占 {near * 100:.1f}% "
-              f"→ 阈值抬高 {0.05} 可减少 {near * 100:.1f}% 的合并")
+        print(
+            f"  ** 贴阈值(<{args.threshold + 0.05:.2f}) 的边占 {near * 100:.1f}% "
+            f"→ 阈值抬高 {0.05} 可减少 {near * 100:.1f}% 的合并"
+        )
         # 估计 Jaccard 估计误差：签名 80 个 → 标准差约 1/sqrt(80) ≈ 0.112
-        print(f"  ⚠️ num_perm={args.num_perm} → Jaccard 估计标准差 ≈ "
-              f"{1 / np.sqrt(args.num_perm):.3f}，与阈值 0.7 同量级！")
+        print(
+            f"  ⚠️ num_perm={args.num_perm} → Jaccard 估计标准差 ≈ "
+            f"{1 / np.sqrt(args.num_perm):.3f}，与阈值 0.7 同量级！"
+        )
         print("     即「0.70 vs 0.75」在统计上可能**不可区分**（差值 0.05 < 噪声）")
     else:
         print("  无合并边")
@@ -196,10 +207,14 @@ def main() -> int:
     print("  （跳桶会连带牺牲桶内真重复 —— 这是另一条独立的漏检来源）")
 
     out = {
-        "n": n, "threshold": args.threshold, "num_perm": args.num_perm,
-        "n_clusters": len(sizes), "n_merged": total_merged,
+        "n": n,
+        "threshold": args.threshold,
+        "num_perm": args.num_perm,
+        "n_clusters": len(sizes),
+        "n_merged": total_merged,
         "merge_rate": round(total_merged / n, 4),
-        "max_cluster": sizes[0], "top10_share": round(sum(sizes[:10]) / max(total_merged, 1), 4),
+        "max_cluster": sizes[0],
+        "top10_share": round(sum(sizes[:10]) / max(total_merged, 1), 4),
         "n_edges": len(edge_j),
         "bridge_rate": round(bridged / tot_edges, 4),
         "edge_j_p50": round(float(np.median(edge_j)), 4) if edge_j else None,

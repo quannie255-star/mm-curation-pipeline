@@ -33,7 +33,7 @@ class CheckResult:
     missing_fields: dict[str, int]
     empty_fields: dict[str, int]
     notes: list[str]
-    fatal: str = ""   # 非空= 直接拒绝的原因
+    fatal: str = ""  # 非空= 直接拒绝的原因
 
 
 def _sniff_delimiter(sample: str) -> str:
@@ -81,7 +81,7 @@ def _iter_records(path: Path, n_probe: int = 500):
         if isinstance(obj, dict):
             rows.append(obj)
         else:
-            bad += 1   # 每行必须是对象；数组/标量无法与一条样本对应
+            bad += 1  # 每行必须是对象；数组/标量无法与一条样本对应
     return rows, bad, "jsonl"
 
 
@@ -106,17 +106,26 @@ def check_upload(
     rows, bad_json, fmt = _iter_records(path, n_probe)
     if not rows:
         if fmt == "csv":
-            return CheckResult(False, 0, 0, {}, {}, notes,
-                               "CSV 里没读到数据行（只有表头？）")
-        return CheckResult(False, 0, bad_json, {}, {}, notes,
-                           f"前 {n_probe} 行里没有一行能解析成 JSON 对象"
-                           + ("（看起来像 CSV，请用 .csv 后缀上传）"
-                              if bad_json and path.suffix.lower() not in (".csv", ".tsv")
-                              else ""))
+            return CheckResult(False, 0, 0, {}, {}, notes, "CSV 里没读到数据行（只有表头？）")
+        return CheckResult(
+            False,
+            0,
+            bad_json,
+            {},
+            {},
+            notes,
+            f"前 {n_probe} 行里没有一行能解析成 JSON 对象"
+            + (
+                "（看起来像 CSV，请用 .csv 后缀上传）"
+                if bad_json and path.suffix.lower() not in (".csv", ".tsv")
+                else ""
+            ),
+        )
 
     if bad_json:
-        notes.append(f"前 {len(rows) + bad_json} 行里有 {bad_json} 行不是合法 JSON 对象，"
-                     f"这些行会被跳过")
+        notes.append(
+            f"前 {len(rows) + bad_json} 行里有 {bad_json} 行不是合法 JSON 对象，这些行会被跳过"
+        )
 
     # 必填字段：区分「键不存在」与「键存在但全空」—— 后者是另一种病
     missing: dict[str, int] = {}
@@ -131,14 +140,27 @@ def check_upload(
                 empty[f] = blanks
     if missing:
         detail = "、".join(f"`{k}`（{v} 行没有这个字段）" for k, v in sorted(missing.items()))
-        return CheckResult(False, len(rows), bad_json, missing, empty, notes,
-                           f"缺少必填字段：{detail}。"
-                           f"每行都必须有这些字段（顺序无所谓，键名要一致）。")
+        return CheckResult(
+            False,
+            len(rows),
+            bad_json,
+            missing,
+            empty,
+            notes,
+            f"缺少必填字段：{detail}。每行都必须有这些字段（顺序无所谓，键名要一致）。",
+        )
     if empty:
         detail = "、".join(f"`{k}`" for k in sorted(empty))
-        return CheckResult(False, len(rows), bad_json, missing, empty, notes,
-                           f"字段 {detail} 在所有 {len(rows)} 行里都是空值 —— "
-                           f"这通常意味着列名对不上，或数据真的没采到。")
+        return CheckResult(
+            False,
+            len(rows),
+            bad_json,
+            missing,
+            empty,
+            notes,
+            f"字段 {detail} 在所有 {len(rows)} 行里都是空值 —— "
+            f"这通常意味着列名对不上，或数据真的没采到。",
+        )
 
     # 图片路径：只在给了根目录时真去查
     if "image_path" in required_fields:
@@ -153,13 +175,22 @@ def check_upload(
                 if not full.exists():
                     n_missing_img += 1
             if n_missing_img == len(probe):
-                return CheckResult(False, len(rows), bad_json, missing, empty, notes,
-                                   f"抽查 {len(probe)} 行的图片，**全部找不到**。"
-                                   f"请确认 image_path 是相对「图片根目录」的路径，"
-                                   f"且图片确实打包上传了。")
+                return CheckResult(
+                    False,
+                    len(rows),
+                    bad_json,
+                    missing,
+                    empty,
+                    notes,
+                    f"抽查 {len(probe)} 行的图片，**全部找不到**。"
+                    f"请确认 image_path 是相对「图片根目录」的路径，"
+                    f"且图片确实打包上传了。",
+                )
             if n_missing_img:
-                notes.append(f"抽查 {len(probe)} 行里有 {n_missing_img} 行图片找不到"
-                             f"（清洗时会被丢弃，不影响其它样本）")
+                notes.append(
+                    f"抽查 {len(probe)} 行里有 {n_missing_img} 行图片找不到"
+                    f"（清洗时会被丢弃，不影响其它样本）"
+                )
 
     # 未知字段：只是提示，不拦。
     # CSV 要**看表头列名**而不是数据行的键 —— DictReader 遇到多余列会塞
@@ -167,23 +198,31 @@ def check_upload(
     declared = set(required_fields) | set(optional_fields)
     seen_cols = {k for r in rows for k in r if isinstance(k, str) and k}
     if fmt == "csv":
-        all_lines = [ln for ln in path.read_text(
-            encoding="utf-8-sig", errors="replace").splitlines() if ln.strip()]
+        all_lines = [
+            ln
+            for ln in path.read_text(encoding="utf-8-sig", errors="replace").splitlines()
+            if ln.strip()
+        ]
         if all_lines:
-            delim = _TSV if path.suffix.lower() == ".tsv" else _sniff_delimiter(
-                _NL.join(all_lines[:20]))
+            delim = (
+                _TSV
+                if path.suffix.lower() == ".tsv"
+                else _sniff_delimiter(_NL.join(all_lines[:20]))
+            )
             header = next(csv.reader([all_lines[0]], delimiter=delim), [])
             seen_cols = {h.strip() for h in header if h and h.strip()}
     extra = sorted(seen_cols - declared)
     if extra:
         notes.append(f"文件里这些字段用不上（会被保留但不参与清洗判定）：{extra}")
     if any(not isinstance(k, str) for r in rows for k in r):
-        notes.append("有些行的**列数比表头多**，多出来的内容会被丢弃 —— "
-                     "检查是否有逗号或换行没转义")
+        notes.append("有些行的**列数比表头多**，多出来的内容会被丢弃 —— 检查是否有逗号或换行没转义")
 
     # 总行数：**CSV 要减掉表头行**，否则 n_rows 比真实数据多 1
     # （实测栽过：2 条数据被报成 3 条，前端会显示错的数据量）
-    lines = [ln for ln in path.read_text(
-        encoding="utf-8-sig", errors="replace").splitlines() if ln.strip()]
+    lines = [
+        ln
+        for ln in path.read_text(encoding="utf-8-sig", errors="replace").splitlines()
+        if ln.strip()
+    ]
     total_rows = max(0, len(lines) - 1) if fmt == "csv" else len(lines)
     return CheckResult(True, total_rows, bad_json, missing, empty, notes)

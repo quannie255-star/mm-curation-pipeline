@@ -71,9 +71,11 @@ class Handler(BaseHTTPRequestHandler):
         if not p.exists():
             self._err(f"页面文件缺失：{name}（安装不完整）", code=500)
             return
-        ctype = {".html": "text/html; charset=utf-8",
-                 ".js": "application/javascript; charset=utf-8",
-                 ".css": "text/css; charset=utf-8"}[p.suffix]
+        ctype = {
+            ".html": "text/html; charset=utf-8",
+            ".js": "application/javascript; charset=utf-8",
+            ".css": "text/css; charset=utf-8",
+        }[p.suffix]
         body = p.read_bytes()
         self.send_response(200)
         self.send_header("Content-Type", ctype)
@@ -128,11 +130,13 @@ class Handler(BaseHTTPRequestHandler):
                     continue
                 text = str(rec.get("text") or rec.get("caption") or "")
                 img = rec.get("image_path")
-                out.append({
-                    "id": str(rec.get("id", ""))[:40],
-                    "text": text[:300],
-                    "image_rel": str(img) if img else None,
-                })
+                out.append(
+                    {
+                        "id": str(rec.get("id", ""))[:40],
+                        "text": text[:300],
+                        "image_rel": str(img) if img else None,
+                    }
+                )
         self._json({"ok": True, "rows": out})
 
     def do_POST(self) -> None:  # noqa: N802
@@ -142,25 +146,42 @@ class Handler(BaseHTTPRequestHandler):
                 self._upload()
             elif u.path == "/api/check":
                 body = self._read_json()
-                self._json(do_check(
-                    body["session"], body["filename"], body["scenario"],
-                    bool(body.get("images_uploaded")),
-                ))
+                self._json(
+                    do_check(
+                        body["session"],
+                        body["filename"],
+                        body["scenario"],
+                        bool(body.get("images_uploaded")),
+                    )
+                )
             elif u.path == "/api/funnel":
                 body = self._read_json()
-                self._json({"ok": True, **start_funnel(
-                    body["session"], body["filename"], body["scenario"],
-                    int(body.get("limit") or 0),
-                )})
+                self._json(
+                    {
+                        "ok": True,
+                        **start_funnel(
+                            body["session"],
+                            body["filename"],
+                            body["scenario"],
+                            int(body.get("limit") or 0),
+                        ),
+                    }
+                )
             elif u.path == "/api/dataset":
                 body = self._read_json()
-                self._json({"ok": True, **start_dataset(
-                    body["session"], body["name"],
-                    int(body.get("pack_block_size") or 512),
-                    float(body.get("val_ratio") or 0.1),
-                    float(body.get("test_ratio") or 0.1),
-                    int(body.get("max_tokens") or 4096),
-                )})
+                self._json(
+                    {
+                        "ok": True,
+                        **start_dataset(
+                            body["session"],
+                            body["name"],
+                            int(body.get("pack_block_size") or 512),
+                            float(body.get("val_ratio") or 0.1),
+                            float(body.get("test_ratio") or 0.1),
+                            int(body.get("max_tokens") or 4096),
+                        ),
+                    }
+                )
             elif u.path == "/api/reset":
                 body = self._read_json()
                 d = session_dir(body["session"])
@@ -220,7 +241,7 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     with zipfile.ZipFile(__import__("io").BytesIO(blob)) as z:
                         for m in z.infolist():
-                            #防 zip 滑出目标目录（Zip Slip）
+                            # 防 zip 滑出目标目录（Zip Slip）
                             tgt = (zdir / m.filename).resolve()
                             if not str(tgt).startswith(str(zdir.resolve())):
                                 continue
@@ -236,8 +257,7 @@ class Handler(BaseHTTPRequestHandler):
         if "data" not in saved:
             self._err("没收到数据文件", "请重新选择文件")
             return
-        self._json({"ok": True, **saved,
-                    "images_uploaded": bool(saved.get("images"))})
+        self._json({"ok": True, **saved, "images_uploaded": bool(saved.get("images"))})
 
     def _read_json(self) -> dict:
         n = int(self.headers.get("Content-Length") or 0)
@@ -273,8 +293,11 @@ def _parse_multipart(body: bytes, boundary: bytes):
         fm = re.search(r'filename="([^"]*)"', head)
         if fm:
             name = fm.group(1)
-            if field == "data" and _SAFE_NAME.match(name) and \
-                    Path(name).suffix.lower() in ALLOWED_SUFFIX:
+            if (
+                field == "data"
+                and _SAFE_NAME.match(name)
+                and Path(name).suffix.lower() in ALLOWED_SUFFIX
+            ):
                 files[field] = (name, payload)
         elif field == "session":
             try:
@@ -292,8 +315,11 @@ def main(argv: list[str] | None = None) -> None:
         description="多模态数据清洗 Studio（本地网页界面）",
         epilog="启动后浏览器会自动打开；数据只留在本机。",
     )
-    ap.add_argument("--host", default="127.0.0.1",
-                    help="监听地址（默认只监听本机；改成 0.0.0.0 会让同网段的人也能访问）")
+    ap.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="监听地址（默认只监听本机；改成 0.0.0.0 会让同网段的人也能访问）",
+    )
     ap.add_argument("--port", type=int, default=8765, help="端口（被占用时换一个）")
     ap.add_argument("--no-browser", action="store_true", help="不自动打开浏览器")
     a = ap.parse_args(argv)

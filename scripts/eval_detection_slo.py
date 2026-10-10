@@ -49,8 +49,9 @@ def load_golden() -> list[dict]:
     if not GOLDEN.exists():
         print(f"❌ 黄金集不存在：{GOLDEN}", file=sys.stderr)
         print("   生成命令：python scripts/build_golden_set.py", file=sys.stderr)
-        print("   ⚠️本脚本**故意不**在缺失时用污染器现造 —— 那样门禁会变成自证闭环。",
-              file=sys.stderr)
+        print(
+            "   ⚠️本脚本**故意不**在缺失时用污染器现造 —— 那样门禁会变成自证闭环。", file=sys.stderr
+        )
         raise SystemExit(2)
     rows = []
     for line in GOLDEN.read_text(encoding="utf-8").split("\n"):
@@ -123,8 +124,7 @@ def evaluate(rows: list[dict], cfg: PipelineConfig) -> dict:
         "dropped_total": len(all_dropped),
         "unattributed": sorted(unattributed),
         "reason_coverage": (
-            (len(all_dropped) - len(unattributed)) / len(all_dropped)
-            if all_dropped else 1.0
+            (len(all_dropped) - len(unattributed)) / len(all_dropped) if all_dropped else 1.0
         ),
         "kept_total": len(kept),
         "input_total": len(rows),
@@ -146,7 +146,7 @@ def judge(m: dict, slo: dict, meta: dict) -> tuple[int, list[str], list[str]]:
     forms = slo.get("contracts", {}).get("forms", {})
     ceilings = meta.get("text_uniqueness", {})
 
-    #⚠️ 天花板容差必须**挂钩数据精度**，不能随手写 1e-9。
+    # ⚠️ 天花板容差必须**挂钩数据精度**，不能随手写 1e-9。
     #   golden_meta.json 里的 recall_ceiling 只保留 4 位小数（7/30 → 0.2333），
     #   而实测 rate = 7/30 = 0.233333…，差3.3e-5。
     #   用 1e-9 判「rate > ceil」会把**打满**误报成「超天花板」——
@@ -158,8 +158,10 @@ def judge(m: dict, slo: dict, meta: dict) -> tuple[int, list[str], list[str]]:
     print("=" * 96)
     print("① 召回（分子= 被非去重算子抓；分母 = 该形态样本数）")
     print("=" * 96)
-    print(f"{'形态':<21}{'样本':>4}{'召回':>5}{'召回率':>8}{'期望':>7}"
-          f"{'天花板':>8}{'要求≥':>8}{'去重抓':>6}  判定")
+    print(
+        f"{'形态':<21}{'样本':>4}{'召回':>5}{'召回率':>8}{'期望':>7}"
+        f"{'天花板':>8}{'要求≥':>8}{'去重抓':>6}  判定"
+    )
     print("-" * 96)
     for lab in sorted(m["per_form"]):
         s = m["per_form"][lab]
@@ -172,15 +174,19 @@ def judge(m: dict, slo: dict, meta: dict) -> tuple[int, list[str], list[str]]:
         req_s = f"{1.0 - budget:>8.1%}" if budget is not None else f"{'—':>8}"
 
         if rate is None:
-            print(f"{lab:<21}{s['n']:>4}{s['true']:>5}{'—':>8}{tgt_s}{ceil_s}"
-                  f"{req_s}{s['dedup_only']:>6}  NO_SLO")
+            print(
+                f"{lab:<21}{s['n']:>4}{s['true']:>5}{'—':>8}{tgt_s}{ceil_s}"
+                f"{req_s}{s['dedup_only']:>6}  NO_SLO"
+            )
             no_slo.append(lab)
             continue
 
         if target is None or budget is None:
-            print(f"{lab:<21}{s['n']:>4}{s['true']:>5}{rate:>8.1%}"
-                  f"{tgt_s}{ceil_s}{req_s}{s['dedup_only']:>6}"
-                  "  ⚠ NO_SLO（契约未定目标，**不算达标**）")
+            print(
+                f"{lab:<21}{s['n']:>4}{s['true']:>5}{rate:>8.1%}"
+                f"{tgt_s}{ceil_s}{req_s}{s['dedup_only']:>6}"
+                "  ⚠ NO_SLO（契约未定目标，**不算达标**）"
+            )
             no_slo.append(lab)
             continue
 
@@ -225,7 +231,7 @@ def judge(m: dict, slo: dict, meta: dict) -> tuple[int, list[str], list[str]]:
                 f"且装置天花板仅 {ceil:.1%} → **契约超出装置能力**，"
                 "须先提高装置或下调契约"
             )
-            verdict = (f"❌ 契约不可达（要求 {required:.1%} > 天花板 {ceil:.1%}）")
+            verdict = f"❌ 契约不可达（要求 {required:.1%} > 天花板 {ceil:.1%}）"
         else:
             breaches.append(
                 f"{lab}: 召回 {rate:.1%}，失败率 {fail:.1%} 超预算 {eff_budget:.1%}"
@@ -233,8 +239,10 @@ def judge(m: dict, slo: dict, meta: dict) -> tuple[int, list[str], list[str]]:
                 f"{'；装置天花板上限 ' + format(ceil, '.1%') if ceil is not None else ''}）"
             )
             verdict = f"❌ BREACH（失败 {fail:.1%} > 预算 {eff_budget:.1%}）"
-        print(f"{lab:<21}{s['n']:>4}{s['true']:>5}{rate:>8.1%}{tgt_s}{ceil_s}"
-              f"{req_s}{s['dedup_only']:>6}  {verdict}")
+        print(
+            f"{lab:<21}{s['n']:>4}{s['true']:>5}{rate:>8.1%}{tgt_s}{ceil_s}"
+            f"{req_s}{s['dedup_only']:>6}  {verdict}"
+        )
 
     print()
     print("  列含义：")
@@ -323,8 +331,7 @@ def main() -> int:
     if no_slo:
         print(f"⚠️ {len(no_slo)} 个形态 NO_SLO（契约未定目标，**不算达标**）：{no_slo}")
     print()
-    print(f"漏斗：输入 {m['input_total']} → 存活 {m['kept_total']}，"
-          f"丢弃 {m['dropped_total']}")
+    print(f"漏斗：输入 {m['input_total']} → 存活 {m['kept_total']}，丢弃 {m['dropped_total']}")
 
     if args.json_out:
         out = Path(args.json_out)
@@ -342,8 +349,7 @@ def main() -> int:
             "breaches": breaches,
             "no_slo": no_slo,
         }
-        out.write_text(json.dumps(payload, ensure_ascii=False, indent=2),
-                       encoding="utf-8")
+        out.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"报告已写入 {out}")
 
     return rc

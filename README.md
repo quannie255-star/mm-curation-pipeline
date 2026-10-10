@@ -288,7 +288,7 @@ python scripts/findata_health_stage.py \\
 | **架构**（模态可插拔框架 + 数据流/失效路径） | [ARCHITECTURE_V2](docs/ARCHITECTURE_V2.md) · [ARCHITECTURE](docs/ARCHITECTURE.md) |
 | **数据系统**（湖分区 / DuckDB 契约闸门 / 观测 / 晋升 / 容器交付） | [PLATFORM](docs/PLATFORM.md) — 平台轨数字的唯一真相源 |
 | **求职**（简历描述 / JD 映射 / 追问预案 / 自测题库） | [RESUME](docs/RESUME.md) · [JD_RESEARCH](docs/JD_RESEARCH.md) · [INTERVIEW](docs/INTERVIEW.md) · [自测题库](docs/INTERVIEW_SELFTEST.md) |
-| **踩坑与判据**（98 条工程发现 + 评测口径 + 常见问题） | [ENGINEERING_NOTES](docs/ENGINEERING_NOTES.md) · [PROOF_CHAIN](docs/PROOF_CHAIN.md) · [FAQ](docs/FAQ.md) |
+| **踩坑与判据**（99 条工程发现 + 评测口径 + 常见问题） | [ENGINEERING_NOTES](docs/ENGINEERING_NOTES.md) · [PROOF_CHAIN](docs/PROOF_CHAIN.md) · [FAQ](docs/FAQ.md) |
 
 **这条线现在到哪了、下一步只做哪三件** → [ROADMAP](docs/ROADMAP.md)。
 **领域增强包规范 / 产品需求** → [DOMAIN_PACKS](docs/DOMAIN_PACKS.md) · [PRD](docs/PRD.md) ·

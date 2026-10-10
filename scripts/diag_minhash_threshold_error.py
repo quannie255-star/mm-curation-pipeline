@@ -105,8 +105,10 @@ def main() -> int:
         variants.append((i, v))
         truths.append(exact_jaccard(texts[i], v))
     truth = np.array(truths)
-    print(f"构造 {len(truth)} 对 | 真实 Jaccard min {truth.min():.4f} "
-          f"中位 {np.median(truth):.4f} max {truth.max():.4f}")
+    print(
+        f"构造 {len(truth)} 对 | 真实 Jaccard min {truth.min():.4f} "
+        f"中位 {np.median(truth):.4f} max {truth.max():.4f}"
+    )
 
     band = (truth >= 0.55) & (truth <= 0.95)
     print(f"** 阈值 0.70 所在区(0.55~0.95)：{int(band.sum())} 对 ← 决策相关区")
@@ -114,8 +116,10 @@ def main() -> int:
         print("⚠️ 阈值区样本不足，结果不可用")
         return 1
     # 装置自检：真值分布必须跨过阈值，否则测不到误判
-    print(f"   装置自检：真值 <0.70 占 {int((truth < 0.70).sum())}，≥0.70 占 "
-          f"{int((truth >= 0.70).sum())}（两类都要有才测得出误判）\n")
+    print(
+        f"   装置自检：真值 <0.70 占 {int((truth < 0.70).sum())}，≥0.70 占 "
+        f"{int((truth >= 0.70).sum())}（两类都要有才测得出误判）\n"
+    )
 
     print("=== MinHash 估计误差（真实算法路径，只看阈值区）===")
     print(f"{'num_perm':>8} {'偏差中位':>9} {'p95':>8} {'阈值0.70误判':>13} {'阈值0.75误判':>13}")
@@ -151,17 +155,21 @@ def main() -> int:
             "flip_rate_075": round(flip75 / sel, 4),
         }
         rows.append(row)
-        print(f"{num_perm:>8} {row['err_median']:>9.4f} {row['err_p95']:>8.4f} "
-              f"{row['flip_rate_070'] * 100:>12.1f}% {row['flip_rate_075'] * 100:>12.1f}%")
+        print(
+            f"{num_perm:>8} {row['err_median']:>9.4f} {row['err_p95']:>8.4f} "
+            f"{row['flip_rate_070'] * 100:>12.1f}% {row['flip_rate_075'] * 100:>12.1f}%"
+        )
 
     print()
     if len(rows) >= 2:
         lo, hi = rows[0], rows[-1]
         if lo["flip_rate_070"] > 0:
             gain = (lo["flip_rate_070"] - hi["flip_rate_070"]) / lo["flip_rate_070"]
-            print(f"** num_perm {lo['num_perm']}→{hi['num_perm']}：阈值 0.70 误判率 "
-                  f"{lo['flip_rate_070'] * 100:.1f}% → {hi['flip_rate_070'] * 100:.1f}%"
-                  f"（降 {gain * 100:.0f}%）")
+            print(
+                f"** num_perm {lo['num_perm']}→{hi['num_perm']}：阈值 0.70 误判率 "
+                f"{lo['flip_rate_070'] * 100:.1f}% → {hi['flip_rate_070'] * 100:.1f}%"
+                f"（降 {gain * 100:.0f}%）"
+            )
         else:
             print("** p80 误判率已为 0——估计误差不是问题")
 

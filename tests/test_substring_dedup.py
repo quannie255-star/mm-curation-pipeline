@@ -65,7 +65,7 @@ def test_lcp_matches_naive(trial: int) -> None:
     s = "".join(rng.choice("ab") for _ in range(rng.randint(1, 45)))
     sa = build_suffix_array(s)
     height = kasai_lcp(s, sa)
-    expect = [0] + [_naive_lcp(s[sa[i]:], s[sa[i - 1]:]) for i in range(1, len(s))]
+    expect = [0] + [_naive_lcp(s[sa[i] :], s[sa[i - 1] :]) for i in range(1, len(s))]
     assert height == expect
 
 
@@ -165,9 +165,7 @@ def test_threshold_is_monotonic_in_drop_count() -> None:
     for mc in (20, 40, 60, 80):
         samples = [mk(0, a), mk(1, b), mk(2, c)]
         drops.append(3 - len(SubstringDedup(min_chars=mc).run_batch(samples)))
-    assert drops == sorted(drops, reverse=True), (
-        f"阈值升高时丢弃数必须单调不增，实际 {drops}"
-    )
+    assert drops == sorted(drops, reverse=True), f"阈值升高时丢弃数必须单调不增，实际 {drops}"
     # 并且两端必须真的分开（恒定的序列说明阈值根本没起作用）
     assert drops[0] > drops[-1], f"阈值两端必须有差异，否则阈值是摆设：{drops}"
 

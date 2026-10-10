@@ -85,14 +85,8 @@ log = logging.getLogger("training_utility")
 
 def load_corpus() -> list[dict]:
     if not CORPUS.exists():
-        raise SystemExit(
-            f"❌ 语料缺失: {CORPUS}\n   先跑 python scripts/download_text_corpus.py"
-        )
-    return [
-        json.loads(ln)
-        for ln in CORPUS.read_text(encoding="utf-8").split("\n")
-        if ln.strip()
-    ]
+        raise SystemExit(f"❌ 语料缺失: {CORPUS}\n   先跑 python scripts/download_text_corpus.py")
+    return [json.loads(ln) for ln in CORPUS.read_text(encoding="utf-8").split("\n") if ln.strip()]
 
 
 def split_rows(rows: list[dict], n_train: int, n_test: int, seed: int):
@@ -135,8 +129,7 @@ def run_funnel(train_pool: list[dict], config_path: Path) -> tuple[list[dict], d
     cfg = PipelineConfig.from_yaml(config_path)
 
     rows_for_sample = [
-        {"id": str(r["id"]), "text": r["text"], "modality": "text_article"}
-        for r in train_pool
+        {"id": str(r["id"]), "text": r["text"], "modality": "text_article"} for r in train_pool
     ]
     samples = [Sample.from_dict(d) for d in rows_for_sample]
     result = _run(samples, cfg)
@@ -413,8 +406,17 @@ def main() -> int:
     for name, texts in arms:
         model = copy.deepcopy(base)
         # ⚠️ 两臂**同 seed**：唯一的变量是数据，不是采样顺序。
-        train(model, tok, texts, args.steps, args.batch, args.seq_len, args.lr, device,
-              seed=args.seed + 100)
+        train(
+            model,
+            tok,
+            texts,
+            args.steps,
+            args.batch,
+            args.seq_len,
+            args.lr,
+            device,
+            seed=args.seed + 100,
+        )
         results[name] = evaluate(model, tok, held_texts, 32, args.seq_len, device)
         log.info("%s ppl=%.4f（n_train=%s）", name, results[name], len(texts))
         del model
@@ -426,8 +428,17 @@ def main() -> int:
     if args.noise_probe:
         ref_texts = dict(arms)[ref_arm_name(arms)]
         model = copy.deepcopy(base)
-        train(model, tok, ref_texts, args.steps, args.batch, args.seq_len, args.lr, device,
-              seed=args.seed + 999)
+        train(
+            model,
+            tok,
+            ref_texts,
+            args.steps,
+            args.batch,
+            args.seq_len,
+            args.lr,
+            device,
+            seed=args.seed + 999,
+        )
         results["noise_probe"] = evaluate(model, tok, held_texts, 32, args.seq_len, device)
         log.info(
             "noise_probe ppl=%.4f（同数据不同 seed，与 %s 相差 %.4f）",
@@ -544,9 +555,7 @@ def _write(payload: dict, funnel: dict, args) -> None:
             label = f"{arm}（不过漏斗）"
             md.append(f"| {label} | {payload['protocol']['n_train_pool']} | {p[arm]:.4f} |")
             break
-    md.append(
-        f"| cleaned（过漏斗） | {payload['protocol']['n_train_kept']} | {p['cleaned']:.4f} |"
-    )
+    md.append(f"| cleaned（过漏斗） | {payload['protocol']['n_train_kept']} | {p['cleaned']:.4f} |")
     if "noise_probe" in p:
         md.append(f"| noise_probe（同数据不同 seed） | — | {p['noise_probe']:.4f} |")
     # 标题**由verdict 现算**，不手写。

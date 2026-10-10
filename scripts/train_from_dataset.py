@@ -52,9 +52,9 @@ def load_split(manifest: dict, split: str) -> list[dict]:
     files = sorted(str(p) for p in root.glob(f"{split}-*.parquet"))
     if not files:
         raise SystemExit(f"❌ split={split} 没有 shard（{root}）")
-    #⚠️ 必须**显式给 split 名**：`load_dataset(..., data_files=[文件])`
+    # ⚠️ 必须**显式给 split 名**：`load_dataset(..., data_files=[文件])`
     # 会把唯一 split 命名为 "train"，哪怕这些文件其实是 val 的
-    #（实测踩过：`["val"]` → KeyError 'val'）。
+    # （实测踩过：`["val"]` → KeyError 'val'）。
     ds = hfds.load_dataset("parquet", data_files={split: files})[split]
     return [dict(r) for r in ds]
 
@@ -126,10 +126,15 @@ def main() -> int:
     ap.add_argument("--n-head", type=int, default=4)
     ap.add_argument("--n-embd", type=int, default=256)
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--precision", choices=["fp32", "bf16"], default="fp32",
-                    help="bf16 约快 4 倍、显存减半（需 CUDA）")
-    ap.add_argument("--writeback", action="store_true",
-                    help="把训练结果写回 manifest 的 training_runs")
+    ap.add_argument(
+        "--precision",
+        choices=["fp32", "bf16"],
+        default="fp32",
+        help="bf16 约快 4 倍、显存减半（需 CUDA）",
+    )
+    ap.add_argument(
+        "--writeback", action="store_true", help="把训练结果写回 manifest 的 training_runs"
+    )
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -139,12 +144,15 @@ def main() -> int:
         raise SystemExit(f"❌ manifest 不存在：{mpath}\n   先跑 scripts/build_dataset.py")
     manifest = json.loads(mpath.read_text(encoding="utf-8"))
 
-    LOG.info("=== 数据集 %s（row_unit=%s）===", manifest["name"],
-             manifest.get("row_unit", "sample"))
-    LOG.info("声明规模 %d block | %d 有效 token | padding %s%%",
-             sum(manifest.get("n_blocks", {}).values()) or manifest["n_samples"],
-             manifest.get("n_real_tokens_total", manifest["n_tokens"]),
-             manifest.get("padding_pct", 0.0))
+    LOG.info(
+        "=== 数据集 %s（row_unit=%s）===", manifest["name"], manifest.get("row_unit", "sample")
+    )
+    LOG.info(
+        "声明规模 %d block | %d 有效 token | padding %s%%",
+        sum(manifest.get("n_blocks", {}).values()) or manifest["n_samples"],
+        manifest.get("n_real_tokens_total", manifest["n_tokens"]),
+        manifest.get("padding_pct", 0.0),
+    )
 
     tr = load_split(manifest, "train")
     va = load_split(manifest, "val")
@@ -158,35 +166,57 @@ def main() -> int:
     LOG.info("loss_mask 存在：%s（决定 padding 是否计入 loss）", has_mask)
 
     g = torch.Generator().manual_seed(args.seed)
-    train_dl = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True,
-                          generator=g, drop_last=False)
+    train_dl = DataLoader(
+        train_ds, batch_size=args.batch_size, shuffle=True, generator=g, drop_last=False
+    )
     val_dl = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False)
 
     cfg = train_config_from_manifest(
-        manifest, n_layer=args.n_layer, n_head=args.n_head, n_embd=args.n_embd,
+        manifest,
+        n_layer=args.n_layer,
+        n_head=args.n_head,
+        n_embd=args.n_embd,
         block_size=train_ds[0]["input_ids"].numel(),
     )
-    LOG.info("模型 %s（%.1fM 参数）", cfg.name,
-             TinyCausalLM.count_params(cfg) / 1e6)
+    LOG.info("模型 %s（%.1fM 参数）", cfg.name, TinyCausalLM.count_params(cfg) / 1e6)
 
     t0 = time.time()
-    res: RecipeResult = run_recipe(cfg, train_dl, val_dl, steps=args.steps,
-                                   lr=args.lr, seed=args.seed,
-                                   precision=args.precision)
+    res: RecipeResult = run_recipe(
+        cfg,
+        train_dl,
+        val_dl,
+        steps=args.steps,
+        lr=args.lr,
+        seed=args.seed,
+        precision=args.precision,
+    )
     dt = time.time() - t0
     LOG.info("训练完成 %.1fs（%d 步，%.2fs/步）", dt, args.steps, dt / max(args.steps, 1))
-    LOG.info("  初始 val loss %.4f → 最终 %.4f（Δ %+.4f）",
-             res.val_loss[0], res.val_loss[-1], res.delta_val_loss)
-    LOG.info("  tokens 消费 %d（%.0f tok/s）| 峰值显存 %.2f GB | %s",
-             res.tokens_seen, res.tokens_per_second, res.peak_gpu_gb,
-             res.precision)
+    LOG.info(
+        "  初始 val loss %.4f → 最终 %.4f（Δ %+.4f）",
+        res.val_loss[0],
+        res.val_loss[-1],
+        res.delta_val_loss,
+    )
+    LOG.info(
+        "  tokens 消费 %d（%.0f tok/s）| 峰值显存 %.2f GB | %s",
+        res.tokens_seen,
+        res.tokens_per_second,
+        res.peak_gpu_gb,
+        res.precision,
+    )
 
     payload = {
         "recipe_id": cfg.recipe_id,
         "recipe": {
-            "n_layer": cfg.n_layer, "n_head": cfg.n_head, "n_embd": cfg.n_embd,
-            "block_size": cfg.block_size, "steps": args.steps,
-            "batch_size": args.batch_size, "lr": args.lr, "seed": args.seed,
+            "n_layer": cfg.n_layer,
+            "n_head": cfg.n_head,
+            "n_embd": cfg.n_embd,
+            "block_size": cfg.block_size,
+            "steps": args.steps,
+            "batch_size": args.batch_size,
+            "lr": args.lr,
+            "seed": args.seed,
         },
         "dataset_fingerprint": manifest.get("shard_checksums", {}),
         "n_blocks": {"train": len(tr), "val": len(va)},
@@ -202,18 +232,15 @@ def main() -> int:
     }
     rep = ROOT / "data" / "reports" / f"train_recipe_{args.dataset}.json"
     rep.parent.mkdir(parents=True, exist_ok=True)
-    rep.write_text(json.dumps(payload, ensure_ascii=False, indent=2),
-                   encoding="utf-8")
+    rep.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     LOG.info("训练报告 → %s", rep)
 
     if args.writeback:
         # 回填 manifest：让「这个数据集用哪个 recipe 训出什么」可查。
-        #⚠️ 只 append，不覆盖历史 runs —— 生产数据集是多版本演进的。
+        # ⚠️ 只 append，不覆盖历史 runs —— 生产数据集是多版本演进的。
         manifest.setdefault("training_runs", []).append(payload)
-        mpath.write_text(json.dumps(manifest, ensure_ascii=False, indent=2),
-                         encoding="utf-8")
-        LOG.info("已回填 manifest.training_runs（累计 %d 条）",
-                 len(manifest["training_runs"]))
+        mpath.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        LOG.info("已回填 manifest.training_runs（累计 %d 条）", len(manifest["training_runs"]))
     else:
         LOG.info("未回填 manifest（加 --writeback 才会写）")
     return 0

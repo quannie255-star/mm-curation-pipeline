@@ -35,6 +35,33 @@ SESSION = "test_studio_e2e"
 _NL = "\n"
 
 
+@pytest.fixture(autouse=True)
+def _stub_perplexity(monkeypatch):
+    """把 `perplexity` 的语言模型换成确定性桩（本模块内全部测试生效）。
+
+    ⚠️ 为什么**必须**桩，而不是让它真加载模型：
+    `text_article` 配方里含 `perplexity`（MODEL 档），真跑要加载
+    `uer/gpt2-chinese-cluecorpussmall` 的本地权重（几百 MB）。而 `models/`
+    在 `.gitignore` 里，**CI 干净检出中没有这份权重**，于是这组端到端测试
+    会以「未找到 … 的本地缓存」挂掉 —— 那是**环境缺失**，不是代码缺陷。
+    （实测：CI #91 上 4 条测试就是这样红的，而本机因为 models/ 在，全绿。
+    典型的「本地绿 / CI 红」。）
+
+    本文件要验的是 **HTTP 接口 + 漏斗接线**（真起服务、真发请求、真读响应），
+    不是语言模型的困惑度质量 —— 后者由 `tests/test_text_corpus.py::
+    test_perplexity_with_fake_scorer` 专门测。所以这里沿用那条测试的同一个
+    注入点（`text_corpus.get_scorer`），只换掉模型推理，漏斗/归因/统计全是真的。
+
+    桩的行为刻意对齐真实语义：长文干净（低困惑度→通过），短文/乱码被丢。
+    """
+    import mm_curation.operators.text_corpus as tc
+
+    def fake_scorer(texts):
+        return [20.0 if len(t) > 10 else 800.0 for t in texts]
+
+    monkeypatch.setattr(tc, "get_scorer", lambda: fake_scorer)
+
+
 @pytest.fixture(scope="module")
 def server():
     srv = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
@@ -64,8 +91,11 @@ def _get(url: str) -> dict:
 
 def _post(url: str, payload: dict) -> dict:
     req = urllib.request.Request(
-        url, data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"}, method="POST")
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
     try:
         with urllib.request.urlopen(req, timeout=60) as r:
             return json.loads(r.read().decode("utf-8"))
@@ -127,9 +157,11 @@ def test_场景接口给出四个场景且字段齐全(server):
         for s in sc["steps"]:
             # 代价档必须是**前端认识的字符串**，不能是 Enum 的 str()
             assert s["cost"] in ("rule", "perceptual", "model", "llm"), (
-                f"{sc['key']}/{s['op']} 的代价档 {s['cost']!r} 前端认不出")
+                f"{sc['key']}/{s['op']} 的代价档 {s['cost']!r} 前端认不出"
+            )
             assert s["modality_ok"] is True, (
-                f"{sc['key']}/{s['op']} 模态不匹配（配方不该含这种算子）")
+                f"{sc['key']}/{s['op']} 模态不匹配（配方不该含这种算子）"
+            )
 
 
 # ── 真数据端到端（纯文本场景，规则档，不需要 GPU）────────
@@ -164,12 +196,11 @@ def _make_corpus() -> Path:
     d = backend.session_dir(SESSION)
     p = d / "corpus.jsonl"
     rows: list[dict] = [{"text": t, "id": f"news{i}"} for i, t in enumerate(_NEWS)]
-    rows.append({"text": _NEWS[0], "id": "dup_a"})   # 转载重复（应被 minhash 删）
-    rows.append({"text": _NEWS[3], "id": "dup_b"})   # 转载重复
-    rows.append({"text": "短"})                # 太短（无 id，测自动补）
-    rows.append({"text": "转载" * 40})             # 超短复读
-    p.write_text("".join(json.dumps(r, ensure_ascii=False) + _NL for r in rows),
-                 encoding="utf-8")
+    rows.append({"text": _NEWS[0], "id": "dup_a"})  # 转载重复（应被 minhash 删）
+    rows.append({"text": _NEWS[3], "id": "dup_b"})  # 转载重复
+    rows.append({"text": "短"})  # 太短（无 id，测自动补）
+    rows.append({"text": "转载" * 40})  # 超短复读
+    p.write_text("".join(json.dumps(r, ensure_ascii=False) + _NL for r in rows), encoding="utf-8")
     return p
 
 
@@ -177,20 +208,34 @@ def test_检查接口会拒内容不符的文件(server):
     """错误路径必须**真的拒** —— 否则前端会放行一份注定失败的输入。"""
     _make_corpus()
     bad = backend.session_dir(SESSION) / "bad.jsonl"
-    bad.write_text("".join(json.dumps({"txt": "x"}, ensure_ascii=False) + "\n"
-                          for _ in range(5)), encoding="utf-8")
-    r = _post(server + "/api/check", {
-        "session": SESSION, "filename": "bad.jsonl",
-        "scenario": "text_article", "images_uploaded": False})
+    bad.write_text(
+        "".join(json.dumps({"txt": "x"}, ensure_ascii=False) + "\n" for _ in range(5)),
+        encoding="utf-8",
+    )
+    r = _post(
+        server + "/api/check",
+        {
+            "session": SESSION,
+            "filename": "bad.jsonl",
+            "scenario": "text_article",
+            "images_uploaded": False,
+        },
+    )
     assert r["ok"] is False
     assert "text" in r["error"], f"报错要说清缺哪个字段，实际：{r['error']}"
 
 
 def test_检查接口放行合法文件(server):
     _make_corpus()
-    r = _post(server + "/api/check", {
-        "session": SESSION, "filename": "corpus.jsonl",
-        "scenario": "text_article", "images_uploaded": False})
+    r = _post(
+        server + "/api/check",
+        {
+            "session": SESSION,
+            "filename": "corpus.jsonl",
+            "scenario": "text_article",
+            "images_uploaded": False,
+        },
+    )
     assert r["ok"] is True, r
     assert r["n_rows"] == 16, f"行数算错：{r['n_rows']}（应为 16）"
 
@@ -198,9 +243,10 @@ def test_检查接口放行合法文件(server):
 def test_完整跑通清洗(server):
     """真跑漏斗：脏数据进 → 干净数据出 + 每级统计。"""
     _make_corpus()
-    r = _post(server + "/api/funnel", {
-        "session": SESSION, "filename": "corpus.jsonl",
-        "scenario": "text_article", "limit": 0})
+    r = _post(
+        server + "/api/funnel",
+        {"session": SESSION, "filename": "corpus.jsonl", "scenario": "text_article", "limit": 0},
+    )
     assert r["ok"] is True and r.get("id"), r
     job = _wait_job(server, r["id"], timeout=600)
     assert job["status"] == "done", f"清洗失败：{job['error']} / {job['hint']}"
@@ -234,17 +280,19 @@ def test_缺id的样本被自动补上而不是被丢掉(server):
     d = backend.session_dir(SESSION)
     p = d / "noid.jsonl"
     texts = list(_NEWS[:6])
-    p.write_text("".join(json.dumps({"text": t}, ensure_ascii=False) + _NL
-                          for t in texts), encoding="utf-8")
-    r = _post(server + "/api/funnel", {
-        "session": SESSION, "filename": "noid.jsonl",
-        "scenario": "text_article", "limit": 0})
+    p.write_text(
+        "".join(json.dumps({"text": t}, ensure_ascii=False) + _NL for t in texts), encoding="utf-8"
+    )
+    r = _post(
+        server + "/api/funnel",
+        {"session": SESSION, "filename": "noid.jsonl", "scenario": "text_article", "limit": 0},
+    )
     job = _wait_job(server, r["id"], timeout=600)
     assert job["status"] == "done", job["error"]
     assert job["result"]["n_input"] == len(texts), (
-        f"丢了 {len(texts) - job['result']['n_input']} 条 —— 自动补 id 没生效")
-    assert any("id" in line for line in job["log"]), (
-        f"日志没说明自动补了 id：{job['log']}")
+        f"丢了 {len(texts) - job['result']['n_input']} 条 —— 自动补 id 没生效"
+    )
+    assert any("id" in line for line in job["log"]), f"日志没说明自动补了 id：{job['log']}"
 
 
 def test_预览接口返回真实内容(server):
@@ -262,15 +310,13 @@ def test_未知任务返回错误而不是挂(server):
 
 def test_数据集接口在没清洗结果时拒绝(server):
     """顺序错了也要说清（不是崩）。"""
-    r = _post(server + "/api/dataset", {
-        "session": "no_such_session_xyz", "name": "x"})
+    r = _post(server + "/api/dataset", {"session": "no_such_session_xyz", "name": "x"})
     assert r["ok"] is False
 
 
 def test_数据集名非法被拒(server):
     """数据集名会拼进文件系统路径 —— 不校验就是路径穿越。"""
-    r = _post(server + "/api/dataset", {
-        "session": SESSION, "name": "../evil"})
+    r = _post(server + "/api/dataset", {"session": SESSION, "name": "../evil"})
     assert r["ok"] is False
     assert "字母" in r["error"] or "-" in r["error"], r["error"]
 
@@ -288,10 +334,8 @@ def test_数据目录必须落在仓库根的data下():
     """
     repo = ROOT.resolve()
     up = backend.UPLOAD_ROOT.resolve()
-    assert up.is_relative_to(repo / "data"), (
-        f"数据目录跑到 {up} 去了 —— 必须在 {repo / 'data'} 下")
-    assert not up.is_relative_to(repo / "src"), (
-        f"数据目录落在源码树里了：{up}")
+    assert up.is_relative_to(repo / "data"), f"数据目录跑到 {up} 去了 —— 必须在 {repo / 'data'} 下"
+    assert not up.is_relative_to(repo / "src"), f"数据目录落在源码树里了：{up}"
     assert (repo / "src" / "mm_curation").is_dir()  # 确认层级没算错
 
 
@@ -321,10 +365,21 @@ def test_端口占用检查不能是恒真的():
         s.listen(1)
         busy = s.getsockname()[1]
         r = subprocess.run(
-            [sys.executable, "-X", "utf8", str(ROOT / "scripts" / "run_studio.py"),
-             "--no-browser", "--port", str(busy)],
-            capture_output=True, text=True, encoding="utf-8",
-            errors="replace", cwd=str(ROOT), timeout=180,
+            [
+                sys.executable,
+                "-X",
+                "utf8",
+                str(ROOT / "scripts" / "run_studio.py"),
+                "--no-browser",
+                "--port",
+                str(busy),
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            cwd=str(ROOT),
+            timeout=180,
         )
     out = r.stdout + r.stderr
     assert "已被占用" in out, "端口被占用却没报出来（可能自检恒真）：" + out[-600:]
@@ -341,11 +396,10 @@ def test_预检在可用端口上通过():
         free = s.getsockname()[1]
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location(
-        "run_studio", ROOT / "scripts" / "run_studio.py")
+    spec = importlib.util.spec_from_file_location("run_studio", ROOT / "scripts" / "run_studio.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    mod._preflight(free)          # 不抛异常即通过
+    mod._preflight(free)  # 不抛异常即通过
 
 
 def test_会话id拒绝路径穿越():

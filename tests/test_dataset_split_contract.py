@@ -27,6 +27,7 @@ from mm_curation.dataset import (  # noqa: E402
 
 # ── 分层切分：同一分层键的样本必须同split ────────────────────────────────
 
+
 def test_同一样本id_永远落进同一split():
     """确定性：可复现是数据系统的底线。"""
     a = [assign_split(f"s{i}", 0.1, 0.1) for i in range(200)]
@@ -44,8 +45,7 @@ def test_分层键生效时同键必同split():
     for i in range(300):
         by_key["600276"].add(assign_split(f"s{i}", 0.1, 0.1, "600276"))
     assert len(by_key["600276"]) == 1, (
-        f"同一 symbol 分到了多个 split：{by_key['600276']} —— "
-        "分层失效，泄漏的是实体而非样本"
+        f"同一 symbol 分到了多个 split：{by_key['600276']} —— 分层失效，泄漏的是实体而非样本"
     )
 
 
@@ -58,9 +58,7 @@ def test_分层键_none_时退化为按样本分():
     by_key = defaultdict(set)
     for i in range(300):
         by_key["600276"].add(assign_split(f"s{i}", 0.1, 0.1, None))
-    assert len(by_key["600276"]) > 1, (
-        "传key=None 与传 key 行为相同 → 上面的分层测试可能是恒真的"
-    )
+    assert len(by_key["600276"]) > 1, "传key=None 与传 key 行为相同 → 上面的分层测试可能是恒真的"
 
 
 def test_切分比例大致符合配置():
@@ -75,6 +73,7 @@ def test_切分比例大致符合配置():
 
 
 # ── MinHash 签名与泄漏判定 ──────────────────────────────────────────────
+
 
 def test_签名相同文本的相似度为1():
     a = minhash_signature("这是一段测试文本，用于验证签名的一致性。")
@@ -105,6 +104,7 @@ def test_完全不同的文本相似度低():
 
 
 # ── 产物契约：manifest 里不许出现占位 ──────────────────────────────────
+
 
 def test_已产出manifest的必填字段非空且自洽():
     """检查真实产出的 manifest（若存在）。

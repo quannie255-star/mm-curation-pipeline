@@ -50,10 +50,12 @@ def test_验收不能只看第一个batch(verify_src):
     has_loop = re.search(r"for\s+\w+\s+in\s+dl\s*:", tail) is not None
     assert has_loop, (
         "验收只取了第一个 batch（没直接遍历 loader）—— 尾块/短样本不会被验证到，"
-        "这正是本项目踩过的假绿（顺序读时前几个 block 恰好满的）")
+        "这正是本项目踩过的假绿（顺序读时前几个 block 恰好满的）"
+    )
     # 且必须累加行数，才能与 manifest 比对
     assert re.search(r"\w+\s*\+=\s*int\(", tail), (
-        "遍历了 batch 但没累加行数 → 无法核对是否覆盖了全量")
+        "遍历了 batch 但没累加行数 → 无法核对是否覆盖了全量"
+    )
     # 且必须断言「遍历行数 == 数据集行数」，否则半途退出也算通过
     assert "len(hf)" in tail, "未把遍历行数与数据集行数对账"
 
@@ -61,6 +63,7 @@ def test_验收不能只看第一个batch(verify_src):
 # ── 2) 验收必须核全量 split ───────────────────────────────────────────────
 def test_验收必须核全量而不是只train(verify_src):
     import re
+
     """第一版只查 train 的 loss_mask 有效位，而 manifest 记的是三切分合计
     → 349671 vs 596397 报「口径不对」，实为**判据只覆盖 59%**。"""
     i = verify_src.index("loss_mask")
@@ -68,14 +71,12 @@ def test_验收必须核全量而不是只train(verify_src):
     # ⚠️ **必须匹配「用变量 split 迭代」的结构**，光有 `for sp in` 不够：
     #   变异把循环体改成 `allhf["train"][i]` 而for-in 仍在 → 假绿
     #   （实测栽过：这是本文件第二次被变异放过）。
-    has_var_split = re.search(
-        r"for\s+(\w+)\s+in\s+allhf\b.*?allhf\[\1\]", tail, re.S
-    ) is not None
+    has_var_split = re.search(r"for\s+(\w+)\s+in\s+allhf\b.*?allhf\[\1\]", tail, re.S) is not None
     assert has_var_split, (
         "loss_mask 校验没真正遍历所有 split（循环体里没用 split 变量）"
-        " → 与 manifest 的合计口径必然不符，判据只覆盖部分数据")
-    assert "n_all" in tail or "n_rows" in tail, (
-        "未把「全量 block 数」与 manifest n_rows 对账")
+        " → 与 manifest 的合计口径必然不符，判据只覆盖部分数据"
+    )
+    assert "n_all" in tail or "n_rows" in tail, "未把「全量 block 数」与 manifest n_rows 对账"
 
 
 # ── 3) row_unit 联动 ─────────────────────────────────────────────────────
@@ -88,7 +89,8 @@ def test_列名必须随row_unit切换(verify_src, unit, expect_col):
     写死任一个都会让另一种产物验不过。"""
     assert 'if unit == "block"' in verify_src or 'unit == "block"' in verify_src
     assert expect_col in verify_src, (
-        f"验收源码里找不到 {expect_col} —— row_unit={unit} 时该列必须被检查")
+        f"验收源码里找不到 {expect_col} —— row_unit={unit} 时该列必须被检查"
+    )
 
 
 def test_验收必须自报未通过(verify_src):
@@ -106,11 +108,11 @@ def test_构建器在init里清旧shard():
     实测踩过：manifest 说 163 样本 / 2 shard，目录里却有 3 个文件 179 行
     —— 消费者按目录读会拿到重复数据，而校验和只覆盖新写的那些。
     """
-    src = (ROOT / "src" / "mm_curation" / "dataset" / "build.py").read_text(
-        encoding="utf-8")
-    init_body = src[src.index("def __init__"):src.index("def add")]
+    src = (ROOT / "src" / "mm_curation" / "dataset" / "build.py").read_text(encoding="utf-8")
+    init_body = src[src.index("def __init__") : src.index("def add")]
     assert "unlink" in init_body, (
-        "旧 shard 的清理不在 __init__ 里 → 中途失败会留半成品，"
-        "且重建会与旧文件混在一起")
-    assert "finalize" not in init_body.split("def add")[0].split("unlink")[-1][-200:] \
-        or True  # 位置检查由上一条覆盖，这里只做注释留档
+        "旧 shard 的清理不在 __init__ 里 → 中途失败会留半成品，且重建会与旧文件混在一起"
+    )
+    assert (
+        "finalize" not in init_body.split("def add")[0].split("unlink")[-1][-200:] or True
+    )  # 位置检查由上一条覆盖，这里只做注释留档

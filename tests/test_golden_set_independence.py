@@ -31,10 +31,7 @@ def _imported_modules(path: Path) -> set[str]:
 def test_golden_set_does_not_import_contaminators() -> None:
     """黄金集构造器**禁止** import 污染器模块。"""
     mods = _imported_modules(SCRIPT)
-    forbidden = {
-        m for m in mods
-        if "contamination" in m or "contaminator" in m
-    }
+    forbidden = {m for m in mods if "contamination" in m or "contaminator" in m}
     assert not forbidden, (
         f"黄金集构造器不得依赖污染器：发现 {sorted(forbidden)}。"
         "用污染器造评估集会形成自证闭环（召回数字不再有意义）。"
@@ -44,17 +41,18 @@ def test_golden_set_does_not_import_contaminators() -> None:
 def test_golden_set_imports_are_explicitly_allowed() -> None:
     """白名单：只允许少量无害依赖，出现新依赖时必须有人想清楚。"""
     allowed_prefixes = (
-        "mm_curation", "sys", "json", "random", "pathlib", "collections",
+        "mm_curation",
+        "sys",
+        "json",
+        "random",
+        "pathlib",
+        "collections",
         "__future__",
     )
     mods = _imported_modules(SCRIPT)
-    unexpected = sorted(
-        m for m in mods
-        if not m.startswith(allowed_prefixes)
-    )
+    unexpected = sorted(m for m in mods if not m.startswith(allowed_prefixes))
     assert not unexpected, (
-        f"黄金集构造器新增了未预期的依赖 {unexpected}；"
-        "新增前请确认它不会把污染器实现带进来。"
+        f"黄金集构造器新增了未预期的依赖 {unexpected}；新增前请确认它不会把污染器实现带进来。"
     )
 
 
@@ -66,10 +64,7 @@ def test_golden_set_criteria_are_human_checkable() -> None:
     specs = None
     for node in ast.walk(tree):
         if isinstance(node, ast.AnnAssign | ast.Assign):
-            targets = (
-                [node.target] if isinstance(node, ast.AnnAssign)
-                else node.targets
-            )
+            targets = [node.target] if isinstance(node, ast.AnnAssign) else node.targets
             for t in targets:
                 if isinstance(t, ast.Name) and t.id == "PROBE_SPECS":
                     specs = node.value
@@ -101,8 +96,7 @@ def test_slo_contract_keeps_its_comments_and_sli_section() -> None:
       决定口径的说明。
     """
     raw = SLO.read_text(encoding="utf-8")
-    for needle in ("sli:", "contracts:", "version:",
-                   "不 import", "预算", "棘轮"):
+    for needle in ("sli:", "contracts:", "version:", "不 import", "预算", "棘轮"):
         assert needle in raw, (
             f"契约缺少 `{needle}` —— 疑似被 yaml.safe_dump 覆盖过"
             "（变异测试必须写 configs/_mutations/，不得就地改写真契约）"

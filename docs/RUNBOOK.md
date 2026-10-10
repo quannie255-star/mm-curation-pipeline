@@ -359,6 +359,35 @@ python -X utf8 scripts/threshold_regression_gate.py --update-baseline # 重生�
 扫描区间/生产默认与 `scripts/threshold_scan.py` 共用 THRESHOLD_SPECS
 （单一定义源），改区间必须重新生成基线。
 
+### 1.9.3 变异测试门禁（2026-10-10 起：3 条在 CI，2 条只在本地）
+
+「门禁本身是否还会红」这件事由变异测试证。**在 CI 上跑的是 3 条**
+（`gate-ci.yml` 的 `mutation-gate` job，纯 stdlib、秒级）：
+
+```bash
+python -X utf8 scripts/mutation_test_ci_assertions.py     # CI 自身的 bash 断言 6/6
+python -X utf8 scripts/mutation_test_claims_gate.py       # 对外数字门禁 6/6
+python -X utf8 scripts/mutation_test_no_absolute_paths.py # 绝对路径门禁
+```
+
+另有 **2 条只在本地跑**（`data-ci.yml` 里那个 job 已于 2026-10-10 移除）：
+它们要的模型权重都在 `.gitignore` 的 `models/` 下，**干净检出里一个都没有**，
+其中 `models/detector/wm_nsfw_cnn.pt` 更是要 `scripts/train_detector.py` 现训、
+公开源拿不到 —— 放进 CI 只会变成「永远红」或「假绿」，与本节上一段
+「clip/semantic 要编码器，不入 CI」是同一条纪律。
+
+```bash
+python -X utf8 scripts/mutation_test_detection_slo.py   # SLO 判据 7/7（需 CLIP ~600MB + wm_nsfw_cnn.pt）
+python -X utf8 scripts/mutation_test_agent_gate.py      # Agent 路由判据 6/6（需 gpt2-chinese 权重 ~400MB）
+```
+
+⚠️ 实测教训（Data CI #78）：这 2 条接在 CI 上时**第一件事就崩**，而
+`mutation_test_detection_slo.py` 的基线纪律只看 `rc0 ∈ {0,1}` —— 崩溃以
+`rc=1` 冒充了「合法的红」，M1–M6 于是因**装置坏了**而假通过，只有 M3
+（去输出里找 `NO_SLO` 字样）露了馅。**变异测试自己也会被装置故障骗过。**
+所以跑这 2 条时不能只看退出码，必须确认日志里出现「7/7 通过」「6/6 …全部被
+正确拦住」这样的**结论行**，并看到基线那行的 `BREACH` 条数与实际相符。
+
 ## 1.14 偏好判官工坊（V3 θ，2026-09-06）
 
 大众入口（推荐）：`make studio`（= `streamlit run scripts/judge_studio.py`）——

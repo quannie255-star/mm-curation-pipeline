@@ -36,7 +36,7 @@
 > 「Agent 只能省成本，不能掉质量」——R@1 与静态基线不持平就是回归，不接受。
 
 规模基线（**唯一真相源 = `docs/claims.json`**，改一处全文档红）：主仓 **876** + 包 **67** = **943** 条测试。
-工程发现 **ENGINEERING_NOTES.md（98 条）**，每条是「现象 → 根因 → 决策 → 话术」。
+工程发现 **ENGINEERING_NOTES.md（99 条）**，每条是「现象 → 根因 → 决策 → 话术」。
 
 主线叙事的唯一出处是 [NARRATIVE.md](NARRATIVE.md)；本文件只管边界与进度。
 
@@ -94,14 +94,29 @@ paragraph_repeat（`char_repetition` 量的是单字符游程，与段落级重�
 
 **4. 把门禁从「文档一致」推到「结论可信」** ✅ 已完成（2026-10-08）
 
-现在的门禁能保证 943 条测试、98 条笔记、所有对外数字互相一致——
+现在的门禁能保证 943 条测试、99 条笔记、所有对外数字互相一致——
 **它保证的是一致性，不是真值性**。本项把它推到「结论可信」。
 
 **已落地**：`.github/workflows/gate-ci.yml`（独立 job，纯 stdlib，10 分钟超时），
 一次 CI 同时验「数字没漂」与「门禁本身仍能拦红」：
-`verify_claims.py` + 5 个变异测试 + 3 个静态门禁（绝对路径 / YAML 粘连 / 编码卫生）。
+`verify_claims.py` + **3 个**变异测试（claims_gate / ci_assertions / no_absolute_paths）
++ 3 个静态门禁（绝对路径 / YAML 粘连 / 编码卫生）。
 验收标准已达成（**双向验证过，不是只跑一次绿**）：两个断言各做过 3 次变异
 （削条数 / 归零 / 伪造 PASS），全被拦红，还原后回绿。
+
+> ⚠️ **2026-10-10 更正：原写「5 个变异测试进 CI」，实际只有 3 个。**
+> 另 2 条（`mutation_test_detection_slo.py` 7/7、`mutation_test_agent_gate.py` 6/6）
+> 曾被接在 `data-ci.yml` 的独立 job 上，但**从未在 CI 上跑通过一次**：
+> 它们要的权重（CLIP ~600MB、gpt2-chinese ~400MB、自训的 `wm_nsfw_cnn.pt` 6MB）
+> 都在 `.gitignore` 的 `models/` 下，干净检出里一个都没有，而
+> `wm_nsfw_cnn.pt` 更是**公开源拿不到**（得靠 `scripts/train_detector.py` 现训）。
+> 实测失效形态（Data CI #78）：基线以**崩溃**冒充「合法的红」（rc=1 而 BREACH 0 条），
+> M1–M6 因装置坏了而假通过，只有查 `NO_SLO` 字样的 M3 露馅 ——
+> 「装置故障冒充判据」连变异测试自己也没免疫。
+> 按既有纪律（拿不到产物的门禁不进 CI，同本文件 1.9.2 的 clip/semantic 一条）
+> 已从 data-ci 移除，变成**本地门禁**，命令见 `docs/RUNBOOK.md` 1.9.3。
+> **这两条判据仍然有效，只是不在 CI 上跑**；`data-ci.yml` 保留了冻结黄金集的
+> 廉价完整性检查（存在 + 条数）。
 
 **顺带修掉一个假绿缺陷**：`verify_claims.py` 原先把`missing` / `pointer-broken`
 只打进汇总行、**不计入红项**，`return 1 if n_drift else 0` 因此在

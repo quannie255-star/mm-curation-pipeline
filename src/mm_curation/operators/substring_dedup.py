@@ -161,7 +161,7 @@ def find_long_repeated(
             while j + 1 < n and height[j + 1] >= min_chars:
                 j += 1
             # 链上后缀是 sa[i-1..j+1]，它们两两之间 LCP ≥ min_chars
-            docs = [owner[p] for p in sa[i - 1: j + 2] if owner[p] >= 0]
+            docs = [owner[p] for p in sa[i - 1 : j + 2] if owner[p] >= 0]
             cross = len(set(docs)) > 1 if bounds is not None else True
             if cross:
                 # 区间内每个后缀登记：与链上邻居的最长 LCP
@@ -386,7 +386,7 @@ def group_by_shared_substring(samples: list[Sample], min_chars: int) -> dict[str
         if s.id in kept_ids:
             continue
         dup = s.meta.get("dedup:substring_dedup") or {}
-        anchor = (dup.get("duplicate_of") if isinstance(dup, dict) else None)
+        anchor = dup.get("duplicate_of") if isinstance(dup, dict) else None
         if anchor:
             groups.setdefault(str(anchor), []).append(s.id)
     return dict(groups)

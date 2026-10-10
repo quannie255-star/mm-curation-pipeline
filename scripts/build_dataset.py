@@ -45,12 +45,19 @@ def main() -> int:
     ap.add_argument("--out-root", default=str(ROOT / "datasets"))
     ap.add_argument("--val-ratio", type=float, default=0.1)
     ap.add_argument("--test-ratio", type=float, default=0.1)
-    ap.add_argument("--split-key", default=None,
-                    help="分层切分键（如 finance的 symbol）—— 同一键的样本必须同 split")
+    ap.add_argument(
+        "--split-key",
+        default=None,
+        help="分层切分键（如 finance的 symbol）—— 同一键的样本必须同 split",
+    )
     ap.add_argument("--max-tokens", type=int, default=4096)
-    ap.add_argument("--pack-block-size", type=int, default=0,
-                    help=">0 时产出 block 级 shard（定长，可直接 collate 训练）；"
-                         "0 = 保持样本级（保留 id/text 便于分析）")
+    ap.add_argument(
+        "--pack-block-size",
+        type=int,
+        default=0,
+        help=">0 时产出 block 级 shard（定长，可直接 collate 训练）；"
+        "0 = 保持样本级（保留 id/text 便于分析）",
+    )
     ap.add_argument("--shard-rows", type=int, default=2000)
     ap.add_argument("--funnel-config", default="", help="漏斗配置文件（写进 manifest 谱系）")
     ap.add_argument("--license", default="unknown")
@@ -105,8 +112,9 @@ def main() -> int:
         builder.add(rec)
         n_in += 1
         if n_in % 500 == 0:
-            logger.info("  读入 %d 条，已 tokenize %d 条 (%.1fs)",
-                        n_in, builder.n_samples, time.time() - t0)
+            logger.info(
+                "  读入 %d 条，已 tokenize %d 条 (%.1fs)", n_in, builder.n_samples, time.time() - t0
+            )
         if args.limit and n_in >= args.limit:
             break
 
@@ -118,20 +126,20 @@ def main() -> int:
     logger.info("")
     logger.info("=== 构建完成 (%.1fs) ===", dt)
     logger.info("输出目录   %s", out_dir)
-    logger.info("样本       %d（读入 %d，空/无效 %d）", man.n_samples, n_in,
-                n_in - man.n_samples)
-    logger.info("token      %d  (%.3f 字符/token)", man.n_tokens,
-                man.compression_chars_per_token)
+    logger.info("样本       %d（读入 %d，空/无效 %d）", man.n_samples, n_in, n_in - man.n_samples)
+    logger.info("token      %d  (%.3f 字符/token)", man.n_tokens, man.compression_chars_per_token)
     logger.info("切分       %s", man.splits)
     if man.pack_block_size:
         logger.info("packing   block_size=%d → %s", man.pack_block_size, man.n_blocks)
     logger.info("shard      %d 个（含校验和）", man.n_shards)
-    logger.info("截断       %d 条 @ max_tokens=%s", man.n_truncated,
-                man.max_tokens_per_sample)
+    logger.info("截断       %d 条 @ max_tokens=%s", man.n_truncated, man.max_tokens_per_sample)
     lk = man.leakage_check
-    logger.info("泄漏检查md5 %d / minhash %d → %s",
-                len(lk.get("md5_leaks", [])), len(lk.get("minhash_leaks", [])),
-                "干净" if lk.get("clean") else "**有泄漏**")
+    logger.info(
+        "泄漏检查md5 %d / minhash %d → %s",
+        len(lk.get("md5_leaks", [])),
+        len(lk.get("minhash_leaks", [])),
+        "干净" if lk.get("clean") else "**有泄漏**",
+    )
     logger.info("round-trip 抽检 %d 条，全部逐字节还原", builder._rt_checked)
     logger.info("")
     logger.info("manifest 里 training_runs 为空 —— 必须真训一次再回填，**不许占位**")
@@ -140,9 +148,15 @@ def main() -> int:
     rep.parent.mkdir(parents=True, exist_ok=True)
     rep.write_text(
         json.dumps(
-            {"manifest": man.to_dict(), "elapsed_s": round(dt, 2),
-             "n_read": n_in, "throughput_docs_per_s": round(n_in / max(dt, 1e-9), 1)},
-            ensure_ascii=False, indent=2),
+            {
+                "manifest": man.to_dict(),
+                "elapsed_s": round(dt, 2),
+                "n_read": n_in,
+                "throughput_docs_per_s": round(n_in / max(dt, 1e-9), 1),
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
         encoding="utf-8",
     )
     logger.info("构建报告   %s", rep)

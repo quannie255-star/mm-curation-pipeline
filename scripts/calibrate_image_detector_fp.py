@@ -81,9 +81,7 @@ def with_op(cfg: PipelineConfig, op: str, params: dict, tag: str) -> PipelineCon
     if op in existing:
         return dataclasses.replace(cfg, name=f"{cfg.name}_{tag}")
     spec = OperatorSpec(op=op, params=params)
-    return dataclasses.replace(
-        cfg, name=f"{cfg.name}_{tag}", operators=[*cfg.operators, spec]
-    )
+    return dataclasses.replace(cfg, name=f"{cfg.name}_{tag}", operators=[*cfg.operators, spec])
 
 
 def dropped_by_op(baseline: list[dict], cfg: PipelineConfig) -> dict[str, int]:
@@ -118,8 +116,9 @@ def raw_scores(rows: list[dict], op_name: str) -> list[float]:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--n", type=int, default=600,
-                    help="干净样本条数（小样本会给出错误误杀率，默认 600）")
+    ap.add_argument(
+        "--n", type=int, default=600, help="干净样本条数（小样本会给出错误误杀率，默认 600）"
+    )
     ap.add_argument("--op", default=DEFAULT_OP)
     ap.add_argument("--config", default="configs/pipeline.example.yaml")
     args = ap.parse_args()
@@ -132,12 +131,16 @@ def main() -> int:
     print(f"标定 {args.op} 在干净真实数据上的误杀率")
     print("=" * 72)
     print(f"干净集 = 前 {len(rows)} 条原始样本（未过任何污染器）")
-    print(f"算子元数据：cost={meta.cost_class.name} "
-          f"modalities={sorted(meta.modalities)} "
-          f"required={sorted(meta.required_fields)}")
+    print(
+        f"算子元数据：cost={meta.cost_class.name} "
+        f"modalities={sorted(meta.modalities)} "
+        f"required={sorted(meta.required_fields)}"
+    )
     if "image_caption" not in meta.modalities:
-        print("★ 该算子模态不含 image_caption，接进本数据集不会评——"
-              "run_funnel 会对全不相交直接抛 ValueError")
+        print(
+            "★ 该算子模态不含 image_caption，接进本数据集不会评——"
+            "run_funnel 会对全不相交直接抛 ValueError"
+        )
         return 1
 
     print()
@@ -169,16 +172,19 @@ def main() -> int:
     def q(p: float) -> float:
         return scores[min(int(len(scores) * p), len(scores) - 1)]
 
-    print(f"   有效 score {len(scores)}/{len(rows)}"
-          f"（缺失 {len(rows) - len(scores)}）")
-    print(f"   min={q(0):.4f} p25={q(.25):.4f} p50={q(.5):.4f} "
-          f"p75={q(.75):.4f} p95={q(.95):.4f} p99={q(.99):.4f}")
+    print(f"   有效 score {len(scores)}/{len(rows)}（缺失 {len(rows) - len(scores)}）")
+    print(
+        f"   min={q(0):.4f} p25={q(0.25):.4f} p50={q(0.5):.4f} "
+        f"p75={q(0.75):.4f} p95={q(0.95):.4f} p99={q(0.99):.4f}"
+    )
     thr = THRESHOLDS[0]
     n_by_score = sum(1 for v in scores if v < thr)
     print(f"   判脏线 score < {thr}")
-    print(f"   按分数应误杀 {n_by_score}/{len(scores)} = "
-          f"{n_by_score / len(scores):.2%}"
-          f"   漏斗实测 {op_fp}/{len(rows)} = {op_fp / len(rows):.2%}")
+    print(
+        f"   按分数应误杀 {n_by_score}/{len(scores)} = "
+        f"{n_by_score / len(scores):.2%}"
+        f"   漏斗实测 {op_fp}/{len(rows)} = {op_fp / len(rows):.2%}"
+    )
     if abs(n_by_score - op_fp) > max(2, 0.02 * len(scores)):
         print("   ★ 分数口径与漏斗口径不一致 → 有样本在到达该算子前已被别的算子丢掉。")
         print("     这不是「它更准」，而是「它没看到那些样本」—— 报数时必须说清楚。")
@@ -206,8 +212,10 @@ def main() -> int:
     print("=" * 72)
     print(f"   接入前干净集丢弃率= {base_any / len(rows):.2%}")
     print(f"   接入后干净集丢弃率  = {op_any / len(rows):.2%}")
-    print(f"   净增误杀            = {op_fp / len(rows):.2%}"
-          f"（{base_counts.get(args.op, 0)} → {op_fp} 条）")
+    print(
+        f"   净增误杀            = {op_fp / len(rows):.2%}"
+        f"（{base_counts.get(args.op, 0)} → {op_fp} 条）"
+    )
     print()
     print("   对外表述纪律：补算子换召回**必须同时报净增误杀**，")
     print("   单独说「召回提升 x%」而隐去误杀变化 = 用误杀换召回，不算能力提升。")

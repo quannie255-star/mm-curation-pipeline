@@ -63,8 +63,8 @@ class StudioError(Exception):
 @dataclass
 class Job:
     id: str
-    kind: str                # funnel | dataset
-    status: str              # pending | running | done | failed
+    kind: str  # funnel | dataset
+    status: str  # pending | running | done | failed
     stage: str = ""
     progress: float = 0.0
     result: dict[str, Any] | None = None
@@ -109,9 +109,11 @@ def session_dir(session: str) -> Path:
     session 只允许安全字符 —— 它会拼进文件系统路径，
     不校验就是路径穿越漏洞（`../../`）。
     """
-    if not session or any(ch in session for ch in "/\\..") or not session.replace(
-        "-", "").replace("_", ""
-    ).isalnum():
+    if (
+        not session
+        or any(ch in session for ch in "/\\..")
+        or not session.replace("-", "").replace("_", "").isalnum()
+    ):
         raise StudioError("非法的会话标识", "请重新打开页面")
     d = UPLOAD_ROOT / session
     d.mkdir(parents=True, exist_ok=True)
@@ -169,8 +171,7 @@ def list_scenarios() -> list[dict]:
     return out
 
 
-def do_check(session: str, filename: str, scenario_key: str,
-             images_uploaded: bool) -> dict:
+def do_check(session: str, filename: str, scenario_key: str, images_uploaded: bool) -> dict:
     """真跑`check_upload`。有错就抛 StudioError（前端红字显示）。"""
     recipe = get_recipe(scenario_key)
     path = session_dir(session) / filename
@@ -181,8 +182,7 @@ def do_check(session: str, filename: str, scenario_key: str,
         if not images_uploaded:
             raise StudioError(
                 "这个场景需要图片",
-                f"你的数据里有 image_path 字段，请把图片打包成 zip 上传"
-                f"（{recipe.sample_hint}）",
+                f"你的数据里有 image_path 字段，请把图片打包成 zip 上传（{recipe.sample_hint}）",
             )
         image_root = session_dir(session) / "images"
     res = check_upload(
@@ -202,8 +202,7 @@ def do_check(session: str, filename: str, scenario_key: str,
     }
 
 
-def start_funnel(session: str, filename: str, scenario_key: str,
-                 limit: int = 0) -> dict:
+def start_funnel(session: str, filename: str, scenario_key: str, limit: int = 0) -> dict:
     """后台跑漏斗，立刻返回 job_id。"""
     recipe = get_recipe(scenario_key)
     src = session_dir(session) / filename
@@ -215,9 +214,7 @@ def start_funnel(session: str, filename: str, scenario_key: str,
         spec["dataset"]["limit"] = limit
 
     job = _new_job("funnel")
-    threading.Thread(
-        target=_run_funnel, args=(job, spec, recipe.key), daemon=True
-    ).start()
+    threading.Thread(target=_run_funnel, args=(job, spec, recipe.key), daemon=True).start()
     return job.as_dict()
 
 
@@ -233,8 +230,10 @@ def _run_funnel(job: Job, spec: dict, scenario_key: str) -> None:
             name=spec["name"],
             raw_jsonl=Path(spec["dataset"]["raw_jsonl"]),
             output_dir=Path(spec["output"]["dir"]),
-            operators=[OperatorSpec(op=o, params=p) for o, p in
-                       [(x["op"], x.get("params", {})) for x in spec["operators"]]],
+            operators=[
+                OperatorSpec(op=o, params=p)
+                for o, p in [(x["op"], x.get("params", {})) for x in spec["operators"]]
+            ],
             description=spec.get("description", ""),
         )
         limit = int(spec["dataset"].get("limit") or 0)
@@ -293,7 +292,8 @@ def _run_funnel(job: Job, spec: dict, scenario_key: str) -> None:
 
         report = build_report_data(result, cfg.name, len(rows))
         (cfg.output_dir / "funnel_stats.json").write_text(
-            json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+            json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
         job.result = {
             "n_input": len(rows),
@@ -347,16 +347,19 @@ def _friendly_hint(exc: Exception) -> str:
     return ""
 
 
-def start_dataset(session: str, dataset_name: str, pack_block_size: int = 512,
-                  val_ratio: float = 0.1, test_ratio: float = 0.1,
-                  max_tokens: int = 4096) -> dict:
+def start_dataset(
+    session: str,
+    dataset_name: str,
+    pack_block_size: int = 512,
+    val_ratio: float = 0.1,
+    test_ratio: float = 0.1,
+    max_tokens: int = 4096,
+) -> dict:
     """把清洗产物打包成可训练数据集（调既有 DatasetBuilder）。"""
     cleaned = session_dir(session) / "cleaned" / "cleaned.jsonl"
     if not cleaned.exists():
         raise StudioError("还没有清洗结果", "请先跑完清洗步骤")
-    if not dataset_name or not all(
-        ch.isalnum() or ch in "-_" for ch in dataset_name
-    ):
+    if not dataset_name or not all(ch.isalnum() or ch in "-_" for ch in dataset_name):
         raise StudioError(
             "数据集名只能用字母、数字、连字符、下划线",
             f"当前输入：{dataset_name!r}",
@@ -364,15 +367,15 @@ def start_dataset(session: str, dataset_name: str, pack_block_size: int = 512,
     job = _new_job("dataset")
     threading.Thread(
         target=_run_dataset,
-        args=(job, cleaned, dataset_name, pack_block_size, val_ratio,
-              test_ratio, max_tokens),
+        args=(job, cleaned, dataset_name, pack_block_size, val_ratio, test_ratio, max_tokens),
         daemon=True,
     ).start()
     return job.as_dict()
 
 
-def _run_dataset(job: Job, cleaned: Path, name: str, pack: int,
-                 val_r: float, test_r: float, max_tok: int) -> None:
+def _run_dataset(
+    job: Job, cleaned: Path, name: str, pack: int, val_r: float, test_r: float, max_tok: int
+) -> None:
     """走 `DatasetBuilder` 的真实序列：构造 → add(...) 逐条 → finalize()。
 
     ⚠️ 不要凭记忆写签名 —— 这里调用的每个参数名都对着

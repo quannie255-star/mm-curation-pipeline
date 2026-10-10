@@ -45,8 +45,20 @@ def test_门禁模块能导入且暴露所需接口(vc):
 @pytest.mark.parametrize(
     "value",
     [
-        None, True, False, 0, -1, 3.5, "abc", "",
-        [], [1, 2, 3], {}, {"a": 1}, set(), (1, 2),
+        None,
+        True,
+        False,
+        0,
+        -1,
+        3.5,
+        "abc",
+        "",
+        [],
+        [1, 2, 3],
+        {},
+        {"a": 1},
+        set(),
+        (1, 2),
     ],
 )
 def test_fmt_cell对任意值都不抛(vc, value):
@@ -67,15 +79,31 @@ def test_fmt_cell把容器标出类型与长度(vc):
 def test_非标量claim判指针断而非通过(vc, tmp_path):
     """核心回归：list 型pointer 不能算 PASS。"""
     doc = tmp_path / "m.json"
-    doc.write_text(json.dumps({"leak": [{"a": 1}, {"a": 2}, {"a": 3}], "n": 3}),
-                   encoding="utf-8")
-    r = vc.check_claim({"id": "x", "file": str(doc), "pointer": "leak",
-                        "expected": 3, "tol": 0.0, "comparator": "exact"})
+    doc.write_text(json.dumps({"leak": [{"a": 1}, {"a": 2}, {"a": 3}], "n": 3}), encoding="utf-8")
+    r = vc.check_claim(
+        {
+            "id": "x",
+            "file": str(doc),
+            "pointer": "leak",
+            "expected": 3,
+            "tol": 0.0,
+            "comparator": "exact",
+        }
+    )
     assert r["status"] == "pointer-broken", (
-        f"list 型指针被判成 {r['status']} —— 会让「锁 3 对泄漏」变成一句空话")
+        f"list 型指针被判成 {r['status']} —— 会让「锁 3 对泄漏」变成一句空话"
+    )
     # 标量兄弟字段仍然可用
-    r2 = vc.check_claim({"id": "y", "file": str(doc), "pointer": "n",
-                         "expected": 3, "tol": 0.0, "comparator": "exact"})
+    r2 = vc.check_claim(
+        {
+            "id": "y",
+            "file": str(doc),
+            "pointer": "n",
+            "expected": 3,
+            "tol": 0.0,
+            "comparator": "exact",
+        }
+    )
     assert r2["status"] == "pass"
 
 
@@ -83,11 +111,27 @@ def test_标量漂移仍判drift(vc, tmp_path):
     """新逻辑不能顺手把真漂移也放过。"""
     doc = tmp_path / "r.json"
     doc.write_text(json.dumps({"v": 1.0}), encoding="utf-8")
-    r = vc.check_claim({"id": "z", "file": str(doc), "pointer": "v",
-                        "expected": 2.0, "tol": 1e-6, "comparator": "approx"})
+    r = vc.check_claim(
+        {
+            "id": "z",
+            "file": str(doc),
+            "pointer": "v",
+            "expected": 2.0,
+            "tol": 1e-6,
+            "comparator": "approx",
+        }
+    )
     assert r["status"] == "drift"
-    ok = vc.check_claim({"id": "z", "file": str(doc), "pointer": "v",
-                         "expected": 1.0, "tol": 1e-6, "comparator": "approx"})
+    ok = vc.check_claim(
+        {
+            "id": "z",
+            "file": str(doc),
+            "pointer": "v",
+            "expected": 1.0,
+            "tol": 1e-6,
+            "comparator": "approx",
+        }
+    )
     assert ok["status"] == "pass"
 
 
@@ -103,13 +147,17 @@ def test_全量注册表的claim都能被渲染不崩(tmp_path):
     assert reg.exists(), "docs/claims.json 不存在"
     r = subprocess.run(
         [sys.executable, "-X", "utf8", str(_GATE), "--reports-missing", "skip"],
-        capture_output=True, text=True, cwd=str(ROOT), encoding="utf-8",
-        errors="replace", timeout=300,
+        capture_output=True,
+        text=True,
+        cwd=str(ROOT),
+        encoding="utf-8",
+        errors="replace",
+        timeout=300,
     )
     out = r.stdout + r.stderr
     assert "Traceback" not in out, (
-        "门禁抛异常了 —— 崩溃时前面刷屏的 PASS 行会让人误以为跑通\n"
-        + out[-1500:])
+        "门禁抛异常了 —— 崩溃时前面刷屏的 PASS 行会让人误以为跑通\n" + out[-1500:]
+    )
     assert r.returncode == 0, f"门禁 rc={r.returncode}\n{out[-1500:]}"
     # 必须有完整的三行汇总，缺任何一行都说明中途退出
     for kw in ("条 claim", "条门面", "覆盖率棘轮"):

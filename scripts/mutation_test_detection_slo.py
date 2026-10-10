@@ -39,9 +39,11 @@ import yaml  # noqa: E402
 
 def run(slo_path: Path, cfg_path: Path) -> tuple[int, str]:
     r = subprocess.run(
-        [PY, "-X", "utf8", str(EVAL), "--slo", str(slo_path),
-         "--config", str(cfg_path)],
-        capture_output=True, text=True, encoding="utf-8", cwd=str(ROOT),
+        [PY, "-X", "utf8", str(EVAL), "--slo", str(slo_path), "--config", str(cfg_path)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(ROOT),
     )
     return r.returncode, r.stdout + r.stderr
 
@@ -57,7 +59,7 @@ def main() -> int:
     #   红 = 契约里写着尚未达成的目标
     # 两种都合法。**真正要证明的是「变异让它变红/保持红」**，
     # 而不是「基线必须红」—— 那个假设本身就是个恒真陷阱
-    #（第一版就栽在这：契约按实测设了棘轮后基线转绿，断言反而炸了）。
+    # （第一版就栽在这：契约按实测设了棘轮后基线转绿，断言反而炸了）。
     baseline_slo = yaml.safe_load(SLO.read_text(encoding="utf-8"))
     rc0, out0 = run(SLO, CFG)
     baseline_breaches = [ln for ln in out0.split("\n") if ln.strip().startswith("- ")]
@@ -82,8 +84,7 @@ def main() -> int:
     m1["contracts"]["forms"]["mojibake"]["recall"]["budget"] = 0.0
     rc, out = run(write(m1), CFG)
     ok = rc != 0 and "mojibake" in out
-    results.append(("M1 收紧 mojibake 预算→0（应比基线更红）", ok,
-                    f"rc={rc}（基线 {rc0}）"))
+    results.append(("M1 收紧 mojibake 预算→0（应比基线更红）", ok, f"rc={rc}（基线 {rc0}）"))
 
     # ---- M2 放宽误杀预算到 100% → 误杀项转绿 →整体应与基线同rc ----
     # 这一条验的是「门禁只对契约负责」：放宽 budget 后误杀项不该再报。
@@ -92,8 +93,13 @@ def main() -> int:
     rc, out = run(write(m2), CFG)
     no_fk_breach = "false_kill:" not in out
     print(f"\nM2 放宽后是否还报 false_kill 违约：{('false_kill:' in out)}")
-    results.append(("M2 误杀预算放到 100% → 误杀项不再违约（门禁只认契约）",
-                    no_fk_breach, f"rc={rc}（基线 {rc0}）"))
+    results.append(
+        (
+            "M2 误杀预算放到 100% → 误杀项不再违约（门禁只认契约）",
+            no_fk_breach,
+            f"rc={rc}（基线 {rc0}）",
+        )
+    )
 
     # ---- M3 删掉 boilerplate_inject 的契约 → 应判 NO_SLO ----
     m3 = copy.deepcopy(baseline_slo)
@@ -101,11 +107,10 @@ def main() -> int:
     m3["contracts"]["forms"]["boilerplate_inject"]["recall"]["budget"] = None
     rc, out = run(write(m3), CFG)
     no_slo_ok = "NO_SLO" in out and "boilerplate_inject" in out
-    results.append(("M3 契约 target置空→应判 NO_SLO（不算达标）", no_slo_ok,
-                    f"rc={rc}"))
+    results.append(("M3 契约 target置空→应判 NO_SLO（不算达标）", no_slo_ok, f"rc={rc}"))
 
     # ---- M4 天花板护栏：把 mismatched_pair 契约调到理想值 1.0 ----
-    #应因**装置天花板**（23.3%）而仍红 → 证明门禁不会被「理想目标」骗绿
+    # 应因**装置天花板**（23.3%）而仍红 → 证明门禁不会被「理想目标」骗绿
     m4 = copy.deepcopy(baseline_slo)
     m4["contracts"]["forms"]["mismatched_pair"]["recall"]["target"] = 1.0
     m4["contracts"]["forms"]["mismatched_pair"]["recall"]["budget"] = 0.0
@@ -115,8 +120,9 @@ def main() -> int:
     for ln in out.split("\n"):
         if "mismatched_pair" in ln:
             print(f"   {ln.strip()[:110]}")
-    results.append(("M4 目标设1.0（超装置天花板）→ 应仍红（天花板护栏）",
-                    ceiling_guarded, f"rc={rc}"))
+    results.append(
+        ("M4 目标设1.0（超装置天花板）→ 应仍红（天花板护栏）", ceiling_guarded, f"rc={rc}")
+    )
 
     # ---- M5 空配置（漏斗全通过）→ 误杀=0、召回=0 → 必红（召回项） ----
     empty_cfg = write(
@@ -124,8 +130,7 @@ def main() -> int:
     )
     rc, out = run(SLO, empty_cfg)
     empty_red = rc != 0
-    results.append(("M5 空配置（漏斗全通过）→ 召回 0% 应红",
-                    empty_red, f"rc={rc}"))
+    results.append(("M5 空配置（漏斗全通过）→ 召回 0% 应红", empty_red, f"rc={rc}"))
 
     # ---- M6 缺失契约文件 → 脚本必须报错，不得静默绿 ----
     rc, out = run(ROOT / "configs" / "_does_not_exist.yaml", CFG)
@@ -144,8 +149,13 @@ def main() -> int:
     finally:
         tmp_golden.write_text(stash, encoding="utf-8")
         backup.unlink(missing_ok=True)
-    results.append(("M7 黄金集缺失 → 必须 rc=2 且明确报错（不得 fallback 自证）",
-                    golden_missing_fails, f"rc={rc}"))
+    results.append(
+        (
+            "M7 黄金集缺失 → 必须 rc=2 且明确报错（不得 fallback 自证）",
+            golden_missing_fails,
+            f"rc={rc}",
+        )
+    )
 
     print()
     print("=" * 72)

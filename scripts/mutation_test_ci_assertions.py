@@ -67,6 +67,7 @@ ENV_ERROR_CODES = (126, 127, 2)
 # 记得回来改测试，于是变异悄悄失效。所以下面 `_extract_assert()` 现取，
 # 取不到就 assert 失败（不许「跳过」——跳过等于测了个空）。
 
+
 def _extract_assert() -> str:
     """从 gate-ci.yml 里抠出断言 2 的 bash 段。
 
@@ -83,7 +84,7 @@ def _extract_assert() -> str:
     # ⚠️ 锚点必须包含**闭合引号**：踩过一次 —— 锚点只到
     # 「声明一致」这几个字，echo 语句的收尾 `"` 被切在下一行之外，
     # bash 报 `unexpected EOF while looking for matching '"'`。
-    #症状极隐蔽：前面所有检查都已跑完并打印，看起来像"差一点点就通了"。
+    # 症状极隐蔽：前面所有检查都已跑完并打印，看起来像"差一点点就通了"。
     end_anchor = '两层都在扫，且扫到的条数与声明一致"'
     assert end_anchor in text, "工作流里找不到断言 2 的结尾 —— 变异测试中止"
     i = text.index(anchor)
@@ -134,8 +135,7 @@ def _find_bash() -> str:
         if not posix:
             raise RuntimeError("找不到 bash，无法验证 gate-ci.yml 里的断言")
         return posix
-    for cand in ("C:/Program Files/Git/bin/bash.exe",
-                 "C:/Program Files/Git/usr/bin/bash.exe"):
+    for cand in ("C:/Program Files/Git/bin/bash.exe", "C:/Program Files/Git/usr/bin/bash.exe"):
         if pathlib.Path(cand).exists():
             return cand
     raise RuntimeError(
@@ -185,8 +185,7 @@ REAL = """某某claim验证汇总
 
 def main() -> int:
     bash = bash_for_tests()
-    print(f"[GREEN] 已从 gate-ci.yml 现取断言（{len(bash.splitlines())} 行，"
-          "判据只有这一个定义处）")
+    print(f"[GREEN] 已从 gate-ci.yml 现取断言（{len(bash.splitlines())} 行，判据只有这一个定义处）")
     # ── 装置自检：先证明 bash 真能在这个环境跑起来 ──
     # 不做这一步的话，「所有错误用例都红了」里可能有一部分是
     # **bash 根本没启动**（Windows 路径被bash 吃掉 → rc=127）造成的。
@@ -209,15 +208,24 @@ def main() -> int:
     # 必须核对**是哪条判据**响的，否则删掉一条判据根本看不出来。
     cases: list[tuple[str, str, bool, str | None]] = [
         ("真实输出（模拟干净检出）", REAL, True, None),
-        ("变体 A：facade 汇总行整条缺失", chr(10).join(
-            ln for ln in REAL.splitlines() if "条门面" not in ln
-        ) + chr(10), False, "缺少某一层"),
-        ("变体 B：facade 只扫到 85/87",
-         REAL.replace("87 条门面：87 PASS", "87 条门面：85 PASS"),
-         False, "部分门面没被扫到"),
-        ("变体 C：facade 总数与注册表下限不一致",
-         REAL.replace("门面条数 87（下限 87）", "门面条数 90（下限 90）"),
-         False, "两处真相不一致"),
+        (
+            "变体 A：facade 汇总行整条缺失",
+            chr(10).join(ln for ln in REAL.splitlines() if "条门面" not in ln) + chr(10),
+            False,
+            "缺少某一层",
+        ),
+        (
+            "变体 B：facade 只扫到 85/87",
+            REAL.replace("87 条门面：87 PASS", "87 条门面：85 PASS"),
+            False,
+            "部分门面没被扫到",
+        ),
+        (
+            "变体 C：facade 总数与注册表下限不一致",
+            REAL.replace("门面条数 87（下限 87）", "门面条数 90（下限 90）"),
+            False,
+            "两处真相不一致",
+        ),
     ]
 
     for label, gate_txt, expect_green, expect_kw in cases:
@@ -267,15 +275,19 @@ def main() -> int:
     rc_old, _ = _run(old, REAL.replace("87 条门面：87 PASS", "87 条门面：85 PASS"))
     ok_old = rc_old == 0
     results.append(ok_old)
-    print(f"  [{'通过' if ok_old else '未通过'}] 变异：换回恒假写法后，"
-          f"「只扫到 85/87」rc={rc_old}（期望 0 = 旧版漏检，新版已拦）")
+    print(
+        f"  [{'通过' if ok_old else '未通过'}] 变异：换回恒假写法后，"
+        f"「只扫到 85/87」rc={rc_old}（期望 0 = 旧版漏检，新版已拦）"
+    )
 
     # 双向对照：同一条坏输入，新版必须红。写在一起才算证据。
     rc_new, _ = _run(bash, REAL.replace("87 条门面：87 PASS", "87 条门面：85 PASS"))
     ok_new = rc_new != 0
     results.append(ok_new)
-    print(f"  [{'通过' if ok_new else '未通过'}] 对照：现行写法下同一条输入 "
-          f"rc={rc_new}（期望非 0 = 现行版拦得住）")
+    print(
+        f"  [{'通过' if ok_new else '未通过'}] 对照：现行写法下同一条输入 "
+        f"rc={rc_new}（期望非 0 = 现行版拦得住）"
+    )
 
     print()
     if all(results):

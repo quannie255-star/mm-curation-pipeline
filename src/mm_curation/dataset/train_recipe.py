@@ -118,9 +118,9 @@ class CausalSelfAttention(nn.Module):
         q = q.view(B, T, self.n_head, self.head_dim).transpose(1, 2)
         k = k.view(B, T, self.n_head, self.head_dim).transpose(1, 2)
         v = v.view(B, T, self.n_head, self.head_dim).transpose(1, 2)
-        y = F.scaled_dot_product_attention(q, k, v, is_causal=True,
-                                           dropout_p=self.dropout.p
-                                           if self.training else 0.0)
+        y = F.scaled_dot_product_attention(
+            q, k, v, is_causal=True, dropout_p=self.dropout.p if self.training else 0.0
+        )
         y = y.transpose(1, 2).contiguous().view(B, T, C)
         return self.proj(y)
 
@@ -176,8 +176,7 @@ class TinyCausalLM(nn.Module):
 
     @staticmethod
     def count_params(cfg_or_model) -> int:
-        m = (cfg_or_model if isinstance(cfg_or_model, nn.Module)
-             else TinyCausalLM(cfg_or_model))
+        m = cfg_or_model if isinstance(cfg_or_model, nn.Module) else TinyCausalLM(cfg_or_model)
         return sum(p.numel() for p in m.parameters() if p.requires_grad)
 
     def forward(self, idx: torch.Tensor) -> torch.Tensor:
@@ -218,7 +217,7 @@ class RecipeResult:
 # ⚠️ 中文的坑：V 通常是 15 万级（Qwen 151665），而英文 5 万级。
 #   B=8, T=512, V=151665, fp32 → logits 2.48 GB，梯度同量 → 峰值 10.3 GB
 #   （RTX 4060 是 8 GB → **直接 OOM**，而且报错在 optimizer.step()，
-#离「词表太大」这个真正原因隔了十万八千里）。
+# 离「词表太大」这个真正原因隔了十万八千里）。
 #   bf16 同配置 4.0 GB / 1.17 s每步，fp32 10.3 GB / 4.65 s每步。
 # **调 batch 前先算这个公式**，别靠 OOM 试错。
 def logits_bytes(batch: int, block_size: int, vocab: int, bytes_per: int = 4) -> int:
@@ -258,8 +257,7 @@ def run_recipe(
     model = TinyCausalLM(cfg).to(dev)
     if amp:
         model = model.to(torch.bfloat16)
-    opt = torch.optim.AdamW(model.parameters(), lr=lr, betas=(0.9, 0.95),
-                            weight_decay=0.1)
+    opt = torch.optim.AdamW(model.parameters(), lr=lr, betas=(0.9, 0.95), weight_decay=0.1)
     res = RecipeResult(trained_at=datetime.now(timezone.utc).isoformat())
     res.val_loss.append(_eval(model, val_dl, dev))
     t0 = time.time()
@@ -290,8 +288,10 @@ def run_recipe(
         res.tokens_seen += ntok
         if eval_every and step % eval_every == 0:
             res.val_loss.append(_eval(model, val_dl, dev))
-            print(f"  step {step:4d} | train {float(loss):.4f} "
-                  f"| val {res.val_loss[-1]:.4f}", flush=True)
+            print(
+                f"  step {step:4d} | train {float(loss):.4f} | val {res.val_loss[-1]:.4f}",
+                flush=True,
+            )
     res.val_loss.append(_eval(model, val_dl, dev))
     res.wall_seconds = time.time() - t0
     res.precision = precision

@@ -264,7 +264,7 @@ A 回答「清洗后检索好不好」，B 回答「增益是洗出来的还是�
 | 项| 数字 | 出处 |
 |---|---|---|
 | 测试总数 | 主仓 **876** + 包 **67** = **943** | `claims.json` → `baselines` |
-| 工程发现笔记 | **98** 条（编号 1..98 连续无重号） | `ENGINEERING_NOTES.md`，由 `derived` **现算** |
+| 工程发现笔记 | **99** 条（编号 1..99 连续无重号） | `ENGINEERING_NOTES.md`，由 `derived` **现算** |
 | 自测题库 | **44** 题四层 | `INTERVIEW_SELFTEST.md`，由 `derived` **现算** |
 
 > **数字为什么不手抄**：`claims.json` 是唯一真相源，文档里手写的每个数字都要登记在册，
@@ -282,7 +282,7 @@ A 回答「清洗后检索好不好」，B 回答「增益是洗出来的还是�
 | [RUNBOOK.md](RUNBOOK.md) | 完整跑一遍（Windows/Git Bash） | 想自己跑 |
 | [ROADMAP.md](ROADMAP.md) | 现在到哪、下一步做什么 | 想知道边界 |
 | [PLATFORM.md](PLATFORM.md) | 数据系统那一轨 | 被问「是不是几个脚本」 |
-| [ENGINEERING_NOTES.md](ENGINEERING_NOTES.md) | 98 条工程发现（现象→根因→决策→话术） | 被追问细节 |
+| [ENGINEERING_NOTES.md](ENGINEERING_NOTES.md) | 99 条工程发现（现象→根因→决策→话术） | 被追问细节 |
 | [INTERVIEW.md](INTERVIEW.md) | 面试叙事 | 准备面试 |
 | [INTERVIEW_SELFTEST.md](INTERVIEW_SELFTEST.md) | 44 题四层自测 | 检验能不能扛追问 |
 | [JD_RESEARCH.md](JD_RESEARCH.md) | 10 个在招岗位的能力对齐 | 想知道考什么 |
@@ -313,5 +313,5 @@ A 回答「清洗后检索好不好」，B 回答「增益是洗出来的还是�
 > 我也报阴性结果：通用判官 κ 是 **−0.024**，
 > 说明通用模型不认识我的域，所以才训了域专属判官到 0.560。
 >
-> 全链 **943** 条测试、**98** 条工程发现笔记，
+> 全链 **943** 条测试、**99** 条工程发现笔记，
 > 数字全部来自唯一真相源，改一处全文档报错。

@@ -132,7 +132,7 @@ def test_posix分支不得依赖windows路径(mod):
 
     只留Windows 分支 → CI 上直接抛 RuntimeError 中止，
     这是「本地绿 / CI 因环境红」的典型。
-        """
+    """
     import os
 
     real = os.name
@@ -163,7 +163,7 @@ def test_抽取的bash语法必须完整(mod):
     """坑 4 的回归：锚点不含闭合引号 → 语法不完整但报错在最后一行。
 
     用 `bash -n` 做纯语法检查：不执行、只解析。
-        """
+    """
     import subprocess
 
     body = mod.bash_for_tests()

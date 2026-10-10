@@ -127,7 +127,12 @@ def build_pool(rng: random.Random, n_per_source_cap: int) -> dict[str, list[dict
         kept = [r for r in rows if LEN_LO <= len(r["text"]) <= LEN_HI]
         log.info(
             "  %-8s 长度窗口 [%d,%d] 保留 %d/%d = %.1f%%",
-            name, LEN_LO, LEN_HI, len(kept), len(rows), 100 * len(kept) / max(len(rows), 1),
+            name,
+            LEN_LO,
+            LEN_HI,
+            len(kept),
+            len(rows),
+            100 * len(kept) / max(len(rows), 1),
         )
         if not kept:
             raise SystemExit(
@@ -164,11 +169,13 @@ def global_feasible(
     if feasible < n_total:
         log.warning(
             "⚠️ 数据最紧的源把**所有臂**统一压到 %d/%d 条（%.0f%%）—— 各臂等量，结论可归因",
-            feasible, n_total, 100 * feasible / n_total,
+            feasible,
+            n_total,
+            100 * feasible / n_total,
         )
     if feasible < n_total * 0.3:
         raise SystemExit(
-            f"❌ 全局上限只有 {feasible}/{n_total} 条（{feasible/n_total:.0%}），实验无意义。\n"
+            f"❌ 全局上限只有 {feasible}/{n_total} 条（{feasible / n_total:.0%}），实验无意义。\n"
             "   可选处置：减小 --n-total、放宽 LEN_HI、或补数据源。\n"
             "   ⚠️ 本项目**没有**足量的第二/第三中文源，这是真实数据边界，不是配置错误。"
         )
@@ -227,8 +234,7 @@ def run_funnel(pool: list[dict], config_path: pathlib.Path) -> tuple[list[dict],
     cfg = PipelineConfig.from_yaml(config_path)
 
     rows_for_sample = [
-        {"id": str(r["id"]), "text": r["text"], "modality": "text_article"}
-        for r in pool
+        {"id": str(r["id"]), "text": r["text"], "modality": "text_article"} for r in pool
     ]
     samples = [Sample.from_dict(d) for d in rows_for_sample]
     result = _run(samples, cfg)
@@ -336,9 +342,7 @@ def comparable_arms(payload: dict, tol: float = 1.6) -> tuple[list[str], list[st
 
     good, bad = [], []
     for r in rows:
-        drop_ok = (
-            r["drop"] <= drop_base * DROP_TOL if drop_base > 0 else r["drop"] <= 0.0
-        )
+        drop_ok = r["drop"] <= drop_base * DROP_TOL if drop_base > 0 else r["drop"] <= 0.0
         (good if (r["name"] in main_names and drop_ok) else bad).append(r["name"])
     return good, bad
 
@@ -381,8 +385,7 @@ def render_markdown(payload: dict) -> str:
         fr = float(funnel.get(name, {}).get("drop_rate", 0.0))
         tag = "✅ 可比" if name in good else "⚠️ 有混淆"
         L.append(
-            f"| {name} | {ppl[name]:.4f} | {a.get('len_p50', '—')} | "
-            f"{fr * 100:.1f}% | {tag} |"
+            f"| {name} | {ppl[name]:.4f} | {a.get('len_p50', '—')} | {fr * 100:.1f}% | {tag} |"
         )
     if "base" in ppl:
         L.append(f"| base（未训练，参照） | {ppl['base']:.4f} | — | — | — |")
@@ -437,12 +440,16 @@ def render_markdown(payload: dict) -> str:
 
     L.append("## 口径纪律（代码强制）\n")
     L.append(f"- **长度窗口对齐**：{proto.get('discipline', '')}")
-    L.append(f"- **等量必须全局统一算**：`min(global_feasible(所有臂))` = "
-             f"{proto.get('feasible_per_arm')}；逐臂算会引入量变量。")
+    L.append(
+        f"- **等量必须全局统一算**：`min(global_feasible(所有臂))` = "
+        f"{proto.get('feasible_per_arm')}；逐臂算会引入量变量。"
+    )
     L.append("")
     L.append("## 复跑\n")
-    L.append("```bash\npython -X utf8 scripts/eval_source_mixing.py "
-             "--n-total 200 --n-test 150 --steps 500 --noise-probe\n```")
+    L.append(
+        "```bash\npython -X utf8 scripts/eval_source_mixing.py "
+        "--n-total 200 --n-test 150 --steps 500 --noise-probe\n```"
+    )
     return "\n".join(L) + "\n"
 
 
@@ -485,16 +492,17 @@ def main() -> int:
         built[name] = {"rows": rows, "stats": stats}
         log.info(
             "臂 %-14s n=%d 实际配比=%s 长度中位=%d",
-            name, stats["n_total"], stats["actual_ratios"], stats["len_p50"],
+            name,
+            stats["n_total"],
+            stats["actual_ratios"],
+            stats["len_p50"],
         )
 
     # 各臂总量必须一致 —— 混比实验里量不一致 = 结论无效。
     # ⚠️ 上限必须取**所有臂里最紧的那个**：只按第一个臂算的话，
     #   mono_wiki（不含 finance）不会触发约束，等到 mix_* 才崩 ——
     #   那是「用单个样本推断总体」的经典错误。
-    feasible_all = min(
-        global_feasible(pool, ratios, args.n_total) for _name, ratios in arms
-    )
+    feasible_all = min(global_feasible(pool, ratios, args.n_total) for _name, ratios in arms)
     totals = {k: v["stats"]["n_total"] for k, v in built.items()}
     spread = max(totals.values()) - min(totals.values())
     if spread > max(2, int(0.02 * min(totals.values()))):
@@ -579,9 +587,7 @@ def main() -> int:
     held = [r["text"] for r in test_rows]
     log.info("held-out %d 条（来自 wiki，不参与任何臂的构造）", len(held))
 
-    ppl: dict[str, float] = {
-        "base": evaluate(base, tok, held, 32, args.seq_len, device)
-    }
+    ppl: dict[str, float] = {"base": evaluate(base, tok, held, 32, args.seq_len, device)}
     log.info("base ppl=%.4f", ppl["base"])
 
     for name, spec in built.items():
@@ -589,8 +595,17 @@ def main() -> int:
         payload["funnel"][name] = fstats
         texts = [r["text"] for r in kept]
         model = copy.deepcopy(base)
-        train(model, tok, texts, args.steps, args.batch, args.seq_len, args.lr, device,
-              seed=args.seed + 100)
+        train(
+            model,
+            tok,
+            texts,
+            args.steps,
+            args.batch,
+            args.seq_len,
+            args.lr,
+            device,
+            seed=args.seed + 100,
+        )
         ppl[name] = evaluate(model, tok, held, 32, args.seq_len, device)
         log.info("%-14s ppl=%.4f（过漏斗后 %d/%d 条）", name, ppl[name], len(kept), len(texts))
         del model
@@ -601,8 +616,17 @@ def main() -> int:
         rows = assemble_arm(pool, ARMS[best], args.n_total, args.seed + 7777)
         kept, _ = run_funnel(rows, pathlib.Path(args.config))
         model = copy.deepcopy(base)
-        train(model, tok, [r["text"] for r in kept], args.steps, args.batch, args.seq_len,
-              args.lr, device, seed=args.seed + 8888)
+        train(
+            model,
+            tok,
+            [r["text"] for r in kept],
+            args.steps,
+            args.batch,
+            args.seq_len,
+            args.lr,
+            device,
+            seed=args.seed + 8888,
+        )
         ppl[f"noise_{best}"] = evaluate(model, tok, held, 32, args.seq_len, device)
         log.info("噪声地板 (%s, 不同 seed) ppl=%.4f", best, ppl[f"noise_{best}"])
         del model

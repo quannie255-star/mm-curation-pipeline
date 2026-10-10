@@ -7,6 +7,14 @@
 >
 > 日期：2026-10-08。SOTA 水位以 DataComp-LM（240T token 池、53 个下游任务）
 > 与 DataComp（12.8B 图文对、38–53 任务）为准。
+>
+> ⚠️ **2026-10-10 更正**：本文第八点五节表格里「`verify_claims` + **5 个**变异测试
+> 接 CI」一行**不成立**，实为 **3 个**（gate-ci 的 claims_gate / ci_assertions /
+> no_absolute_paths）。另 2 条（detection_slo / agent_gate）当时**从未在 CI 上跑通过**
+> ——它们的模型权重（CLIP / gpt2-chinese / 自训的 `wm_nsfw_cnn.pt`）不在干净检出里。
+> 已按纪律改为本地门禁。**本条是历史表格的更正指针，不重写当天的记录**；
+> 结论以 [ROADMAP.md](ROADMAP.md) 第三节第 4 项与
+> [ENGINEERING_NOTES.md](ENGINEERING_NOTES.md) #99 为准。
 
 ---
 

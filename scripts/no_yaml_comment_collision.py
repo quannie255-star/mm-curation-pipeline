@@ -70,7 +70,7 @@ def find_bad_lines(path: pathlib.Path) -> list[tuple[int, str, str]]:
                 if indent <= block_indent:
                     in_block = False  # 块结束，落到下面的结构解析
                 else:
-                    continue      # 仍是块内 → shell 文本，跳过所有判据
+                    continue  # 仍是块内 → shell 文本，跳过所有判据
             else:
                 continue
         # 块标量起始行：`key: |` / `key: >` / `key: |-` / `key: >-`
@@ -99,9 +99,7 @@ def _starts_block_scalar(line: str) -> bool:
 
 #: 键位置的合法形态：`- key:` / `key:` / `  - name:` / `- name:`。
 #: 允许键名含 `- . _ / ` （覆盖 `no.abs`、`utf-8`、`a/b`）。
-_KEY_RE = __import__("re").compile(
-    r"""^\s*(?:-\s+)?[A-Za-z_][\w.\-/ ]*$"""
-)
+_KEY_RE = __import__("re").compile(r"""^\s*(?:-\s+)?[A-Za-z_][\w.\-/ ]*$""")
 
 
 def _colon_glued(line: str) -> bool:
@@ -140,23 +138,23 @@ def _colon_glued(line: str) -> bool:
         head_span = (list_marker.end(), len(body))
     else:
         head_span = (0, len(body))
-    if list_marker and "-" in body[list_marker.end():]:
+    if list_marker and "-" in body[list_marker.end() :]:
         # 列表标记之后还有第二个 `-` → 该行是「命令 + 选项」，不是键声明
-        tail = body[list_marker.end():]
+        tail = body[list_marker.end() :]
         if re.search(r"\s-\S", tail):
             return False
     for m in re.finditer(r":", body):
         pos = m.start()
         if not (head_span[0] <= pos < head_span[1]):
             continue  # 冒号在键位置之外 → 值内部
-        head = body[head_span[0]:pos]
+        head = body[head_span[0] : pos]
         if not head.strip():
             continue
         if " " in head.strip() or "\t" in head.strip():
             continue  # ④键名里带空白 → 这是值里的冒号
         if not _KEY_RE.match(head):
             continue  # ① 不是合法键名 → 值里的冒号
-        after = body[pos + 1: pos + 2]
+        after = body[pos + 1 : pos + 2]
         if after and not after.isspace():
             return True
     return False

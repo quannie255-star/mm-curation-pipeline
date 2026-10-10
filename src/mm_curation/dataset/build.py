@@ -74,6 +74,7 @@ SCHEMA_VERSION = 1
 # 单个 shard 的目标行数。太小→文件多、元数据开销大；太大→无法流式。
 DEFAULT_SHARD_ROWS = 2000
 
+
 # 与仓库既有约定一致：JSONL 一律 split("\n")，禁用 splitlines()（U+2028 陷阱）
 def iter_jsonl(path: str | Path) -> Iterator[dict[str, Any]]:
     p = Path(path)
@@ -114,7 +115,7 @@ class DatasetManifest:
     tokenizer_base_vocab_size: int = 0
 
     # ── 切分 ──
-    #⚠️ `splits` 的**单位由 `row_unit` 决定**，不是一个固定含义：
+    # ⚠️ `splits` 的**单位由 `row_unit` 决定**，不是一个固定含义：
     #   row_unit="sample" → 样本数（不packing，一条样本一行）
     #   row_unit="block"  → block 数（packing，一条样本被拼进多个 block）
     # 踩过一次：packing 后 `splits` 还记样本数（1559/215/155），
@@ -182,12 +183,7 @@ def minhash_signature(text: str, num_perm: int = 64, prefix: int = 400) -> bytes
         h = (i * 0x9E3779B97F4A7C15 + 0xBF58476D1CE4E5B9) % prime
         m = prime
         for j in range(len(data) - 3):
-            k = (
-                data[j]
-                | (data[j + 1] << 8)
-                | (data[j + 2] << 16)
-                | (data[j + 3] << 24)
-            )
+            k = data[j] | (data[j + 1] << 8) | (data[j + 2] << 16) | (data[j + 3] << 24)
             m = min(m, (h ^ k) % prime)
         sig.append(m)
     return b"".join(x.to_bytes(8, "little") for x in sig)
@@ -198,11 +194,7 @@ def estimate_jaccard(sig_a: bytes, sig_b: bytes) -> float:
     if len(sig_a) != len(sig_b):
         raise ValueError("签名长度不一致")
     n = len(sig_a) // 8
-    same = sum(
-        1
-        for i in range(n)
-        if sig_a[i * 8 : i * 8 + 8] == sig_b[i * 8 : i * 8 + 8]
-    )
+    same = sum(1 for i in range(n) if sig_a[i * 8 : i * 8 + 8] == sig_b[i * 8 : i * 8 + 8])
     return same / n
 
 
@@ -317,7 +309,8 @@ class DatasetBuilder:
         #      「tokenizer 自己说它有多少词」。这条应该由**数据**验证。
         self.tokenizer_vocab_size = int(len(tokenizer))
         self.tokenizer_base_vocab_size = int(
-            getattr(tokenizer, "vocab_size", self.tokenizer_vocab_size))
+            getattr(tokenizer, "vocab_size", self.tokenizer_vocab_size)
+        )
         self.source_files = source_files or []
         self.funnel_config = funnel_config
         self.funnel_ops = funnel_ops or []
@@ -418,9 +411,7 @@ class DatasetBuilder:
             # ⚠️ 这里踩过一次：声明 string 却直接塞 dict，pyarrow 在**写入时**才报
             # ArrowTypeError（不是构建开始时）→ 前面 2000 条已经算了半天才炸。
             # **列式写入的错误暴露在 flush 时刻，不在构造时刻** —— 小样本试跑是必须的。
-            "meta": json.dumps(meta, ensure_ascii=False, sort_keys=True)
-            if meta
-            else "",
+            "meta": json.dumps(meta, ensure_ascii=False, sort_keys=True) if meta else "",
         }
         # ⚠️ **token id 必须落在 embedding 词表内**，越界即raise。
         # 越界的症状出现在**训练时的 CUDA device-side assert**
@@ -544,9 +535,7 @@ class DatasetBuilder:
             if not rows:
                 continue
             # **绝不跨 split 打包**
-            blocks = pack_sequences(
-                [r["tokens"] for r in rows], self.pack_block_size, self.eos_id
-            )
+            blocks = pack_sequences([r["tokens"] for r in rows], self.pack_block_size, self.eos_id)
             # ⚠️ **必须 pad 到定长**，否则 batch 一定崩。
             # 实测踩过：尾块只有 451 token，`DataLoader(shuffle=True)` 立刻报
             # 「stack expects each tensor to be equal size, but got [451] and [512]」。
@@ -588,8 +577,9 @@ class DatasetBuilder:
                     out_rows[start : start + batch], schema=self._pack_schema()
                 )
                 tmp = path.with_suffix(".parquet.tmp")
-                with pq.ParquetWriter(str(tmp), self._pack_schema(),
-                                      compression=self.compression) as w:
+                with pq.ParquetWriter(
+                    str(tmp), self._pack_schema(), compression=self.compression
+                ) as w:
                     w.write_table(table)
                 tmp.replace(path)
                 self._shard_checksums[name] = md5_bytes(path.read_bytes())
@@ -640,8 +630,11 @@ class DatasetBuilder:
             packing_eos_token_id=self.eos_id,
             n_real_tokens_total=real_total,
             n_padding_tokens_total=pad_total,
-            padding_pct=(round(pad_total / (real_total + pad_total) * 100, 3)
-                         if (real_total + pad_total) else 0.0),
+            padding_pct=(
+                round(pad_total / (real_total + pad_total) * 100, 3)
+                if (real_total + pad_total)
+                else 0.0
+            ),
             leakage_check=leakage,
             shard_checksums=self._shard_checksums,
             n_shards=len(self._shard_checksums),

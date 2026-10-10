@@ -30,8 +30,7 @@ TEXT = ("text_article", ("text",))
 
 def _write(tmp_path: Path, rows: list, name: str = "d.jsonl") -> Path:
     p = tmp_path / name
-    p.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows),
-                 encoding="utf-8")
+    p.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
     return p
 
 
@@ -122,8 +121,10 @@ def test_拒CSV缺必填列(tmp_path):
 
 def test_拒图文场景图片全找不到(tmp_path):
     """图文场景：字段齐但图全丢 → 必须拒，否则清洗时静默丢掉全部。"""
-    p = _write(tmp_path, [{"image_path": "images/a.jpg", "text": "x"},
-                          {"image_path": "images/b.jpg", "text": "y"}])
+    p = _write(
+        tmp_path,
+        [{"image_path": "images/a.jpg", "text": "x"}, {"image_path": "images/b.jpg", "text": "y"}],
+    )
     r = check_upload(p, ("image_path", "text"), image_root=tmp_path / "no_such_dir")
     assert r.ok is False
     assert "图片" in r.fatal
@@ -203,8 +204,13 @@ def test_单个坏图不拒整份(tmp_path):
     imgs = tmp_path / "images"
     imgs.mkdir()
     (imgs / "a.jpg").write_bytes(b"fake")
-    p = _write(tmp_path, [{"image_path": "images/a.jpg", "text": "x"},
-                          {"image_path": "images/gone.jpg", "text": "y"}])
+    p = _write(
+        tmp_path,
+        [
+            {"image_path": "images/a.jpg", "text": "x"},
+            {"image_path": "images/gone.jpg", "text": "y"},
+        ],
+    )
     r = check_upload(p, ("image_path", "text"), image_root=tmp_path)
     assert r.ok is True, r.fatal
     assert any("找不到" in n for n in r.notes)

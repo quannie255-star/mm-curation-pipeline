@@ -45,7 +45,7 @@
 - **Agent 编排只省成本、不掉质量**：4 档代价漏斗（rule/perceptual/model/llm）加自适应路由，LLM 判官调用 **293 → 6**，成本**省 64.44%**，而保留率 **97.67% 逐位持平**、污染臂 **0 漏检**；跳档白名单**代码强制**（实测 MODEL 档独拦 118/120 条乱码 → 不许跳）。变异测试 **6/6**。
 - **数据合成与增强**（`src/mm_curation/synthesis/`）：计划级 1→N，6 种手段（3 文本 + 3 图像），带 `synthesized_by`/`source_id`/`clean` 溯源三元组，运行时断言**绝不带 dirty 标记**，「什么都没改」的样本会被丢弃。**三臂同口径对照**（同一条漏斗、同一阈值）：真实干净 1.83% / 合成增强 1.27% / 污染注入 43.67%（≈ **24×** 背景），判据是三条关系而非三个数字；变异 3/3。核心边界：**增强 ≠ 逆向还原**（`text[:3]` 截断类污染不可逆，声称能修 = 编造内容）。
 - **给非开发者的 Web 前端（Studio）**：`python scripts/run_studio.py` → 上传自己的数据 → 选业务场景 → 得到可训练数据集，全程零代码。底层与命令行链路**完全同一套漏斗 + 同一个 DatasetBuilder**，没另写清洗逻辑；四场景配方逐条对齐真实跑通的配置，并主动标注每个场景**已知会误伤的地方**。
-- **门禁从「文档一致」推到「结论可信」**：`.github/workflows/gate-ci.yml` 一次 CI 同时验「数字没漂」与「门禁本身还能拦红」（`verify_claims.py` + 5 个变异 + 3 个静态门禁：绝对路径 / YAML 粘连 / 编码卫生）。顺带修掉一个**假绿**：`verify_claims.py` 原先把 `missing`/`pointer-broken` 只打进汇总行、不计入红项 → CI 干净检出时 16 条 claim 全失效却报绿；已加 `--reports-missing {fail,skip}`。
+- **门禁从「文档一致」推到「结论可信」**：`.github/workflows/gate-ci.yml` 一次 CI 同时验「数字没漂」与「门禁本身还能拦红」（`verify_claims.py` + **3 个**纯 stdlib 变异 + 3 个静态门禁：绝对路径 / YAML 粘连 / 编码卫生；另 2 条判据变异要模型权重，按「拿不到产物的门禁不进 CI」的纪律改为本地门禁）。顺带修掉一个**假绿**：`verify_claims.py` 原先把 `missing`/`pointer-broken` 只打进汇总行、不计入红项 → CI 干净检出时 16 条 claim 全失效却报绿；已加 `--reports-missing {fail,skip}`。
 
 ---
 

@@ -77,7 +77,7 @@ def test_目录不存在必须报未执行而不是红色(gate, tmp_path):
 def test_空目录必须报未执行而不是通过(gate, tmp_path):
     """只有生成物目录 = 一个源文件都没扫到≠ 干净。"""
     root = tmp_path / "wh"
-    (root / "target").mkdir(parents=True)          # 生成物目录，应被过滤
+    (root / "target").mkdir(parents=True)  # 生成物目录，应被过滤
     (root / "target" / "compiled.sql").write_text(
         "select * from read_parquet('C:/Users/x/a.parquet')", encoding="utf-8"
     )

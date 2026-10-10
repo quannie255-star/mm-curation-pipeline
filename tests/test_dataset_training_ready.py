@@ -53,11 +53,14 @@ def test_单位与行数必须自洽():
     而**每个数单独看都像真的**。
     """
     man = {
-        "name": "x", "tokenizer": "t", "tokenizer_vocab_size": 151665,
+        "name": "x",
+        "tokenizer": "t",
+        "tokenizer_vocab_size": 151665,
         "pack_block_size": 512,
         "n_blocks": {"train": 694, "val": 281, "test": 207},
         "splits": {"train": 694, "val": 281, "test": 207},
-        "n_rows": 1182, "row_unit": "block",
+        "n_rows": 1182,
+        "row_unit": "block",
     }
     assert sum(man["splits"].values()) == man["n_rows"]
     # 变异：把 splits 换回样本级（packing 前口径）→ 断言必须红
@@ -85,7 +88,8 @@ def test_packing必须产出定长block():
     # 模拟写盘时的 pad（与 _write_packed_shards 同一逻辑）
     padded = [b + [eos] * (512 - len(b)) if len(b) < 512 else b for b in blocks]
     assert {len(b) for b in padded} == {512}, (
-        f"pad 后应全部为定长 512，实际 {sorted({len(b) for b in padded})}")
+        f"pad 后应全部为定长 512，实际 {sorted({len(b) for b in padded})}"
+    )
 
 
 def test_不同长度样本的batch必须能stack():
@@ -95,7 +99,7 @@ def test_不同长度样本的batch必须能stack():
     eos = 151664
     long_seq = list(range(1, 513))
     short_seq = list(range(1, 452))  # 实测里的 451
-    #不 pad：必然不等长
+    # 不 pad：必然不等长
     try:
         torch.stack([torch.tensor(long_seq), torch.tensor(short_seq)])
         raise AssertionError("未 pad 的变长 batch 竟然能 stack —— 装置有问题")
@@ -134,31 +138,31 @@ def test_padding位必须被loss_mask排除():
         base = [3, 4, 5, 6, 7, 2][:real_n]
         ids = torch.tensor([base + [pad_fill] * (6 - real_n)])
         mask = [1] * real_n + [0] * (6 - real_n)
-        labels = torch.where(torch.tensor([mask], dtype=torch.bool), ids,
-                            torch.full_like(ids, -100))
-        return float(F.cross_entropy(logits.reshape(-1, 8), labels.reshape(-1),
-                                    ignore_index=-100))
+        labels = torch.where(
+            torch.tensor([mask], dtype=torch.bool), ids, torch.full_like(ids, -100)
+        )
+        return float(F.cross_entropy(logits.reshape(-1, 8), labels.reshape(-1), ignore_index=-100))
 
     # 同样的 3 个有效 token，padding 填不同的东西 → loss 必须相同
     a = loss_with(3, pad_fill=0)
     b = loss_with(3, pad_fill=1)
     assert abs(a - b) < 1e-6, (
-        f"padding 内容改变却影响了 loss（{a:.6f} vs {b:.6f}）"
-        " → padding 位被算进训练目标了")
+        f"padding 内容改变却影响了 loss（{a:.6f} vs {b:.6f}） → padding 位被算进训练目标了"
+    )
 
     # 反向验证：有效 token 数量改变 → loss 必须变（否则上面那条恒真）
     c = loss_with(4, pad_fill=0)
-    assert abs(a - c) > 1e-6, (
-        "改动有效位却没改变 loss → 判据测不出任何东西")
+    assert abs(a - c) > 1e-6, "改动有效位却没改变 loss → 判据测不出任何东西"
 
     # 与手算对齐（sum 口径，便于精确核对）
     labels = torch.tensor([[3, 4, 5, -100, -100, -100]])
-    tot = F.cross_entropy(logits.reshape(-1, 8), labels.reshape(-1),
-                         ignore_index=-100, reduction="sum")
-    manual = F.cross_entropy(logits.reshape(-1, 8)[:3], labels.reshape(-1)[:3],
-                             reduction="sum")
+    tot = F.cross_entropy(
+        logits.reshape(-1, 8), labels.reshape(-1), ignore_index=-100, reduction="sum"
+    )
+    manual = F.cross_entropy(logits.reshape(-1, 8)[:3], labels.reshape(-1)[:3], reduction="sum")
     assert abs(float(tot) - float(manual)) < 1e-6, (
-        f"sum 口径不匹配：{float(tot):.6f} vs {float(manual):.6f}")
+        f"sum 口径不匹配：{float(tot):.6f} vs {float(manual):.6f}"
+    )
 
 
 # ── 3. 词表口径（added tokens）──────────────────────────────────────────
@@ -169,10 +173,13 @@ def test_词表大小必须能容纳数据里的最大id():
     而编码会产出 id=151645 → 按 vocab_size 建embedding → CUDA assert。
     """
     vocab = 151665
-    cfg = {"name": "t", "tokenizer": "Qwen/Qwen2.5-0.5B-Instruct",
-           "tokenizer_vocab_size": vocab, "pack_block_size": 512}
-    conf = train_config_from_manifest(cfg, n_layer=1, n_head=2, n_embd=32,
-                                      block_size=512)
+    cfg = {
+        "name": "t",
+        "tokenizer": "Qwen/Qwen2.5-0.5B-Instruct",
+        "tokenizer_vocab_size": vocab,
+        "pack_block_size": 512,
+    }
+    conf = train_config_from_manifest(cfg, n_layer=1, n_head=2, n_embd=32, block_size=512)
     assert conf.vocab_size == vocab
     import torch
 
@@ -181,7 +188,8 @@ def test_词表大小必须能容纳数据里的最大id():
     idx = torch.tensor([[151664]])  # 真实数据里出现过的最大 id
     out = model(idx)
     assert out.shape == (1, 1, vocab), (
-        f"输出词表维度应等于 embedding 大小 {vocab}，实际 {out.shape[-1]}")
+        f"输出词表维度应等于 embedding 大小 {vocab}，实际 {out.shape[-1]}"
+    )
     # 变异：若用 vocab_size=151643 建表，151664 会越界
     with pytest.raises((IndexError, RuntimeError)):
         torch.nn.Embedding(151643, 32)(idx)
@@ -190,23 +198,24 @@ def test_词表大小必须能容纳数据里的最大id():
 def test_缺词表必须报错而不是硬编码():
     """manifest 缺 `tokenizer_vocab_size` → raise，不许用任何默认词表。"""
     with pytest.raises(ValueError, match="tokenizer_vocab_size"):
-        train_config_from_manifest(
-            {"name": "x", "tokenizer": "t", "pack_block_size": 512})
+        train_config_from_manifest({"name": "x", "tokenizer": "t", "pack_block_size": 512})
     with pytest.raises(ValueError, match="pack_block_size"):
-        train_config_from_manifest(
-            {"name": "x", "tokenizer": "t", "tokenizer_vocab_size": 1000})
+        train_config_from_manifest({"name": "x", "tokenizer": "t", "tokenizer_vocab_size": 1000})
 
 
 def test_配方指纹会随配置变化():
     """`recipe_id` 是 training_runs 的锚。配置改了必须换 id。"""
     a = train_config_from_manifest(
         {"tokenizer": "t", "tokenizer_vocab_size": 100, "pack_block_size": 512},
-        n_layer=2, n_embd=64)
+        n_layer=2,
+        n_embd=64,
+    )
     b = train_config_from_manifest(
         {"tokenizer": "t", "tokenizer_vocab_size": 100, "pack_block_size": 512},
-        n_layer=2, n_embd=128)
-    assert a.recipe_id != b.recipe_id, (
-        "改n_embd 却沿用 recipe_id → training_runs 历史会说谎")
+        n_layer=2,
+        n_embd=128,
+    )
+    assert a.recipe_id != b.recipe_id, "改n_embd 却沿用 recipe_id → training_runs 历史会说谎"
 
 
 # ── 4. 分层切分（回归防护）───────────────────────────────────────────────
@@ -224,5 +233,4 @@ def test_同实体必须同split():
     by2 = defaultdict(set)
     for r in rows:
         by2[r["symbol"]].add(assign_split(r["id"], 0.1, 0.1, None))
-    assert any(len(v) > 1 for v in by2.values()), (
-        "无 key 时全部同 split → 分层判据恒真，测不出退化")
+    assert any(len(v) > 1 for v in by2.values()), "无 key 时全部同 split → 分层判据恒真，测不出退化"

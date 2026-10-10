@@ -55,9 +55,7 @@ def load_clean_texts(n: int) -> list[str]:
     那正是本项目要防的循环论证。真实维基语料是唯一诚实的正例来源。
     """
     if not CORPUS.exists():
-        raise SystemExit(
-            f"❌ 语料缺失: {CORPUS}\n   先跑 python scripts/download_text_corpus.py"
-        )
+        raise SystemExit(f"❌ 语料缺失: {CORPUS}\n   先跑 python scripts/download_text_corpus.py")
     out: list[str] = []
     with CORPUS.open(encoding="utf-8") as fh:
         for ln in fh:
@@ -113,8 +111,11 @@ def main() -> int:
     assert_no_overlap(train_pos, test_pos)
     log.info(
         "训练正例 %s / 测试正例 %s；A组负例 %s / %s；B组负例 %s",
-        len(train_pos), len(test_pos),
-        len(neg_a_train), len(neg_a_test), len(neg_b_test),
+        len(train_pos),
+        len(test_pos),
+        len(neg_a_train),
+        len(neg_a_test),
+        len(neg_b_test),
     )
     log.info("A 组子风格 %d 个：", len(A_SUBSTYLES))
     for sub in A_SUBSTYLES:

@@ -309,10 +309,11 @@ sigs = np.stack([_signature(s.text, ...) for s in samples])   # samples 是 list
 
 **入口**：`python -m mm_curation.cli`（463 行）。**无 `platform` 层的 CLI**（那是内部模块）。
 
-**质量门**：`scripts/` 下 113 个脚本，含 `verify_claims.py`（19 条 claim + 87 条文档门面
-+ 2 条派生计数的数字门禁）、`no_absolute_paths`、`encoding_hygiene`、三个变异测试脚本。
+**质量门**：`scripts/` 下 91 个 Python 脚本，含 `verify_claims.py`（29 条 claim + 93 条文档门面
++ 2 条派生计数的数字门禁）、`no_absolute_paths`、`encoding_hygiene`、
+5 个变异测试脚本（**3 个在 CI**；另 2 个要模型权重，按纪律走本地门禁）。
 
-**测试**：主仓 760 + 包 67 = **827 条**（junitxml 实测）。
+**测试**：主仓 876 + 包 67 = **943 条**（junitxml 实测）。
 
 ---
 

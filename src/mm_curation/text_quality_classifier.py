@@ -138,7 +138,10 @@ A_SUBSTYLES: tuple[StyleGroup, ...] = (
     StyleGroup(
         name="A5",
         kinds=("wordjoiner_spam",),
-        filler_chars=("壬", "癸",),
+        filler_chars=(
+            "壬",
+            "癸",
+        ),
         repeat_range=(4, 7),
         keep_ratio=(0.3, 0.5),
     ),
@@ -213,7 +216,7 @@ def apply_style(text: str, style: StyleGroup, rng: random.Random) -> str:
     if kind == "dash_spam":
         # 分隔符刷屏：目录页/导航残留被当正文抓进来
         line = "-" * rng.randint(*style.repeat_range) * 5
-        return "\n".join([text[: len(text) // 2], line * 20, text[len(text) // 2:]])
+        return "\n".join([text[: len(text) // 2], line * 20, text[len(text) // 2 :]])
 
     if kind == "wordjoiner_spam":
         # 另一种不可见字符（U+2060 WORD JOINER）—— 与 B 组的 U+200B 不同码位，
@@ -224,7 +227,7 @@ def apply_style(text: str, style: StyleGroup, rng: random.Random) -> str:
 
     if kind == "zero_width":
         # 零宽字符注入：肉眼不可见但确实破坏了文本纯度
-        #（爬虫去噪/模板渲染的常见副产物）。
+        # （爬虫去噪/模板渲染的常见副产物）。
         # ⚠️ 注入率必须**稀疏**（约每 12 字一个）：全篇都是零宽字符时
         # 任何基于字符统计的分类器都能轻松分辨，那是送分题而不是难题。
         zw = _ZERO_WIDTH
@@ -249,9 +252,7 @@ def group_by_style(texts: list[str], style: StyleGroup, seed: int) -> list[str]:
     return [apply_style(t, style, rng) for t in texts]
 
 
-def split_positives(
-    texts: list[str], seed: int, n_test: int = 200
-) -> tuple[list[str], list[str]]:
+def split_positives(texts: list[str], seed: int, n_test: int = 200) -> tuple[list[str], list[str]]:
     """把**真实干净语料**切成训练正例与测试正例。
 
     ⚠️ 切分必须先于任何损伤注入：先注入再切分，
@@ -275,8 +276,7 @@ def assert_no_overlap(train: list[str], test: list[str]) -> None:
     tr = set(train)
     overlap = [t for t in set(test) if t in tr]
     assert not overlap, (
-        f"训练/测试集有 {len(overlap)} 条逐字重复 —— "
-        "分类器可能只是背下了训练集，test 分数会虚高"
+        f"训练/测试集有 {len(overlap)} 条逐字重复 —— 分类器可能只是背下了训练集，test 分数会虚高"
     )
 
 
@@ -513,10 +513,7 @@ def pick_threshold(
     rows: dict[str, float] = {}
     best, best_bal = 0.5, -1.0
     for th in grid:
-        acc = (
-            sum(1 for s in sp if s >= th) / len(sp)
-            + sum(1 for s in sn if s < th) / len(sn)
-        ) / 2
+        acc = (sum(1 for s in sp if s >= th) / len(sp) + sum(1 for s in sn if s < th) / len(sn)) / 2
         rows[f"{th:.2f}"] = round(acc, 4)
         if acc > best_bal:
             best, best_bal = th, acc
@@ -569,12 +566,7 @@ def assert_not_memorized(report: dict, max_gap: float = 0.10) -> None:
     """
     a = report.get("testA", {})
     b = report.get("testB", {})
-    usable = (
-        isinstance(a, dict)
-        and isinstance(b, dict)
-        and "balance" in a
-        and "balance" in b
-    )
+    usable = isinstance(a, dict) and isinstance(b, dict) and "balance" in a and "balance" in b
     if not usable:
         return  # 缺样本时不做断言，但已在报告里标status
     gap = float(b["balance"]) - float(a["balance"])

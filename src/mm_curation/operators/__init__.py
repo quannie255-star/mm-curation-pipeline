@@ -27,6 +27,7 @@ def register_all() -> int:
     """
     return len(available_operators())
 
+
 __all__ = [
     "BatchOperator",
     "Executor",

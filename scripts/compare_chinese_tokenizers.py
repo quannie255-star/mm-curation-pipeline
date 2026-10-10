@@ -80,9 +80,7 @@ def evaluate(name: str, tok, texts: list[str]) -> dict:
 
     # 3) 特殊 token 开销：causal LM 不该被 [CLS]/[SEP] 吃掉位置
     specials = set(tok.all_special_tokens)
-    n_special_id = sum(
-        1 for e in encs[:500] for t in e if t in tok.all_special_ids
-    )
+    n_special_id = sum(1 for e in encs[:500] for t in e if t in tok.all_special_ids)
 
     # 4) OOV：编码一批常用汉字，看有多少变成UNK
     probe = (
@@ -138,8 +136,7 @@ def main() -> int:
         for a, b in r["roundtrip_bad_examples"]:
             print(f"      ✗ 原: {a!r}")
             print(f"        回: {b!r}")
-        print(f"   特殊 token  {r['special_token_count_in500']} 个/500篇 "
-              f"{r['special_tokens'][:6]}")
+        print(f"   特殊 token  {r['special_token_count_in500']} 个/500篇 {r['special_tokens'][:6]}")
         print(f"   未登录汉字  {r['n_unk_chars']}")
         print(f"   编码速度{r['encode_docs_per_sec']} 篇/s\n")
 

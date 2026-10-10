@@ -70,17 +70,16 @@ def paired_sign_test(diffs: list[float]) -> dict:
     n_neg = sum(1 for d in diffs if d < 0)
     n_zero = sum(1 for d in diffs if d == 0)
     k = min(n_pos, n_neg)
-    p_two = (min(1.0, 2 * sum(math.comb(n, i) for i in range(k + 1)) / 2 ** n)
-             if n > 0 else 1.0)
+    p_two = min(1.0, 2 * sum(math.comb(n, i) for i in range(k + 1)) / 2**n) if n > 0 else 1.0
     sd = statistics.stdev(diffs) if n > 1 else 0.0
-    t_stat = (statistics.fmean(diffs) / (sd / n ** 0.5)) if sd else float("nan")
+    t_stat = (statistics.fmean(diffs) / (sd / n**0.5)) if sd else float("nan")
     # 达p<0.05（双尾）所需的最少同号对。
     # 全同号时 p = 2 × 0.5^n，要p < 0.05 需 n ≥ 6（n=5 → 0.0625 仍不显著）。
     # ⚠️ 这里的循环**曾经差一格**：条件写成 `2 * 0.5 ** (need + 1) > 0.05`
     # 会返回 5，而 5 个同号实际 p=0.0625 并不显著 —— 日志会骗读者
     # 「至少需 5 个」而第5 个并不够。由 tests/test_compare_criterion.py 抓住。
     need = 1
-    while 2 * 0.5 ** need >= 0.05:
+    while 2 * 0.5**need >= 0.05:
         need += 1
 
     # 结论**只由多数方向 + p 值决定**，不看 k 是否为 0
@@ -89,32 +88,42 @@ def paired_sign_test(diffs: list[float]) -> dict:
     elif n_zero == n:
         verdict = "配对差全为 0 → **测不出差异**（两臂逐位相同）"
     elif p_two >= 0.05:
-        verdict = (f"配对差 {n_pos}/{n} 同号但 p={p_two:.3f} ≥ 0.05 → "
-                   "**测不出差异**（方向一致但样本量不足，不能报优劣）")
+        verdict = (
+            f"配对差 {n_pos}/{n} 同号但 p={p_two:.3f} ≥ 0.05 → "
+            "**测不出差异**（方向一致但样本量不足，不能报优劣）"
+        )
     else:
         direction = "清洗更好" if n_pos > n_neg else "清洗更差"
         verdict = f"{max(n_pos, n_neg)}/{n} 配对差同号且 p={p_two:.3f}<0.05 → **{direction}**"
     return {
-        "n": n, "n_pos": n_pos, "n_neg": n_neg, "n_zero": n_zero, "k": k,
-        "p_two_sided": round(p_two, 6), "sd": round(sd, 6),
+        "n": n,
+        "n_pos": n_pos,
+        "n_neg": n_neg,
+        "n_zero": n_zero,
+        "k": k,
+        "p_two_sided": round(p_two, 6),
+        "sd": round(sd, 6),
         "t_stat": round(t_stat, 4) if t_stat == t_stat else None,
-        "n_needed_for_p05": need, "verdict": verdict,
+        "n_needed_for_p05": need,
+        "verdict": verdict,
     }
 
 
-def train_one(man: dict, held: BlockDataset, steps: int, seed: int,
-              n_layer: int, n_embd: int, batch: int) -> float:
+def train_one(
+    man: dict, held: BlockDataset, steps: int, seed: int, n_layer: int, n_embd: int, batch: int
+) -> float:
     """在给定 held-out 上训一臂，返回 val loss（nats/token）。"""
     tr_rows = load_split(man, "train")
     train_ds = BlockDataset(tr_rows, "loss_mask" in tr_rows[0])
     g = torch.Generator().manual_seed(seed)
     dl = DataLoader(train_ds, batch_size=batch, shuffle=True, generator=g)
-    cfg = train_config_from_manifest(man, n_layer=n_layer, n_head=4,
-                                      n_embd=n_embd,
-                                      block_size=len(held[0]["input_ids"]))
+    cfg = train_config_from_manifest(
+        man, n_layer=n_layer, n_head=4, n_embd=n_embd, block_size=len(held[0]["input_ids"])
+    )
     torch.manual_seed(seed)
-    res = run_recipe(cfg, dl, DataLoader(held, batch_size=batch),
-                     steps=steps, seed=seed, precision="bf16")
+    res = run_recipe(
+        cfg, dl, DataLoader(held, batch_size=batch), steps=steps, seed=seed, precision="bf16"
+    )
     return res.val_loss[-1]
 
 
@@ -141,15 +150,13 @@ def main() -> int:
     # 放在臂外（两臂都不训练它）—— 一旦某臂参与构造它，那条臂自带优势。
     held_rows = load_split(mans[args.cleaned], "test")
     held = BlockDataset(held_rows, "loss_mask" in held_rows[0])
-    LOG.info("共同 held-out：%d block（清洗组 test split，两臂都不训练它）",
-             len(held))
+    LOG.info("共同 held-out：%d block（清洗组 test split，两臂都不训练它）", len(held))
 
     results: dict[str, list[float]] = {}
     for arm in (args.cleaned, args.raw):
         vals = []
         for seed in range(args.seeds):
-            v = train_one(mans[arm], held, args.steps, seed,
-                          args.n_layer, args.n_embd, args.batch)
+            v = train_one(mans[arm], held, args.steps, seed, args.n_layer, args.n_embd, args.batch)
             LOG.info("  %-16s seed=%d val_loss=%.4f", arm, seed, v)
             vals.append(v)
         results[arm] = vals
@@ -176,11 +183,9 @@ def main() -> int:
     n, n_pos, n_neg, k = st["n"], st["n_pos"], st["n_neg"], st["k"]
     p_two, sd, t_stat = st["p_two_sided"], st["sd"], st["t_stat"]
     LOG.info("  配对差 %s", [f"{d:+.4f}" for d in diffs])
-    LOG.info("  同号性 %d 正 / %d 负（n=%d）| 双尾符号检验 p = %.3f", n_pos, n_neg,
-             n, p_two)
+    LOG.info("  同号性 %d 正 / %d 负（n=%d）| 双尾符号检验 p = %.3f", n_pos, n_neg, n, p_two)
     LOG.info("  配对标准差 %.4f | t = %.2f（df=%d）", sd, t_stat, n - 1)
-    LOG.info("  要达 p<0.05（双尾）至少需 %d 个同号配对对，本次 %d 个",
-             st["n_needed_for_p05"], k)
+    LOG.info("  要达 p<0.05（双尾）至少需 %d 个同号配对对，本次 %d 个", st["n_needed_for_p05"], k)
     verdict = st["verdict"]
     LOG.info("  判定：%s", verdict)
 
@@ -195,8 +200,7 @@ def main() -> int:
             "precision": "bf16",
             "design": "**配对**（两臂共用同一批 seed）→ 符号检验",
         },
-        "arms": {k: {"per_seed": v, "mean": statistics.fmean(v)}
-                 for k, v in results.items()},
+        "arms": {k: {"per_seed": v, "mean": statistics.fmean(v)} for k, v in results.items()},
         "delta_raw_minus_cleaned": round(delta, 6),
         "paired_diffs": [round(d, 6) for d in diffs],
         "sign_test": st,
@@ -210,8 +214,7 @@ def main() -> int:
     }
     out = ROOT / "data" / "reports" / "cleaned_vs_raw.json"
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(payload, ensure_ascii=False, indent=2),
-                   encoding="utf-8")
+    out.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     LOG.info("报告 → %s", out)
     return 0
 

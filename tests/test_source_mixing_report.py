@@ -190,6 +190,7 @@ def test_判定方向必须看符号而不是绝对值(mod, payload):
     """
     md = mod.render_markdown(payload)
     import re
+
     for line in md.splitlines():
         m = re.match(r"\| \S+ → \S+ \| ([+-][\d.]+) \| [\d.]+× \| (\S+)", line)
         if not m:
@@ -207,4 +208,5 @@ def test_显著阈值必须显式成常量(mod):
     """阈值写成内联魔法数就没法被变异测试打到。"""
     assert hasattr(mod, "SIG_RATIO") and mod.SIG_RATIO > 1
     import inspect
+
     assert "SIG_RATIO" in inspect.getsource(mod.render_markdown)

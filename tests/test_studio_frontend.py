@@ -66,8 +66,8 @@ def test_JS引用的dom元素在html里都存在(html, js):
     ids_html = _html_ids(html)
     used = _js_static_ids(js)
     assert used, (
-        "一个 DOM 引用都没抓到 —— 大概率是判据没覆盖前端的写法，"
-        "**恒真地报告一致**，等于没测")
+        "一个 DOM 引用都没抓到 —— 大概率是判据没覆盖前端的写法，**恒真地报告一致**，等于没测"
+    )
     missing = sorted(used - ids_html)
     assert not missing, f"JS 引用了 HTML 里不存在的元素：{missing}"
 
@@ -111,8 +111,7 @@ def test_前端只调用存在的后端接口(html, js):
     used = set(re.findall(r"['\"](/api/[a-z_/]+)['\"]", js))
     assert used, "一个 API 调用都没抓到 —— 判据可能恒真"
     missing = sorted(used - server_routes)
-    assert not missing, (
-        f"前端调了后端没有的接口：{missing}\n后端现有：{sorted(server_routes)}")
+    assert not missing, f"前端调了后端没有的接口：{missing}\n后端现有：{sorted(server_routes)}"
 
 
 def test_上传接口在html里有对应控件(html):
@@ -154,15 +153,15 @@ def test_算子标签必须是中文而不是英文算子名(html, js):
     # 「用户看到的正文」= title 之后第一个插值，不是模板里第一个出现的 s.X。
     after_title = re.split(r'title="', tpl, maxsplit=1)
     assert len(after_title) == 2, f"标签模板里没有 title 属性：{tpl[:160]}"
-    body = re.search(r'\+\s*`\$\{escapeHtml\(s\.(\w+)\)', after_title[1])
+    body = re.search(r"\+\s*`\$\{escapeHtml\(s\.(\w+)\)", after_title[1])
     assert body, f"判据本身匹配不到标签正文（前端结构变了？）：{tpl[:200]}"
     assert body.group(1) == "label", (
-        f"标签正文渲染的是 s.{body.group(1)}（英文算子名），"
-        "必须是 s.label（中文说明）")
+        f"标签正文渲染的是 s.{body.group(1)}（英文算子名），必须是 s.label（中文说明）"
+    )
     assert "escapeHtml(s.cost_zh" in tpl or "COST_LABEL[s.cost]" in tpl, (
-        "场景卡标签的代价档没翻译成中文")
-    assert "escapeHtml(s.cost_zh" in js or "COST_LABEL[s.cost]" in js, (
-        "代价档没翻译成中文")
+        "场景卡标签的代价档没翻译成中文"
+    )
+    assert "escapeHtml(s.cost_zh" in js or "COST_LABEL[s.cost]" in js, "代价档没翻译成中文"
 
 
 def test_每个配方算子都有中文说明():
@@ -174,11 +173,10 @@ def test_每个配方算子都有中文说明():
     for sc in backend.list_scenarios():
         for s in sc["steps"]:
             assert s["label"] in OPERATOR_ZH.values() or s["op"] in OPERATOR_ZH, (
-                f"{s['op']} 的 label 不是已知的中文说明")
-            assert not s["label"].startswith("（缺"), (
-                f"{s['op']} 缺中文说明，前端会显示占位符")
-            assert s["cost_zh"] in COST_ZH.values(), (
-                f"{s['op']} 的代价档 {s['cost']!r} 没翻译")
+                f"{s['op']} 的 label 不是已知的中文说明"
+            )
+            assert not s["label"].startswith("（缺"), f"{s['op']} 缺中文说明，前端会显示占位符"
+            assert s["cost_zh"] in COST_ZH.values(), f"{s['op']} 的代价档 {s['cost']!r} 没翻译"
 
 
 def test_中文说明不许出现英文算子名():
@@ -188,6 +186,7 @@ def test_中文说明不许出现英文算子名():
     ops = {op for r in RECIPES for op, _ in r.operators}
     for op, zh in [(o, None) for o in ops]:
         from mm_curation.studio.recipes import OPERATOR_ZH
+
         zh = OPERATOR_ZH[op]
         assert op not in zh, f"{op} 的中文说明里还留着英文名：{zh}"
         assert re.search(r"[一-鿿]", zh), f"{op} 的说明不是中文：{zh}"
@@ -210,13 +209,15 @@ def test_步骤条与面板数一致(html):
     assert panels, "没有 panel，向导内容丢了"
     assert nav_nums == panels, (
         f"导航步数 {sorted(nav_nums)} 与面板 {sorted(panels)} 不一致 —— "
-        "有一步永远看不见，或有一步点了没反应")
+        "有一步永远看不见，或有一步点了没反应"
+    )
     assert nav_nums == {str(i) for i in range(1, len(panels) + 1)}, (
-        f"步号必须从 1 连续编号，实际 {sorted(nav_nums)}")
+        f"步号必须从 1 连续编号，实际 {sorted(nav_nums)}"
+    )
 
 
 def test_页面声明了charset避免中文乱码(html):
-    assert "charset=\"utf-8\"" in html.lower(), "没声明 utf-8，中文会乱码"
+    assert 'charset="utf-8"' in html.lower(), "没声明 utf-8，中文会乱码"
 
 
 def test_不用外部CDN(html, js):
@@ -240,10 +241,24 @@ def server():
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
     proc = subprocess.Popen(
-        [sys.executable, "-X", "utf8", str(ROOT / "scripts" / "run_studio.py"),
-         "--no-browser", "--host", "127.0.0.1", "--port", str(port)],
-        cwd=str(ROOT), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        text=True, encoding="utf-8", errors="replace")
+        [
+            sys.executable,
+            "-X",
+            "utf8",
+            str(ROOT / "scripts" / "run_studio.py"),
+            "--no-browser",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+        ],
+        cwd=str(ROOT),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
     base = f"http://127.0.0.1:{port}"
     for _ in range(150):
         try:
@@ -282,4 +297,5 @@ def test_静态资源都取得到且不是404(server):
         assert r.status == 200, f"{path} -> {r.status}"
         assert len(body) > 500, f"{path} 只有 {len(body)} 字节"
         assert ctype in (r.headers.get("Content-Type") or ""), (
-            f"{path} 的 Content-Type 不对：{r.headers.get('Content-Type')}")
+            f"{path} 的 Content-Type 不对：{r.headers.get('Content-Type')}"
+        )

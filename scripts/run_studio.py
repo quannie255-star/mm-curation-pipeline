@@ -26,9 +26,11 @@ sys.path.insert(0, str(ROOT / "src"))
 def _preflight(port: int, host: str = "127.0.0.1") -> None:
     """启动前自检：只报**用户能照做**的问题。"""
     missing = []
-    for mod, pkg in (("transformers", "transformers"),
-                     ("datasets", "datasets"),
-                     ("numpy", "numpy")):
+    for mod, pkg in (
+        ("transformers", "transformers"),
+        ("datasets", "datasets"),
+        ("numpy", "numpy"),
+    ):
         try:
             __import__(mod)
         except ImportError:
@@ -40,7 +42,7 @@ def _preflight(port: int, host: str = "127.0.0.1") -> None:
 
     # ⚠️ 端口占用检查**必须真的 listen，而且不能开 SO_REUSEADDR**。
     # 实测栽过：带 SO_REUSEADDR 时 `bind` 在 Windows 上**永远成功**
-    #（同一端口可被重复绑定）→ 这条自检恒真，占用时报错起不来。
+    # （同一端口可被重复绑定）→ 这条自检恒真，占用时报错起不来。
     # 正确做法：不设 REUSEADDR + 真的 listen()，再立刻关掉。
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
@@ -66,8 +68,9 @@ def _preflight(port: int, host: str = "127.0.0.1") -> None:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--no-browser", action="store_true")
@@ -78,8 +81,9 @@ def main() -> None:
 
     from mm_curation.studio.serve import main as serve_main
 
-    serve_main(["--port", str(a.port), "--host", a.host]
-               + (["--no-browser"] if a.no_browser else []))
+    serve_main(
+        ["--port", str(a.port), "--host", a.host] + (["--no-browser"] if a.no_browser else [])
+    )
 
 
 if __name__ == "__main__":

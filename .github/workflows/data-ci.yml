@@ -57,42 +57,13 @@ jobs:
       - name: Threshold regression gate (curve vs frozen baseline)
         run: python scripts/threshold_regression_gate.py
 
-  # ─────────────────────────────────────────────────────────────────
-  # 变异测试 job（2026-10-08，ROADMAP 第 4 项「变异测试进CI」）
-  #
-  # 为什么单独一个 job 而不是塞进上面：上面是「质量数字退化即红」，
-  # 本job 是「**判据本身是否还会红**」。两者是不同的失效模式 ——
-  # 阈值漂移是数据问题，判据失效是逻辑问题，后者更隐蔽：
-  # 它会让上面所有门禁一起变绿，而实际上它们已经不拦任何东西了。
-  #
-  # ⚠️ 刻意**不加** continue-on-error：不可预演 ≠ 可以不拦
-  #   （container-ci.yml 的同一纪律）。这两个脚本本机已实跑通过
-  #   （mutation_test_detection_slo 7/7、mutation_test_agent_gate 6/6），
-  #   所以它们不是「未知能不能跑」，而是**明确必须拦住**。
-  #
-  # 依赖说明：
-  #   - detection_slo 需要 pyyaml + 黄金集（scripts/build_golden_set.py 可重建，
-  #     但它要 PIL 造图，这里直接调用而非重建，避免 CI 里跑两次造数）
-  #   - agent_gate 只依赖项目自身代码 + stdlib
-  # 因此这个 job 装 pyyaml 即可，**不拉 torch**（保证 1 分钟内跑完）。
-  mutation-gate:
-    name: 变异测试（质量判据还会红）
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install minimal deps (pyyaml only)
-        run: pip install pyyaml pillow numpy
-
-      # 黄金集是**入库的**（data/golden/*.jsonl），所以 CI 干净检出里就有。
-      # 若缺，明确报错而不是让脚本 fallback 自证 ——
-      # 「没有基准也能判过」正是恒真判据最常见的来源。
-      - name: 断言黄金集存在（缺则红，不许fallback）
+      # 黄金集是**入库的冻结资产**（`data/golden/golden_set.jsonl`），
+      # 所以干净检出里就有。这里只做**廉价的完整性**检查：
+      # 存在 + 条数像基准。它防的是「黄金集被误删/截断」这类静默失效。
+      # ⚠️ 真正拿它打分的 SLO 门禁**不在 CI**（理由见文件末尾的移除说明）。
+      # ⚠️ 若缺，明确报错而不是让下游 fallback 自证 ——
+      #    「没有基准也能判过」正是恒真判据最常见的来源。
+      - name: 冻结黄金集完整性（缺则红，不许 fallback）
         run: |
           set -euo pipefail
           if [ ! -f data/golden/golden_set.jsonl ]; then
@@ -107,16 +78,33 @@ jobs:
             exit 1
           fi
 
-      # 顺序纪律：检测 SLO 的变异必须**在**静态扫描之前。
-      # 若它排在后面且失败，后面的步骤若带 if: always() 仍会跑，
-      # 但凡有步骤被前面的失败短路，「变异没被拦住」这道断言就永不执行 ——
-      # **步骤顺序本身就是门禁语义**（ci.yml 的 format-check 事故同源）。
-      - name: 变异测试：检测 SLO 门禁仍会红（7/7）
-        run: python -X utf8 scripts/mutation_test_detection_slo.py
-
-      - name: 变异测试：Agent 路由门禁仍会红（6/6）
-        run: python -X utf8 scripts/mutation_test_agent_gate.py
-
-      - name: 失败时保留沙箱输出
-        if: failure()
-        run: ls -la configs/_mutations 2>/dev/null || echo "（无残留沙箱目录）"
+  # ─────────────────────────────────────────────────────────────────
+  # ❌ 已移除（2026-10-10）：本文件曾有的第 2 个 job「变异测试（质量判据还会红）」
+  #
+  # 它跑 `scripts/mutation_test_detection_slo.py`（7/7）与
+  # `scripts/mutation_test_agent_gate.py`（6/6），**从未在 CI 上跑通过一次**。
+  #
+  # 根因不是「忘了装依赖」，而是**依赖假设写错了**（原注释写「不拉 torch」）：
+  #   · `eval_detection_slo.py` 跑的是 `configs/pipeline.v3_full_coverage.yaml`，
+  #     其中 `clip_alignment` / `semantic_dedup` 要 CLIP 权重（~600MB），
+  #     `wm_nsfw_cnn` 要 `models/detector/wm_nsfw_cnn.pt`（6MB，由
+  #     `scripts/train_detector.py` **训练**出来的本地产物，不在任何 HF 仓库上）；
+  #   · `agent_routing_gate.py` 的贵档基线臂就是 `perplexity`，要
+  #     `uer/gpt2-chinese-cluecorpussmall` 的本地权重（~400MB）。
+  #   而 `models/` 整棵在 `.gitignore` 里 —— **干净检出里这些权重一个都没有**。
+  #
+  # 实测失效形态（CI #78）：第一件事就崩 → 基线 rc=1 但 BREACH 0 条
+  #   （崩溃被当成「合法的红」蒙混过纪律检查），M1–M6 全部因为**装置坏了**
+  #   而假通过，只有 M3（唯一去输出里找 NO_SLO 字样的那条）露了馅。
+  #   这正是本项目最警惕的「装置故障冒充判据」——连变异测试自己也没免疫。
+  #
+  # 为何不「补上依赖」：三个权重里有一个**根本不可从公开源取得**（见上），
+  #   要靠训练脚本现训。按本项目既有纪律（见 gate-ci.yml 的同类说明）：
+  #   **依赖「干净检出拿不到的产物」的门禁不进 CI** —— 放进来只会变成
+  #   真的假绿（或永远红）。它们改列为**本地门禁**，命令见 docs/RUNBOOK.md。
+  #
+  # ⚠️ 结论修正：ROADMAP 曾写「5 个变异测试进 CI」并标 ✅ —— 其中 2 个
+  #   （上面两条）实际从未跑过。真正在 CI 跑的是 gate-ci.yml 里那 3 个
+  #   （纯 stdlib、秒级）：claims_gate / ci_assertions / no_absolute_paths。
+  #   已在 docs/ROADMAP.md 与 docs/RUNBOOK.md 改成事实。
+  # ─────────────────────────────────────────────────────────────────

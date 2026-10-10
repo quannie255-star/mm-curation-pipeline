@@ -125,12 +125,14 @@ def _p_pii(d: dict, rng: random.Random) -> dict:
 def _p_boilerplate(d: dict, rng: random.Random) -> dict:
     """广告模板句注入。判据= 出现「扫码关注/免责声明」类模板话术。"""
     t = d.get("text", "") or ""
-    tmpl = rng.choice([
-        "扫码关注公众号领取福利",
-        "转载请注明出处",
-        "点击链接下载 APP",
-        "免责声明：本文仅代表作者观点",
-    ])
+    tmpl = rng.choice(
+        [
+            "扫码关注公众号领取福利",
+            "转载请注明出处",
+            "点击链接下载 APP",
+            "免责声明：本文仅代表作者观点",
+        ]
+    )
     r = dict(d)
     r["text"] = f"{t}。{tmpl}"
     return r
@@ -294,7 +296,7 @@ def build() -> dict:
                     "is_dirty": None,
                     "note": "",
                 }
-                for d in rows[N_CLEAN + n_forms * N_PER_CLASS:]
+                for d in rows[N_CLEAN + n_forms * N_PER_CLASS :]
             ],
         },
     }
@@ -312,27 +314,27 @@ def main() -> int:
 
     # 落盘 2：元信息
     (GOLDEN_DIR / "golden_meta.json").write_text(
-        json.dumps(g["meta"], ensure_ascii=False, indent=2), encoding="utf-8")
+        json.dumps(g["meta"], ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
     # 落盘 3：人标骨架（答案留空）
     sk = GOLDEN_DIR / "review_skeleton.json"
     if not sk.exists():  # 不覆盖已有人标结果
         sk.write_text(
-            json.dumps(g["review_skeleton"], ensure_ascii=False, indent=2),
-            encoding="utf-8")
+            json.dumps(g["review_skeleton"], ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
     n_clean = len(g["clean"])
     n_probe = len(g["probes"])
     print(f"黄金集已落盘：{GOLDEN_DIR}")
-    print(f"  主集 {main_path.name}：clean {n_clean} + probes {n_probe} "
-          f"= {n_clean + n_probe} 条")
+    print(f"  主集 {main_path.name}：clean {n_clean} + probes {n_probe} = {n_clean + n_probe} 条")
     print(f"  元信息golden_meta.json：{len(g['meta']['classes'])} 类")
-    print(f"  人标骨架 review_skeleton.json："
-          f"{len(g['review_skeleton']['rows'])} 条待标（答案留空）")
+    print(
+        f"  人标骨架 review_skeleton.json：{len(g['review_skeleton']['rows'])} 条待标（答案留空）"
+    )
     print()
     print("形态分布：")
-    for k, v in collections.Counter(
-            d["_gold_label"] for d in g["probes"]).most_common():
+    for k, v in collections.Counter(d["_gold_label"] for d in g["probes"]).most_common():
         print(f"  {k:<22}{v:>4}")
     print()
     print(f"⚠️ 图像类形态未构建（构造器无法在文本层造）：{sorted(IMAGE_ONLY_KINDS)}")

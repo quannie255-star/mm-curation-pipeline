@@ -151,8 +151,7 @@ def main() -> int:
             )
             return 0
         print(
-            f"[OK] 绝对路径门禁：{WAREHOUSES.name}/ 下 {n_scanned} 个源文件，"
-            "未发现硬编码盘符路径"
+            f"[OK] 绝对路径门禁：{WAREHOUSES.name}/ 下 {n_scanned} 个源文件，未发现硬编码盘符路径"
         )
         return 0
 

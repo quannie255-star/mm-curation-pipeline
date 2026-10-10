@@ -57,8 +57,8 @@ def test_全负必须判清洗更差(pst):
     r = pst([-0.008, -0.034, -0.027, -0.021, -0.033, -0.012, -0.012, -0.025])
     assert r["n_pos"] == 0 and r["n_neg"] == 8
     assert "清洗更差" in r["verdict"], (
-        f"全负配对差被判成 {r['verdict']!r} —— 方向反了，"
-        "这是把阴性结果报成阳性的假绿")
+        f"全负配对差被判成 {r['verdict']!r} —— 方向反了，这是把阴性结果报成阳性的假绿"
+    )
     assert "清洗更好" not in r["verdict"]
 
 
@@ -153,7 +153,7 @@ def test_p值与符号数一致(pst):
 
     for n in (3, 5, 6, 8, 10):
         # 全部同号 → 少数派为 0 → p = 2 × (1/2^n)
-        expect = 2 * sum(math.comb(n, i) for i in range(1)) / 2 ** n
+        expect = 2 * sum(math.comb(n, i) for i in range(1)) / 2**n
         r = pst([0.01] * n)
         assert r["k"] == 0
         assert r["p_two_sided"] == pytest.approx(min(1.0, expect), abs=1e-6)
@@ -161,7 +161,7 @@ def test_p值与符号数一致(pst):
     # 混合符号：少数派为 k
     for n, k in ((4, 1), (6, 2), (8, 3)):
         diffs = [0.01] * (n - k) + [-0.01] * k
-        expect = min(1.0, 2 * sum(math.comb(n, i) for i in range(k + 1)) / 2 ** n)
+        expect = min(1.0, 2 * sum(math.comb(n, i) for i in range(k + 1)) / 2**n)
         r = pst(diffs)
         assert r["k"] == k
         assert r["p_two_sided"] == pytest.approx(expect, abs=1e-6)

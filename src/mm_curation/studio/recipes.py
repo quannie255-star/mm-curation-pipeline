@@ -36,14 +36,14 @@ class Recipe:
     """一个业务场景的清洗配方。"""
 
     key: str
-    title: str# 卡片上显示的名字
+    title: str  # 卡片上显示的名字
     modality: str
     blurb: str  # 一句话说明「这个场景解决什么问题」
     required_fields: tuple[str, ...]
     optional_fields: tuple[str, ...]
     operators: tuple[dict, ...]
-    produces: str          # 产出什么类型的数据集
-    sample_hint: str       # 给用户的样例文件格式说明
+    produces: str  # 产出什么类型的数据集
+    sample_hint: str  # 给用户的样例文件格式说明
     cost_note: str = ""
     # 已知会误伤/需要注意的点（诚实提示，不藏）
     caveats: tuple[str, ...] = field(default_factory=tuple)
@@ -65,7 +65,7 @@ class Recipe:
 # 这里给每个算子一句「人话」，前端显示它、文档显示它。
 #
 # ⭐**这张表必须与配方同步**：assert_recipes_valid() 会检查
-#「配方里用到的每个算子都在表里，且表里没有多余的」（两个方向都查）。
+# 「配方里用到的每个算子都在表里，且表里没有多余的」（两个方向都查）。
 # 只查一个方向的话，删掉一行说明不会报错 → 又变成静默失效。
 OPERATOR_ZH: dict[str, str] = {
     # 文本
@@ -124,15 +124,15 @@ RECIPES: tuple[Recipe, ...] = (
         # 便宜的规则先筛，尽早缩小昂贵算子（CLIP/去重）的输入规模。
         operators=(
             # --- 图像规则（需 image_path）---
-            ("resolution", {"min": 100}),      # 干净集最小 109px，100 不误杀
-            ("aspect_ratio", {"min": 0.25}),   # 砍极端横幅；干净集 p10=0.7
+            ("resolution", {"min": 100}),  # 干净集最小 109px，100 不误杀
+            ("aspect_ratio", {"min": 0.25}),  # 砍极端横幅；干净集 p10=0.7
             # --- 文本规则（需 text）---
             ("text_length", {"min": 5, "max": 100}),
             ("chinese_ratio", {"min": 0.3}),
             ("char_repetition", {"min": 0.8}),
             # --- 去重（批量，作用于当前存活集）---
             ("md5_exact", {}),
-            ("phash_near", {"threshold": 12}),        # 召回 84% / 误杀 0.3%（真实数据扫描）
+            ("phash_near", {"threshold": 12}),  # 召回 84% / 误杀 0.3%（真实数据扫描）
             ("minhash_lsh", {"threshold": 0.65, "min_len": 8}),  # 召回 94% / 误杀 0.7%
             # --- 贵算子放最后 ---
             ("clip_alignment", {"min": 0.38}),  # 图文错配召回 96% / 误杀 0.2%
@@ -182,8 +182,7 @@ RECIPES: tuple[Recipe, ...] = (
         title="医疗健康数据（FHIR 资源）",
         modality=MODALITY_FHIR,
         blurb=(
-            "医院/保险理赔的 FHIR JSON 资源，"
-            "脏数据多是：单位写错、数值不合生理范围、时间线对不上。"
+            "医院/保险理赔的 FHIR JSON 资源，脏数据多是：单位写错、数值不合生理范围、时间线对不上。"
         ),
         required_fields=("text",),
         optional_fields=("resource_type", "id", "labels"),
@@ -193,15 +192,15 @@ RECIPES: tuple[Recipe, ...] = (
         #    —— 这条是被 recipes.assert_recipes_valid() 抓出来的，别再改回去。
         operators=(
             # 合规类：存在即违规 → min=1.0 一票否决
-            ("phi_residual", {"min": 1.0}),           # PHI 残留（姓名/手机/证件/邮箱）
-            ("code_validity", {"min": 1.0}),          # ICD-10/LOINC/ATC 编码有效性
-            ("unit_normalization", {"min": 1.0}),     # valueQuantity 单位 ∈ UCUM
+            ("phi_residual", {"min": 1.0}),  # PHI 残留（姓名/手机/证件/邮箱）
+            ("code_validity", {"min": 1.0}),  # ICD-10/LOINC/ATC 编码有效性
+            ("unit_normalization", {"min": 1.0}),  # valueQuantity 单位 ∈ UCUM
             # 跨资源批量（shardable=False，必须单点）
-            ("temporal_consistency", {"min": 1.0}),      # 时间线冲突
+            ("temporal_consistency", {"min": 1.0}),  # 时间线冲突
             ("referential_integrity_fhir", {"min": 1.0}),  # subject/encounter 引用闭合
         ),
         produces="结构化医疗文本语料",
-        sample_hint='每行一个 FHIR 资源的 JSON（含 resourceType / value 等）',
+        sample_hint="每行一个 FHIR 资源的 JSON（含 resourceType / value 等）",
         cost_note="referential_integrity 需要全量资源做交叉核对，规模大时明显变慢",
         caveats=(
             "referential_integrity_fhir 是**不可分片**算子：必须单点核对，不能并行",
@@ -226,8 +225,7 @@ RECIPES: tuple[Recipe, ...] = (
         ),
         produces="时序语料（可用于时序模型训练 / 异常检测）",
         sample_hint=(
-            '每行一个采样点：{"series_id": "dev01", "timestamp": "...", '
-            '"text": "温度=82.3"}'
+            '每行一个采样点：{"series_id": "dev01", "timestamp": "...", "text": "温度=82.3"}'
         ),
         cost_note="6 个算子里 5 个**必须单点**（时序算子要跨采样点看全局视野），不能并行",
         caveats=(
@@ -317,9 +315,7 @@ def assert_recipes_valid() -> None:
                 problems.append(f"算子 {op!r} 的代价档 {key!r} 没有中文标签")
 
     if problems:
-        raise AssertionError(
-            "场景配方与算子注册表不一致：\n  - " + "\n  - ".join(problems)
-        )
+        raise AssertionError("场景配方与算子注册表不一致：\n  - " + "\n  - ".join(problems))
 
 
 assert_recipes_valid()

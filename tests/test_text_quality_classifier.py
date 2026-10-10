@@ -138,8 +138,9 @@ def test_augment_emits_bucket_tokens_not_floats() -> None:
             "出现小数点即退化成浮点 token（静默失效）"
         )
     assert "." not in head, f"结构 token 里出现小数点: {head!r}"
-    families = {re.fullmatch(r"[A-Z]+", tk.removeprefix("⟦").removesuffix("⟧")[:-1]).group()
-                for tk in toks}
+    families = {
+        re.fullmatch(r"[A-Z]+", tk.removeprefix("⟦").removesuffix("⟧")[:-1]).group() for tk in toks
+    }
     assert {"INV", "REP", "RAT", "LNU", "LEN"} <= families, f"缺结构族: {families}"
 
 
@@ -167,7 +168,7 @@ def test_line_uniqueness_separates_para_repeat_from_clean() -> None:
     实测：段级复读的 3-gram 游程仍是 1~3（与干净相同），
     但行级唯一度趋近 1/N。这条测试锁住的就是那个差异。
     """
-    clean = line_uniqueness(mk())          # 单行 → 1.0
+    clean = line_uniqueness(mk())  # 单行 → 1.0
     para = "\n".join(["甲段"] * 10)
     assert clean == 1.0
     assert line_uniqueness(para) < 0.2
@@ -197,11 +198,13 @@ def test_repeat_ratio_alone_is_not_sufficient_on_short_text() -> None:
 
     st = A_SUBSTYLES[0]
     one = StyleGroup(
-        name="P", kinds=("para_repeat",), filler_chars=st.filler_chars,
-        repeat_range=st.repeat_range, keep_ratio=st.keep_ratio,
+        name="P",
+        kinds=("para_repeat",),
+        filler_chars=st.filler_chars,
+        repeat_range=st.repeat_range,
+        keep_ratio=st.keep_ratio,
     )
-    dirty = [repeat_ratio(apply_style(t, one, random.Random(i)))
-             for i, t in enumerate(corpus[:60])]
+    dirty = [repeat_ratio(apply_style(t, one, random.Random(i))) for i, t in enumerate(corpus[:60])]
     overlap = sum(1 for v in dirty if lo <= v <= hi) / len(dirty)
     assert overlap > 0.5, (
         f"段级复读只有 {overlap:.0%} 落在干净分布内 —— "
@@ -230,8 +233,11 @@ def test_every_style_actually_modifies_text(style: StyleGroup) -> None:
 def test_zero_width_style_injects_real_characters() -> None:
     """B 组的零宽字符必须真的注入（`INVISIBLE_CHARS` 要认得它）。"""
     one = StyleGroup(
-        name="B", kinds=("zero_width",), filler_chars=STYLE_B.filler_chars,
-        repeat_range=STYLE_B.repeat_range, keep_ratio=STYLE_B.keep_ratio,
+        name="B",
+        kinds=("zero_width",),
+        filler_chars=STYLE_B.filler_chars,
+        repeat_range=STYLE_B.repeat_range,
+        keep_ratio=STYLE_B.keep_ratio,
     )
     out = apply_style(mk(), one, random.Random(3))
     assert out.count(ZW) > 0, "零宽字符没注入"
@@ -247,8 +253,11 @@ def test_wordjoiner_style_differs_from_zero_width_char() -> None:
     assert WJ in INVISIBLE_CHARS
     assert WJ != ZW
     one = StyleGroup(
-        name="A5", kinds=("wordjoiner_spam",), filler_chars=("壬", "癸"),
-        repeat_range=(4, 7), keep_ratio=(0.3, 0.5),
+        name="A5",
+        kinds=("wordjoiner_spam",),
+        filler_chars=("壬", "癸"),
+        repeat_range=(4, 7),
+        keep_ratio=(0.3, 0.5),
     )
     out = apply_style(mk(), one, random.Random(3))
     assert out.count(WJ) > 0
@@ -278,8 +287,11 @@ def test_training_styles_produce_nonconstant_struct_features() -> None:
     for style in A_SUBSTYLES:
         for kind in style.kinds:
             one = StyleGroup(
-                name=style.name, kinds=(kind,), filler_chars=style.filler_chars,
-                repeat_range=style.repeat_range, keep_ratio=style.keep_ratio,
+                name=style.name,
+                kinds=(kind,),
+                filler_chars=style.filler_chars,
+                repeat_range=style.repeat_range,
+                keep_ratio=style.keep_ratio,
             )
             for seed in range(6):
                 out = apply_style(mk(), one, random.Random(seed))

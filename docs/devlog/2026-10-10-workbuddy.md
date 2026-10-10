@@ -83,3 +83,38 @@
 **这条记录本身就是结论**：三处里有**两处**是「本地永远不会红」的
 （第 1 条本地有 `datasets/`、第 2 条本地有 `data/reports/`）——
 **推送后读一次 CI 结果，是这套流程里不可省的一步。**
+
+## 六、（同轮继续）推 `f8466a6` 后仍两处红：上一轮我的「修法」没命中根因
+
+`f8466a6` 推上去后：`gate-ci` ✅、`container` ✅，但 **`CI` #91 与 `Data CI` #78 仍红**。
+上一轮第 3 处（黄金集入库）确实修好了，但 `CI` 红的**其实是另一件事**。
+
+取日志的办法（github.com 仍 502，走 api.github.com）：`/actions/jobs/<id>/logs` 会
+302 到 Azure Blob，**第二跳绝不能带 Authorization**，否则 `AuthenticationFailed`。
+
+| # | 红在哪 | **真实根因** | 处置 |
+|---|---|---|---|
+| A | `CI` → `Run tests (主仓库)` 4 failed | `tests/test_studio_backend.py` 4 条端到端测试**真加载 `uer/gpt2-chinese-cluecorpussmall`**（`text_article` 配方含 `perplexity`），CI 干净检出没有 `models/` → `FileNotFoundError: 未找到…本地缓存` | 模块内 `autouse` fixture 注入**确定性桩 scorer**（沿用 `test_text_corpus.py` 的同一注入点 `text_corpus.get_scorer`）。受控实验：把 `models/gpt2-chinese-cluecorpussmall` rename 走后仍 **19 passed** |
+| B | `Data CI` → 变异测试 job **6/7** | job 注释写「装 pyyaml 即可，**不拉 torch**」**是错的**：`eval_detection_slo.py` 要 CLIP（~600MB）+ 自训的 `wm_nsfw_cnn.pt`（6MB，**公开源拿不到**）；`agent_routing_gate.py` 要 gpt2-chinese。干净检出**一个都没有** → 基线**崩溃**（rc=1 且 BREACH 0 条），M1–M6 因「装置坏了」假通过，只有 M3 露馅 | 按既有纪律（拿不到产物的门禁不进 CI）**移出 CI、改本地门禁**（RUNBOOK 1.9.3）；`data-ci.yml` 只留冻结黄金集的完整性检查 |
+| C | `CI` 第 10 步 `Ruff format check`（**从未执行过**） | zcode 批次留下 **41 个未格式化文件**。该步排在测试之后，而测试一直红 → 被短路，从没跑过 | `ruff format` 清偿（41 files reformatted）|
+
+⚠️ **B 是一条「假完成」**：ROADMAP 第三节第 4 项写「5 个变异测试进 CI」并标 ✅（2026-10-08），
+实际**只有 3 个**跑过（gate-ci 那 3 个）。那个 ✅ 是在「脚本本地能跑」之后、
+「接进 CI」之前打上的。已：ROADMAP 加更正块、GAP_ANALYSIS 加更正指针、
+RESUME / ARCHITECTURE_FOR_REVIEW 同步改数、现象写成 ENGINEERING_NOTES **#99**。
+
+### 本轮实点（收工时）
+- `ruff check` ✅ / `ruff format --check` ✅（303 files）/ YAML 粘连 ✅ / 绝对路径 ✅ / 编码卫生 ✅
+- gate-ci 的 3 个变异测试：`ci_assertions` **6/6**、`claims_gate` **6/6**、`no_absolute_paths` **4/4**
+- `verify_claims.py --reports-missing skip` **rc=0**：29 claim（28 PASS + 1 历史）/ **93 门面全 PASS** / 2 派生 / 覆盖率棘轮 0 越界
+- `pytest`（junitxml 实点）：主仓 **876** + 包 **67** = **943**，0 失败 0 错误
+- 加 #99 引发 notes_count 98→99 连锁：5 篇文档 + 5 条门面（`literal` 与 `must_contain` **一起**改）
+
+### 给下一个人的话（三条，都会再踩）
+1. **`data-ci.yml` 里少一个 job 是有意的**，不是漏了。别看到「5 个变异测试」的说法就往回加 ——
+   先读该文件末尾那段移除说明。要真接回去，得先解决「`wm_nsfw_cnn.pt` 公开源拿不到」。
+2. **`mutation_test_detection_slo.py` 的基线纪律 `rc0 ∈ {0,1}` 分不清「红」与「崩」**。
+   将来若把它接进任何环境，**必须**补一条「输出里出现结论行（`7/7 通过`）」的断言 ——
+   否则装置一崩，全部分支都会「通过」。这是本轮的坑，写进 #99 了。
+3. `test_studio_backend.py` 现在**不依赖任何模型权重与网络**。若把它改回真加载模型，
+   CI 会立刻红 —— 那正是本轮修的东西。
