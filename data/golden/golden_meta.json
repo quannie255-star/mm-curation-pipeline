@@ -1,0 +1,61 @@
+{
+  "purpose": "人标黄金集：SLO 面板的第三方校准基准，破「造什么就一定抓什么」的闭环",
+  "n_per_class": 30,
+  "n_clean": 200,
+  "classes": [
+    "clean",
+    "truncate_text",
+    "paragraph_repeat",
+    "mojibake",
+    "pii_inject",
+    "boilerplate_inject",
+    "mismatched_pair"
+  ],
+  "image_only_kinds_not_built": [
+    "blur",
+    "low_resolution",
+    "watermark"
+  ],
+  "independence": "构造器实现于 scripts/build_golden_set.py，**不 import curation_eval.contamination** → 与污染器实现无关（由 tests/test_golden_set_independence.py 以 AST 断言守住）",
+  "criteria": {
+    "truncate_text": "文本被截断到前 30%，语义不完整",
+    "paragraph_repeat": "整段文本复读 3 次，肉眼可见复制",
+    "mojibake": "字符被替换为不可读碎片，不成词",
+    "pii_inject": "出现真实格式的手机号/邮箱",
+    "boilerplate_inject": "出现广告/版权/导航类模板话术",
+    "mismatched_pair": "caption 与图像内容无关（语义错配）"
+  },
+  "recall_ceiling_note": "文本构造器有结构性上限：同一形态要凑 30 条样本，但 caption 必须互异（否则被 minhash_lsh/phash_near 当重复抓），而供体图只有 30 张、每张只能配一个 caption。凡构造时复用了同一段文本的形态，其真召回上限 = (不重复文本数 / 样本数)。SLO 面板的 dedup_only 列会显式报出被去重算子抓走的条数 —— 不计入真召回，也不隐藏。",
+  "text_uniqueness": {
+    "truncate_text": {
+      "n": 30,
+      "unique_texts": 26,
+      "recall_ceiling": 0.8667
+    },
+    "paragraph_repeat": {
+      "n": 30,
+      "unique_texts": 30,
+      "recall_ceiling": 1.0
+    },
+    "mojibake": {
+      "n": 30,
+      "unique_texts": 30,
+      "recall_ceiling": 1.0
+    },
+    "pii_inject": {
+      "n": 30,
+      "unique_texts": 30,
+      "recall_ceiling": 1.0
+    },
+    "boilerplate_inject": {
+      "n": 30,
+      "unique_texts": 30,
+      "recall_ceiling": 1.0
+    },
+    "mismatched_pair": {
+      "n": 30,
+      "unique_texts": 7,
+      "recall_ceiling": 0.2333
+    }
+  }
+}

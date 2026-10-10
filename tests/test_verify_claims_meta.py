@@ -92,11 +92,17 @@ def test_标量漂移仍判drift(vc, tmp_path):
 
 
 def test_全量注册表的claim都能被渲染不崩(tmp_path):
-    """真跑一次门禁并检查 rc + 输出尾部（崩了就没有尾部）。"""
+    """真跑一次门禁并检查 rc + 输出尾部（崩了就没有尾部）。
+
+    ⚠️ 必须带 `--reports-missing skip`（2026-10-10 修）：`data/reports/` 是**生成物、
+    不入库**，干净检出（CI）里 28 条 claim 必然缺报告。不带这个开关时门禁默认
+    `fail` → 干净检出里 rc=1 → **本机全绿、CI 红**（本轮实测栽过）。
+    带 skip 后两种环境都是 rc=0，而 facade / derived / coverage 三层照常被校验。
+    """
     reg = ROOT / "docs" / "claims.json"
     assert reg.exists(), "docs/claims.json 不存在"
     r = subprocess.run(
-        [sys.executable, "-X", "utf8", str(_GATE)],
+        [sys.executable, "-X", "utf8", str(_GATE), "--reports-missing", "skip"],
         capture_output=True, text=True, cwd=str(ROOT), encoding="utf-8",
         errors="replace", timeout=300,
     )

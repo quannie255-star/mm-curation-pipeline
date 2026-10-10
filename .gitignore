@@ -98,7 +98,16 @@ warehouses/.user.yml
 data/tmp/
 data/tmp_*/
 data/tmp_*.zip
-data/golden/
+# 黄金集（data/golden/）= **冻结评测资产，入库**（与 benchmarks/ 同地位）。
+# ⚠️ 这条曾经是 `data/golden/` 整目录忽略 —— 与 data-ci.yml 的
+#   「断言黄金集存在（缺则红，不许 fallback）」直接冲突：干净检出里没有基准，
+#   检测 SLO 门禁**等于没有门禁**（2026-10-10 实测：本地全绿、Data CI 红）。
+# 只放行门禁真正读的那两个文件（eval_detection_slo.py 读 jsonl + meta）；
+# golden 下其余产物仍忽略。
+data/golden/*
+!data/golden/golden_set.jsonl
+!data/golden/golden_meta.json
+!data/golden/review_skeleton.json
 # Studio 网页版（scripts/run_studio.py）把用户上传数据的清洗产物落在 data/studio/<名>/
 # —— 与 data/processed/ 同性质的可重建运行时产物，绝不能入库
 data/studio/

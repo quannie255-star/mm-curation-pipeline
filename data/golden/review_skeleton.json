@@ -1,0 +1,370 @@
+{
+  "instructions": "以下是留给人标的样本骨架。**本脚本不填答案** —— 自动填 = 自证。请人工按 criteria 判is_dirty 并填入，再由 scripts/eval_slo.py 读取。",
+  "image_only_criteria": {
+    "watermark": "图像被叠加半透明文字水印",
+    "blur": "图像被模糊化",
+    "low_resolution": "图像被降采样到极低分辨率"
+  },
+  "rows": [
+    {
+      "id": "COCO_train2014_000000009218__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000009218.jpg",
+      "text": "两个男人分别骑在两头大象头上，大象很痛苦地被绳绑着在搬运木头。",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000009321__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000009321.jpg",
+      "text": "一座红色的教堂。",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000009451__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000009451.jpg",
+      "text": "一个男人在玩滑板。",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000009677__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000009677.jpg",
+      "text": "盘子里有黑色和白色的冰激凌，还有一个勺子",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000009698__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000009698.jpg",
+      "text": "一个人手里拿着半块面包，身旁的草地上趴着一只狗。",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000009712__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000009712.jpg",
+      "text": "一台打开的笔记本电脑旁还有一本C++的书。",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000009738__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000009738.jpg",
+      "text": "这张黑白照片里一个人抱着一块冲浪板站在海滩上面向大海。",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000009744__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000009744.jpg",
+      "text": "人们伸手喂一头长颈鹿。",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000009768__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000009768.jpg",
+      "text": "一些香蕉和几个绿色的橘子摆在餐盘中。",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000009885__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000009885.jpg",
+      "text": "一个穿黑衣服的男孩在街道上玩滑板。",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000009975__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000009975.jpg",
+      "text": "雪地中的一个消防栓",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000010024__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000010024.jpg",
+      "text": "一个人在树林间滑雪。",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000010058__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000010058.jpg",
+      "text": "一辆大型消防车在事故现场前面。",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000010082__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000010082.jpg",
+      "text": "两个女人和一只穿着熊样服装的人在一起跳舞。",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000010097__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000010097.jpg",
+      "text": "一个人在滑板场做空中特技。",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000010136__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000010136.jpg",
+      "text": "一个书架，上面有各种各样的书和其他小物品。",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000010175__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000010175.jpg",
+      "text": "一位厨师正在切一个苹果。",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000010243__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000010243.jpg",
+      "text": "厨房里一个小男孩非常开心的面对着许多大小不一的巧克力甜甜圈",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000010248__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000010248.jpg",
+      "text": "一只棕白相间戴着项圈的狗在草地上。",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000010276__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000010276.jpg",
+      "text": "一匹马和两只狗站在草地上。",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000010369__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000010369.jpg",
+      "text": "一只狗躺在服装店里的地毯上",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000010388__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000010388.jpg",
+      "text": "夜晚一个男人正站在一个平静的湖边的码头上。",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000010403__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000010403.jpg",
+      "text": "在篮子里有橘子，香蕉，菠萝各种各样的热带水果。",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000010405__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000010405.jpg",
+      "text": "在芝加哥，景观河附近摩天大楼林立，河中有一艘渡船通过",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000010420__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000010420.jpg",
+      "text": "建筑物门口的围栏内种满了各种绿色植物",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000010466__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000010466.jpg",
+      "text": "卧室里摆放了一张床和一张黑色的沙发。",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000010560__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000010560.jpg",
+      "text": "一个大胡子男子的胸口上放了一台笔记本电脑",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000010581__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000010581.jpg",
+      "text": "垃圾桶后有一幅宣传海报和一个人的背影",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000010614__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000010614.jpg",
+      "text": "两大块披萨饼放在桌子上。",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    },
+    {
+      "id": "COCO_train2014_000000010627__human",
+      "image_path": "data\\raw\\images\\COCO_train2014_000000010627.jpg",
+      "text": "一架军用飞机正飞跃平原。",
+      "criteria": {
+        "watermark": "图像被叠加半透明文字水印",
+        "blur": "图像被模糊化",
+        "low_resolution": "图像被降采样到极低分辨率"
+      },
+      "is_dirty": null,
+      "note": ""
+    }
+  ]
+}

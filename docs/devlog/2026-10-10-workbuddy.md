@@ -62,3 +62,24 @@
    dbt 门禁仍未接 CI（`gate-ci.yml` 已入库，但只覆盖 verify_claims + 5 变异 + 3 静态门禁）。
 4. `test_dedup_fast.py` 是**唯一一个被 zcode 改过但未同步基线的测试文件**——
    下次改测试后务必 `--junitxml` 实点回写。
+
+## 五、推送后 CI 抓到三处（两真一假）——**本地全绿，CI 全红**
+
+推 `abcfff6` 后：`gate-ci` ✅、`container` ✅，但 **`CI` 与 `Data CI` 红**。逐条查：
+
+| # | 红在哪 | 根因 | 处置 |
+|---|---|---|---|
+| 1 | `gate-ci` 断言 1（claim 层必须 0 PASS） | `datasets/` 入库 → 6 条指向它的 claim 在 CI 上真被校验 | `datasets/` 改回不入库（§三）|
+| 2 | `CI` → `Run tests (主仓库)` | 新测试 `test_verify_claims_meta.py::test_全量注册表的claim都能被渲染不崩` **没带 `--reports-missing skip`** → 干净检出里 28 条 claim 缺报告 → 门禁默认 `fail` → rc=1 | 测试补 `--reports-missing skip`（`data/reports/` 是生成物，CI 口径就该 skip）|
+| 3 | `Data CI` → `断言黄金集存在` | `data-ci.yml` 注释写「黄金集是**入库的**」，但 `.gitignore` 有 `data/golden/` **整目录忽略** → 干净检出里永远没有基准 → 断言必红 | 黄金集按**冻结评测资产**入库：`data/golden/*` + 三个 `!` 例外（`golden_set.jsonl` / `golden_meta.json` / `review_skeleton.json`） |
+
+**假红一条（重要的方法论）**：本地用 `git archive HEAD` 复现 CI 时，
+`tests/test_lock_file.py::test_lock_is_lf_only...` 也红了。查证：`requirements.lock`
+的 **blob 与工作区都是 LF**（CRLF 计数 0/0），是 Windows 上 `git archive` 做了
+**eol 转换**（导出成 CRLF）——CI 是 ubuntu，仍是 LF，不红。
+⇒ **「模拟干净检出」有已知偏差，eol 是其一**；它复现的是「缺哪些生成物」，
+不是「CI 的字节级环境」。判红前先问一句：这条是不是我的装置造出来的？
+
+**这条记录本身就是结论**：三处里有**两处**是「本地永远不会红」的
+（第 1 条本地有 `datasets/`、第 2 条本地有 `data/reports/`）——
+**推送后读一次 CI 结果，是这套流程里不可省的一步。**
