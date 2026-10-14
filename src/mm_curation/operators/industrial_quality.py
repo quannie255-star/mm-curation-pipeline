@@ -540,8 +540,13 @@ class SensorDriftOp(BatchOperator):
 
     def run_batch(self, samples: list[Sample]) -> list[Sample]:
         scale_mode = str(self.params.get("scale", "pooled"))
+        if scale_mode not in ("pooled", "mad"):
+            raise ValueError(f"sensor_drift: scale 只支持 pooled|mad，得到 {scale_mode!r}")
         z_thr = float(self.params.get("z", _DRIFT_Z))
-        groups: dict[tuple, list[dict]] = {}
+        # 分组携带样本 id：排序键必须是 (window_start, id) 全序。同 window_start
+        # 可能有多条（污染器复制窗与原窗共享 timestamp），只按时间排会退化成依赖
+        # 输入序 → 基线窗选择不确定 → 跨 runs 不可复现、且污染注入可能混进基线。
+        groups: dict[tuple, list[tuple[str, dict]]] = {}
         parsed: list[tuple[Sample, dict | None]] = []
         for s in samples:
             p = _parse(s)
@@ -549,10 +554,10 @@ class SensorDriftOp(BatchOperator):
             if p is None or p.get("record_type") != "reading_window":
                 continue
             key = (p["device_id"], p["channel"], p["operating_mode"])
-            groups.setdefault(key, []).append(p)
+            groups.setdefault(key, []).append((s.id, p))
         baselines: dict[tuple, tuple[float, float]] = {}
         for key, windows in groups.items():
-            windows.sort(key=lambda p: datetime.fromisoformat(p["window_start"]))
+            windows.sort(key=lambda t: (datetime.fromisoformat(t[1]["window_start"]), t[0]))
             base = windows[:_BASELINE]
             if len(windows) <= _BASELINE:
                 continue
@@ -560,16 +565,16 @@ class SensorDriftOp(BatchOperator):
             # 自相关自适应估计，不硬编码过程参数）。基线中心与尺度都用中位数：
             # 独立评测时全集可能含其他类型的灾难注入（如 -999 静默窗），均值/μ
             # 型统计会被拖垮，中位数对 ≤2/5 基线被污染仍稳健。
-            base_stds = sorted(_std(w["readings"], _mean(w["readings"])) for w in base)
+            base_stds = sorted(_std(w[1]["readings"], _mean(w[1]["readings"])) for w in base)
             s_w = base_stds[len(base_stds) // 2]
-            rho = _mean([_lag1_autocorr(w["readings"]) for w in base])
-            n = len(base[0]["readings"])
+            rho = _mean([_lag1_autocorr(w[1]["readings"]) for w in base])
+            n = len(base[0][1]["readings"])
             pooled = s_w * ((1 + rho) / (n * (1 - rho))) ** 0.5
-            base_means = sorted(_mean(w["readings"]) for w in base)
+            base_means = sorted(_mean(w[1]["readings"]) for w in base)
             center = base_means[len(base_means) // 2]
             sigma_mean = pooled
             if scale_mode == "mad":
-                all_means = sorted(_mean(w["readings"]) for w in windows)
+                all_means = sorted(_mean(w[1]["readings"]) for w in windows)
                 med = all_means[len(all_means) // 2]
                 devs = sorted(abs(m - med) for m in all_means)
                 mad = devs[len(devs) // 2]
@@ -761,7 +766,7 @@ class FaultVsMaintenanceOp(BatchOperator):
                 # 本算子的**每一档都是枚举形态**，所以证据一律挂上：它回答的正是
                 # 「这个窗凭什么被判成这样」。与 sensor_stuck 相反（那边的 idle
                 # 通过是绝大多数窗的常态，挂证据只增噪声）。
-                s.meta["evidence:sensor_fault_vs_maintenance"] = evidence
+                s.meta["evidence:fault_vs_maintenance"] = evidence
             if self.keep(score):
                 survivors.append(s)
         return survivors
@@ -882,9 +887,6 @@ def _mspc_row(model: dict, values: list[float]) -> dict:
     spe = float((resid**2).sum())
 
     t2_c = np.abs(z * (loadings @ (t / lam)))
-    weight = max(spe / max(model["spe_limit"], 1e-12), 0.0) + max(
-        t2 / max(model["t2_limit"], 1e-12), 0.0
-    )
     combined = (spe / max(model["spe_limit"], 1e-12)) * (resid**2) + (
         t2 / max(model["t2_limit"], 1e-12)
     ) * t2_c
@@ -896,7 +898,6 @@ def _mspc_row(model: dict, values: list[float]) -> dict:
         "spe": spe,
         "top_channel": model["channels"][top] if top >= 0 else "",
         "top_share": float(share[top]) if top >= 0 else 1.0,
-        "_weight": weight,
     }
 
 

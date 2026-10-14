@@ -11,6 +11,10 @@ from curation_eval import CostClass, register_operator
 from ..detector import model as detector_model
 from .base import BatchOperator, Sample
 
+# 模型输出 3 类的下标约定：0=干净, 1=水印, 2=NSFW；脏类 = {1, 2}。
+# 显式命名，避免 `p[1]/p[2]` 硬编码下标在换模型/改类别数时静默错判。
+_WM_IDX, _NSFW_IDX = 1, 2
+
 
 @register_operator(
     name="wm_nsfw_cnn",
@@ -57,7 +61,7 @@ class WmNsfwCnnOp(BatchOperator):
         probs = np.concatenate(probs_all) if probs_all else np.zeros((0, 3))
         kept = []
         for s, p in zip(samples, probs):
-            score = float(1.0 - max(p[1], p[2]))  # 1 - max(P(wm), P(ad))
+            score = float(1.0 - max(p[_WM_IDX], p[_NSFW_IDX]))  # 1 - max(P(wm), P(ad))
             s.meta["score:wm_nsfw_cnn"] = score
             if score >= self.min:
                 kept.append(s)

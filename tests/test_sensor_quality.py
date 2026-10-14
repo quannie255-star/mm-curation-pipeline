@@ -431,7 +431,7 @@ def test_fault_span_gap_not_judged_but_kept():
     payloads[0]["window_end"] = (start + timedelta(seconds=256 * 6)).isoformat()
     ss = _fault_scores(_payloads_to_samples(payloads))
     assert ss[0].meta["score:fault_vs_maintenance"] is None
-    ev = ss[0].meta["evidence:sensor_fault_vs_maintenance"]
+    ev = ss[0].meta["evidence:fault_vs_maintenance"]
     assert ev["rule"] == "span_gap" and ev["span_ratio"] > 5.0
     assert ev["missing_slots"] > 1000  # 缺席槽位可计算，不是一句「有问题」
 
@@ -440,7 +440,7 @@ def test_fault_normal_span_still_judged():
     """边界：正常跨度（≈1.004）不得被当成缺口——否则真实轨满屏未评。"""
     ss = _fault_scores(_payloads_to_samples(_seq(2)))
     assert [s.meta["score:fault_vs_maintenance"] for s in ss] == [1.0, 1.0]
-    assert "evidence:sensor_fault_vs_maintenance" not in ss[0].meta
+    assert "evidence:fault_vs_maintenance" not in ss[0].meta
 
 
 def test_fault_machine_stop_passes_with_evidence():
@@ -459,14 +459,14 @@ def test_fault_machine_stop_passes_with_evidence():
         )
     )
     assert [s.meta["score:fault_vs_maintenance"] for s in ss] == [1.0, 1.0]
-    assert ss[0].meta["evidence:sensor_fault_vs_maintenance"]["rule"] == "machine_stop"
+    assert ss[0].meta["evidence:fault_vs_maintenance"]["rule"] == "machine_stop"
 
 
 def test_fault_single_channel_freeze_is_not_machine_stop():
     """边界：只有**一个**通道冻结不是设备停机（那是卡死，归 sensor_stuck）→ 本算子照常通过。"""
     ss = _fault_scores(_payloads_to_samples([_window(channel="pressure", readings=[1.2] * 256)]))
     assert ss[0].meta["score:fault_vs_maintenance"] == 1.0
-    assert "evidence:sensor_fault_vs_maintenance" not in ss[0].meta
+    assert "evidence:fault_vs_maintenance" not in ss[0].meta
 
 
 # --- R2：外接量程表 ----------------------------------------------------------

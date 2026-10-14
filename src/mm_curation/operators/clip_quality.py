@@ -18,6 +18,18 @@ from ..embedding import clip_encoder
 from .base import BatchOperator, Sample
 
 
+def _l2norm(x):
+    """按行 L2 归一化，消除「encoder 已返回单位向量」的隐含假设。
+
+    否则 `np.sum(img * txt)` 算的是点积而非余弦相似度，阈值 0.2/0.93 全错。
+    encoder 实际返回的是未归一化向量，这里显式归一化才得到余弦相似度。
+    分母夹 1e-12 防零向量除零。numpy 在此处（使用点）才导入，沿用本模块
+    懒加载约定——服务容器最小依赖里没有 numpy（dedup.py / detector_quality.py 同惯例）。"""
+    import numpy as np
+
+    return x / np.maximum(np.linalg.norm(x, axis=1, keepdims=True), 1e-12)
+
+
 def _mark_dup(dup: Sample, kept: Sample, method: str) -> None:
     dup.meta[f"dedup:{method}"] = {"duplicate_of": kept.id}
 
@@ -45,8 +57,8 @@ class ClipAlignmentOp(BatchOperator):
         import numpy as np  # 懒加载：服务容器最小依赖里没有 numpy（dedup.py 同惯例）
 
         encoder = clip_encoder.get_encoder()
-        img = encoder.encode_images([s.image_path for s in samples])
-        txt = encoder.encode_texts([s.text for s in samples])
+        img = _l2norm(encoder.encode_images([s.image_path for s in samples]))
+        txt = _l2norm(encoder.encode_texts([s.text for s in samples]))
         sims = np.sum(img * txt, axis=1)
         kept = []
         for s, sim in zip(samples, sims):
@@ -81,7 +93,7 @@ class SemanticDedupOp(BatchOperator):
         import numpy as np  # 懒加载：同上
 
         encoder = clip_encoder.get_encoder()
-        emb = encoder.encode_images([s.image_path for s in samples])
+        emb = _l2norm(encoder.encode_images([s.image_path for s in samples]))
         kept: list[Sample] = []
         kept_vecs: list[np.ndarray] = []
         for s, v in zip(samples, emb):
