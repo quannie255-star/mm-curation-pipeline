@@ -1,7 +1,7 @@
 {
   "meta": {
     "purpose": "简历/文档数字版本锁定：每条 claim 绑定 报告文件+json 指针+期望值+容差，verify_claims.py 逐条校验，漂移即红。",
-    "updated": "2026-10-06",
+    "updated": "2026-10-14",
     "data_fingerprints": {
       "data/interim/contaminated/samples.jsonl": {
         "md5": "e1dfdae8e04818a599f5e84f81106089",
@@ -10,7 +10,7 @@
     },
     "tolerance_note": "浮点 claim 用 approx（绝对差 ≤ tol）；计数与比率类用 exact。历史数字无法从落盘报告复核的，标 historical=true，不参与校验（如实标注）。",
     "facades_note": "文档门面：facades 里每条把「某文档里手写的数字」绑定到来源（claim 或 baselines）+ 渲染格式 + 字面量。verify_claims.py 校验两件事：字面量 == render(来源值)（registry-stale 则红）、文档里能找到该字面量（doc-stale 则红）。好处：**不依赖 data/reports/（生成物、不入库）**，所以在 CI 上也能拦。数字一改，门禁会把所有还没同步的文档逐条列出来。2026-09-30 收敛：文档树从34 份砍到 19 份，指向已删文档的 10 条 facade 一并删除，facade_floor 随之从 74 降到新值（只许跟随实际条数，不许为了好看而下调）。",
-    "baselines_note": "baselines 里的 tests_* 必须来自 **junitxml 实测**。⚠️ 两条读数纪律：① `--collect-only -q` 的输出格式随版本漂移，不可解析；② **后台跑全量时不能在跑完前读 junit** —— 旧 xml 还在，新xml 要等会话结束才写完（实测读到过 66% 时的中间态，少收 121 条却报 0 失败，**差点当成假绿**）。2026-10-10 实测：主仓 876 + 包 67 = 943（较 2026-10-09 的 871 多 5 条 —— test_dedup_fast.py 新增的 substring_dedup 回归用例）。",
+    "baselines_note": "baselines 里的 tests_* 必须来自 **junitxml 实测**。⚠️ 两条读数纪律：① `--collect-only -q` 的输出格式随版本漂移，不可解析；② **后台跑全量时不能在跑完前读 junit** —— 旧 xml 还在，新xml 要等会话结束才写完（实测读到过 66% 时的中间态，少收 121 条却报 0 失败，**差点当成假绿**）。2026-10-10 实测：主仓 876 + 包 67 = 943（较 2026-10-09 的 871 多 5 条 —— test_dedup_fast.py 新增的 substring_dedup 回归用例）。2026-10-14 实测：主仓 823 + 包 67 = 890（较 2026-10-10 少 53 条 —— 简化重构删除不在主链上的 tests/test_substring_dedup.py（36 条）与 tests/test_text_quality_classifier.py（17 条），用户授权的方向性删减，删后全量 junitxml 实点）。",
     "derived_note": "derived：可由源文档自己数出来的结构性计数（笔记条数 / 题库题数）。声明「文件 + 正则 + 计数语义」，verify_claims.py 现算；kind=count_contiguous 额外要求编号连续无重号。门面可用 {\"derived\": \"<id>\"} 引用——这样「N 条」不会跟着文档一起腐烂。",
     "coverage_note": "coverage_ceiling / facade_floor **必须等于实点，不留缓冲**。留缓冲 = 门禁有盲区：变异测试实测栽过——上限比实点高 1 时，「塞一个未登记硬数字」与「删一条门面登记」两个变异**都变绿**，因为加一个/删一个刚好还在缓冲里。判据没坏，是**上限设错了**。2026-10-09 实点：README 未登记 72（原设73=留 1 缓冲）；门面 91 条（原 floor 87 = 留 4 缓冲）。",
     "facade_floor": 93,
@@ -24,7 +24,7 @@
       "2026"
     ],
     "floor_lowering_reason": "2026-10-06 由 67 降到 64：删掉 scripts/showcase_app.py（1521 行 Streamlit门户）与tests/test_showcase_app.py，对应 3 条门面随文件一起消失。**这是唯一一次下调**，原因是文件被删而不是登记被忘——所以下调理由记在这里，不是改完数字就算完。下次再有人想降floor，必须先改这条理由并说明删了什么。",
-    "baseline_lowering_reason": "2026-10-06：tests_main 625 -> 600（删掉 test_showcase_app.py 的 25 条测试，实点 junitxml）；tests_total 692 -> 667（600 + 包 67，包侧未变）。",
+    "baseline_lowering_reason": "2026-10-06：tests_main 625 -> 600（删掉 test_showcase_app.py 的 25 条测试，实点 junitxml）；tests_total 692 -> 667（600 + 包 67，包侧未变）。2026-10-14：tests_main 876 -> 823、tests_total 943 -> 890（删 tests/test_substring_dedup.py 36 条 + tests/test_text_quality_classifier.py 17 条：两者测的模块均无任何 config/主链引用，属简化重构删减，junitxml 实点）。",
     "coverage_ceiling": {
       "README.md": 72,
       "docs/INTERVIEW.md": 167
@@ -297,9 +297,9 @@
     }
   ],
   "baselines": {
-    "tests_main": 876,
+    "tests_main": 823,
     "tests_pkg": 67,
-    "tests_total": 943
+    "tests_total": 890
   },
   "facades": [
     {
@@ -896,7 +896,7 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "876",
+      "literal": "823",
       "min_count": 1,
       "note": "README.md 引用测试基线 tests_main"
     },
@@ -922,7 +922,7 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "876",
+      "literal": "823",
       "min_count": 1,
       "note": "AGENTS.md 引用测试基线 tests_main"
     },
@@ -948,7 +948,7 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "943",
+      "literal": "890",
       "min_count": 1,
       "note": "AGENTS.md 引用测试基线 tests_total"
     },
@@ -961,7 +961,7 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "876",
+      "literal": "823",
       "min_count": 1,
       "note": "docs/PLATFORM.md 引用测试基线 tests_main"
     },
@@ -987,7 +987,7 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "943",
+      "literal": "890",
       "min_count": 1,
       "note": "docs/PLATFORM.md 引用测试基线 tests_total"
     },
@@ -1000,7 +1000,7 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "876",
+      "literal": "823",
       "min_count": 1,
       "note": "docs/PROOF_CHAIN.md 引用测试基线 tests_main"
     },
@@ -1083,10 +1083,10 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "876",
+      "literal": "823",
       "min_count": 1,
       "note": "自测题库第 13 题答案里的「主仓 N」基线",
-      "must_contain": "主仓 876"
+      "must_contain": "主仓 823"
     },
     {
       "id": "INTERVIEW_SELFTEST_md__pkg_tests",
@@ -1152,7 +1152,7 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "876",
+      "literal": "823",
       "min_count": 1,
       "note": "路线图规模基线里的「主仓 N」"
     },
@@ -1165,10 +1165,10 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "943",
+      "literal": "890",
       "min_count": 2,
       "note": "路线图里出现两处的总基线（34 行与 51 行）",
-      "must_contain": "943 条测试"
+      "must_contain": "890 条测试"
     },
     {
       "id": "docs_NARRATIVE_md__soul_dirty_r1",
@@ -1361,7 +1361,7 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "876",
+      "literal": "823",
       "min_count": 1,
       "note": "docs/NARRATIVE.md 引用 baseline tests_main：主仓测试数（实点 600）"
     },
@@ -1387,10 +1387,10 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "943",
+      "literal": "890",
       "min_count": 2,
       "note": "docs/NARRATIVE.md 两处引用 tests_total：第 266 行表格行「主仓 **668** + 包 **67** = **735**」与第 316 行摘要句「全链 **735** 条测试」。min_count 原登记 1，同步时才发现第 316 行也含该数字——门禁条数 < 实际引用处数，属覆盖不全，现已补齐。",
-      "must_contain": "876** + 包 **67** = **943**"
+      "must_contain": "823** + 包 **67** = **890**"
     },
     {
       "id": "docs_NARRATIVE_md__notes_count",
@@ -1428,7 +1428,7 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "943",
+      "literal": "890",
       "min_count": 1,
       "note": "README.md 第 94 行「**668 + 67 = 692**」是**同一行里同时含两个基线数字**（主仓与总数）。原先只登记了 tests_main，导致改主仓时同一行的总数没人管——本次同步才发现它没跟着变，已补登。这是「门禁条数 < 实际引用」的第三例。"
     },
@@ -1441,7 +1441,7 @@
       "fmt": "d",
       "scale": 1,
       "suffix": "",
-      "literal": "943",
+      "literal": "890",
       "min_count": 1,
       "note": "docs/PROOF_CHAIN.md 第 81 行「主仓 668 + 包 67（= 692）」同样一行两数字，与 README.md 是同一个盲区，一并补登。"
     },

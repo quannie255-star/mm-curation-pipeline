@@ -13,7 +13,7 @@
 ```bash
 deactivate 2>/dev/null          # 退出坏的 venv（如有）
 python -V                       # Python 3.11.x
-python -m pytest -q             # 健康检查：105 passed
+python -m pytest -q             # 全量健康检查：主仓 823 + 包 67 = 890（实点见 docs/claims.json → baselines）
 ```
 
 依赖缺失时：`pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple`

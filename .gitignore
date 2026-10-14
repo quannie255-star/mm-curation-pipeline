@@ -120,5 +120,11 @@ data/studio/
 datasets/
 # shell 重定向写错位置留下的空文件（本轮 heredoc 事故产物）
 /=
+# coverage.py 运行产物（coverage run/json/html，均可重生成，绝不能入库——
+# 2026-10-14 实点：三个 coverage 文件曾无任何 ignore 规则地裸奔在根目录）
+.coverage
+.coverage.*
+coverage_*.json
+coverage_*_html/
 .genie
 .wbapp_*.genie
