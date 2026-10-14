@@ -1822,3 +1822,30 @@ perplexity 新拦 1。残留 2 篇边缘误杀（法规全文数字密度 0.29 �
   合法的红。这条脚本存在的全部意义就是抓『看起来在拦、其实没拦』，
   结果它自己先被同一个坑绊倒了。教训是：判据必须能区分『被测对象失败』与
   『装置自己坏了』——否则装置一坏，所有变异都会『通过』，而你拿到的是满分。」
+
+
+### 100. 判定「死代码」要查全四层引用面——差点把主线上的 dedup_fast 当旁支删掉
+
+- 现象：2026-10-14 简化重构盘点旁支模块。`dedup_fast.py` 的表面引用只有
+  「自己的测试 + 两个 diag 脚本 + benchmark 脚本」，乍看是典型旁支；
+  同批的 `substring_dedup.py` 引用形态几乎一样（自己的测试 + 一条空靶登记键）。
+- 根因：「被谁引用」有四层，漏一层就会把活代码判死：
+  - ① config/YAML 里的算子注册名；
+  - ② src 内 import——包括**函数体内的延迟 import**
+    （`text_corpus.py` 的 `from ..dedup_fast import dedup_texts` 藏在算子执行路径上，
+    文件级 `git grep` 能搜到但容易被当噪声掠过）；
+  - ③ CI workflow / Makefile（`data-ci.yml` 的文本去重门禁整个跑在 dedup_fast 上）；
+  - ④ 测试与脚本（最浅的一层，也最容易被当成全部）。
+  `dedup_fast` 命中 ②③，是主线；`substring_dedup` 只命中 ④，才是真旁支。
+- 决策：删 `substring_dedup`（36 条测试随文件一起删，基线 876 → 823 实点回写，
+  理由记 `claims.json` 的 `baseline_lowering_reason`），留 `dedup_fast`。
+  「能不能删」的判据从「查 config 引用」升级为「四层全查」。
+  同理收编 `scripts/archive/`：`gap_audit_probe` 只被 README 引用（改文档即可挪），
+  `build_envelopes` 被主线测试按路径 importlib 加载（留），
+  `synthesis_parity_gate` 是 ROADMAP 在建事项的门禁（留）。
+- 话术：「你怎么判断一段代码是不是死代码？我把引用面查穿四层：config 注册名、
+  源码 import（尤其是函数体内的延迟 import）、CI 和 Makefile、测试和脚本。
+  这轮盘点里有两个模块表面引用长得几乎一样——都像『只有自己的测试在用』——
+  但一层层查下去，一个是真死代码，删了；另一个是 Data CI 门禁的执行核心，
+  漏看函数体里那行延迟 import 就会把门禁核心删掉。
+  『没人引用』和『只有测试引用』中间，隔着一整个 CI。」
