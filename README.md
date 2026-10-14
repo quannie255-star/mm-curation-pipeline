@@ -194,7 +194,7 @@ python -X utf8 scripts/text_dedup_benchmark.py        # 去重吞吐/召回基�
 python -X utf8 scripts/run_pipeline.py --config configs/text_funnel.yaml
 python -X utf8 scripts/finetune_gpt2.py               # 干净/脏语料训练对比（需 GPU）
 
-# 8. 专属数据判官：四步闭环（详见 docs/PRD.md + RUNBOOK 1.10）
+# 8. 专属数据判官：四步闭环（详见 RUNBOOK 1.10）
 make fetch-news                       # ① 原始数据获取（爬虫，robots 合规/幂等）
 make build-benchmark                  # ② 构建自己的 benchmark（300 条版本冻结+防污染）
 make finetune-judge                   # ③ LoRA 微调自己的模型（8GB 本机 ~70 分钟）
@@ -285,14 +285,15 @@ python scripts/findata_health_stage.py \\
 |---|---|
 | **30 秒结论 + 每个数字的出处 + 诚实边界** | [产品页](docs/product.html)（单页自包含） |
 | **完整跑法**（make-free，含 venv 踩坑、每条命令的实测输出） | [RUNBOOK](docs/RUNBOOK.md) · [QUICKSTART](docs/QUICKSTART.md)（零基础） |
-| **架构**（模态可插拔框架 + 数据流/失效路径） | [ARCHITECTURE_V2](docs/ARCHITECTURE_V2.md) · [ARCHITECTURE](docs/ARCHITECTURE.md) |
+| **架构**（模态可插拔框架 + 数据流/失效路径） | [ARCHITECTURE](docs/ARCHITECTURE.md) |
 | **数据系统**（湖分区 / DuckDB 契约闸门 / 观测 / 晋升 / 容器交付） | [PLATFORM](docs/PLATFORM.md) — 平台轨数字的唯一真相源 |
 | **求职**（简历描述 / JD 映射 / 追问预案 / 自测题库） | [RESUME](docs/RESUME.md) · [JD_RESEARCH](docs/JD_RESEARCH.md) · [INTERVIEW](docs/INTERVIEW.md) · [自测题库](docs/INTERVIEW_SELFTEST.md) |
 | **踩坑与判据**（99 条工程发现 + 评测口径 + 常见问题） | [ENGINEERING_NOTES](docs/ENGINEERING_NOTES.md) · [PROOF_CHAIN](docs/PROOF_CHAIN.md) · [FAQ](docs/FAQ.md) |
 
 **这条线现在到哪了、下一步只做哪三件** → [ROADMAP](docs/ROADMAP.md)。
-**领域增强包规范 / 产品需求** → [DOMAIN_PACKS](docs/DOMAIN_PACKS.md) · [PRD](docs/PRD.md) ·
-[真实数据首跑报告](docs/REAL_DATA_REPORT.md) · [清洗策略分析报告](docs/ANALYSIS_REPORT.md)。
+**领域增强包规范** → [DOMAIN_PACKS](docs/DOMAIN_PACKS.md)。
+**历史资料**（旧报告 / 评审记录 / 未实现草案，死档不对外）→ [docs/archive/](docs/archive/)；
+**个人线**（成长路线 / 重写任务书，非主线）→ [docs/personal/](docs/personal/)。
 
 ## License
 

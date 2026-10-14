@@ -287,18 +287,19 @@ A 回答「清洗后检索好不好」，B 回答「增益是洗出来的还是�
 | [INTERVIEW_SELFTEST.md](INTERVIEW_SELFTEST.md) | 44 题四层自测 | 检验能不能扛追问 |
 | [JD_RESEARCH.md](JD_RESEARCH.md) | 10 个在招岗位的能力对齐 | 想知道考什么 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 系统架构与降级路径 | 想看结构 |
-| [ANALYSIS_REPORT.md](ANALYSIS_REPORT.md) | 清洗策略对下游检索的影响 | 想看实验细节 |
-| [REAL_DATA_REPORT.md](REAL_DATA_REPORT.md) | 真实数据首跑报告 | 想看真实跑批 |
+| [ANALYSIS_REPORT.md](archive/ANALYSIS_REPORT.md) | 清洗策略对下游检索的首轮分析（已归档） | 想看早期实验细节 |
+| [REAL_DATA_REPORT.md](archive/REAL_DATA_REPORT.md) | 真实数据首跑报告（已归档） | 想看首次真实跑批 |
 | [QUICKSTART.md](QUICKSTART.md) | 新手操作手册 | 零基础上手 |
 | [FAQ.md](FAQ.md) | 真实踩过的坑（按频次排序） | 遇到具体问题 |
 | [DOMAIN_PACKS.md](DOMAIN_PACKS.md) | 领域增强包规范 | 想扩展新域 |
 | [RESUME.md](RESUME.md) | 简历项目描述 | 写简历 |
-| [ARCHITECTURE_V2.md](ARCHITECTURE_V2.md) | V2 设计稿（草案，**未实现**） | 只作为演进记录 |
-| [PRD.md](PRD.md) | 个人微调平台 PRD（**未实现**） | 只作为演进记录 |
-| [LEARNING_PATH.md](LEARNING_PATH.md) | 个人成长与「项目上限」路线（**非主线**，不含对外数字） | 想扩能力、想把项目往上限推 |
+| [archive/ARCHITECTURE_V2.md](archive/ARCHITECTURE_V2.md) | V2 设计稿（草案，**未实现**） | 只作为演进记录 |
+| [archive/PRD.md](archive/PRD.md) | 个人微调平台 PRD（**未实现**） | 只作为演进记录 |
+| [personal/LEARNING_PATH.md](personal/LEARNING_PATH.md) | 个人成长与「项目上限」路线（**个人线**，不含对外数字） | 想扩能力、想把项目往上限推 |
+| [personal/REWRITE_TASKS.md](personal/REWRITE_TASKS.md) | 核心模块白盒重写需求书（**个人线**） | 想吃透主线代码时对照重写 |
 
-> 标「未实现」的两份是**历史草案**，不是当前能力。对外不要引用。
-> LEARNING_PATH 是**个人成长向**文档，不参与主线叙事，也不被数字门禁登记。
+> 「已归档」与 archive/ 下其余文件（评审材料、旧路线草案）都是**死档**：不是当前能力，对外不要引用。
+> personal/ 下两份是**个人线**活跃文档，不参与主线叙事，也不被数字门禁登记。
 
 ---
 

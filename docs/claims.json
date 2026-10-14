@@ -538,7 +538,7 @@
     },
     {
       "id": "docs_ANALYSIS_REPORT_md__soul_dirty_r1",
-      "doc": "docs/ANALYSIS_REPORT.md",
+      "doc": "docs/archive/ANALYSIS_REPORT.md",
       "source": {
         "claim": "soul_dirty_r1"
       },
@@ -547,11 +547,11 @@
       "suffix": "",
       "literal": "0.459",
       "min_count": 1,
-      "note": "docs/ANALYSIS_REPORT.md 引用 soul_dirty_r1 的数字"
+      "note": "docs/archive/ANALYSIS_REPORT.md 引用 soul_dirty_r1 的数字"
     },
     {
       "id": "docs_ANALYSIS_REPORT_md__soul_clean_r1",
-      "doc": "docs/ANALYSIS_REPORT.md",
+      "doc": "docs/archive/ANALYSIS_REPORT.md",
       "source": {
         "claim": "soul_clean_r1"
       },
@@ -560,11 +560,11 @@
       "suffix": "",
       "literal": "0.556",
       "min_count": 1,
-      "note": "docs/ANALYSIS_REPORT.md 引用 soul_clean_r1 的数字"
+      "note": "docs/archive/ANALYSIS_REPORT.md 引用 soul_clean_r1 的数字"
     },
     {
       "id": "docs_ANALYSIS_REPORT_md__clip_clean_ft_r1",
-      "doc": "docs/ANALYSIS_REPORT.md",
+      "doc": "docs/archive/ANALYSIS_REPORT.md",
       "source": {
         "claim": "clip_clean_ft_r1"
       },
@@ -573,11 +573,11 @@
       "suffix": "",
       "literal": "0.688",
       "min_count": 1,
-      "note": "docs/ANALYSIS_REPORT.md 引用 clip_clean_ft_r1 的数字"
+      "note": "docs/archive/ANALYSIS_REPORT.md 引用 clip_clean_ft_r1 的数字"
     },
     {
       "id": "docs_ANALYSIS_REPORT_md__clip_dirty_ft_r1",
-      "doc": "docs/ANALYSIS_REPORT.md",
+      "doc": "docs/archive/ANALYSIS_REPORT.md",
       "source": {
         "claim": "clip_dirty_ft_r1"
       },
@@ -586,11 +586,11 @@
       "suffix": "",
       "literal": "0.636",
       "min_count": 1,
-      "note": "docs/ANALYSIS_REPORT.md 引用 clip_dirty_ft_r1 的数字"
+      "note": "docs/archive/ANALYSIS_REPORT.md 引用 clip_dirty_ft_r1 的数字"
     },
     {
       "id": "docs_ANALYSIS_REPORT_md__ppl_clean",
-      "doc": "docs/ANALYSIS_REPORT.md",
+      "doc": "docs/archive/ANALYSIS_REPORT.md",
       "source": {
         "claim": "ppl_clean"
       },
@@ -599,11 +599,11 @@
       "suffix": "",
       "literal": "7.16",
       "min_count": 1,
-      "note": "docs/ANALYSIS_REPORT.md 引用 ppl_clean 的数字"
+      "note": "docs/archive/ANALYSIS_REPORT.md 引用 ppl_clean 的数字"
     },
     {
       "id": "docs_ANALYSIS_REPORT_md__ppl_dirty",
-      "doc": "docs/ANALYSIS_REPORT.md",
+      "doc": "docs/archive/ANALYSIS_REPORT.md",
       "source": {
         "claim": "ppl_dirty"
       },
@@ -612,11 +612,11 @@
       "suffix": "",
       "literal": "7.70",
       "min_count": 1,
-      "note": "docs/ANALYSIS_REPORT.md 引用 ppl_dirty 的数字"
+      "note": "docs/archive/ANALYSIS_REPORT.md 引用 ppl_dirty 的数字"
     },
     {
       "id": "docs_ANALYSIS_REPORT_md__random_drop_margin",
-      "doc": "docs/ANALYSIS_REPORT.md",
+      "doc": "docs/archive/ANALYSIS_REPORT.md",
       "source": {
         "claim": "random_drop_margin"
       },
@@ -625,7 +625,7 @@
       "suffix": "",
       "literal": "0.131",
       "min_count": 1,
-      "note": "docs/ANALYSIS_REPORT.md 引用 random_drop_margin 的数字"
+      "note": "docs/archive/ANALYSIS_REPORT.md 引用 random_drop_margin 的数字"
     },
     {
       "id": "docs_INTERVIEW_SELFTEST_md__soul_dirty_r1",
@@ -876,7 +876,7 @@
     },
     {
       "id": "docs_REAL_DATA_REPORT_md__ind_gate_fk_worst",
-      "doc": "docs/REAL_DATA_REPORT.md",
+      "doc": "docs/archive/REAL_DATA_REPORT.md",
       "source": {
         "claim": "ind_gate_fk_worst"
       },
@@ -885,7 +885,7 @@
       "suffix": "%",
       "literal": "1.23%",
       "min_count": 1,
-      "note": "docs/REAL_DATA_REPORT.md 引用 ind_gate_fk_worst 的数字"
+      "note": "docs/archive/REAL_DATA_REPORT.md 引用 ind_gate_fk_worst 的数字"
     },
     {
       "id": "README_md__tests_main",
