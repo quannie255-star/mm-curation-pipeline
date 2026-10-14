@@ -1,0 +1,31 @@
+# 经典文本数据集清洗漏斗（CPU 友好，面向英文经典数据集）。
+# 覆盖 L1 规则层主要算子 + 近似去重。
+# 排除：chinese_ratio（中文专用）、perplexity（需 GPT-2 zh 权重 + GPU，非轻量）。
+#  这两者本跑不覆盖，覆盖率报告里体现为其「本跑未执行」，不视为死代码。
+# 阈值沿用 text_funnel.yaml 的校准口径（doc_length/line_repetition/boilerplate/
+#  pii_detect/text_minhash 一致），去掉中文占比如口与模型算子。
+name: classic_text_curation
+description: >
+  经典文本数据集（20 Newsgroups / AG News）清洗漏斗：L1 规则（长度/字符重复/
+  行重复/模板句/PII）-> 近似去重（MinHash-LSH）。与中文维基漏斗同一框架、
+  同一算子注册表、同一执行器。
+
+dataset:
+  raw_jsonl: data/raw/classic/20newsgroups_train.jsonl
+
+output:
+  dir: data/processed/classic_text
+
+operators:
+  - op: doc_length
+    params: {min: 30, max: 50000}
+  - op: char_repetition
+    params: {min: 0.8}
+  - op: line_repetition
+    params: {min: 0.8}
+  - op: boilerplate
+    params: {min: 0.8}
+  - op: pii_detect
+    params: {min: 0.9}
+  - op: text_minhash
+    params: {threshold: 0.7}

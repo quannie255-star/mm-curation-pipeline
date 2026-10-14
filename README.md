@@ -69,7 +69,7 @@ python scripts/run_studio.py
 >
 > 这两页的数字都不手抄：由 [`docs/claims.json`](docs/claims.json) 现算，**页面对不上注册表就生成失败**。
 
-## 自己验一遍（三条命令，不用 GPU、不用下载数据）
+## 自己验一遍（两条命令，不用 GPU、不用下载数据）
 
 ```bash
 git clone https://github.com/quannie255-star/mm-curation-pipeline && cd mm-curation-pipeline
@@ -77,10 +77,7 @@ git clone https://github.com/quannie255-star/mm-curation-pipeline && cd mm-curat
 # ① 对外数字都锁在注册表里：文档/前端的字面量对不上来源就红
 python -X utf8 scripts/verify_claims.py
 
-# ② "离可交付还差什么"不是我一个人说了算——判据内联在脚本里，可复跑
-python -X utf8 scripts/gap_audit_probe.py
-
-# ③ 证明上面两道门禁不是装饰：6 个变异全部应被拦红（临时沙箱里跑，不碰你的工作区）
+# ② 证明上面的门禁不是装饰：6 个变异全部应被拦红（临时沙箱里跑，不碰你的工作区）
 python -X utf8 scripts/mutation_test_claims_gate.py
 ```
 
@@ -249,35 +246,6 @@ python -m pytest packages/curation-eval/tests   # 67 项协议测试（含 5 条
 ```
 
 协议约定、五分钟上手示例与变更记录见 [包内 README](packages/curation-eval/README.md)。
-
-## 跨项目联动：findata 巡检 stage（生态延伸）
-
-mm-curation 的清洗是**采样级**质量控制（每条样本进/出）。要回答"清洗后的样本集合，作为整体健康吗？"，需要**仓库级**健康巡检——这是 [FinData-Agent](https://github.com/quannie255-star/findata-agent) 的活。
-
-`scripts/findata_health_stage.py` 把 findata 当作外部模块 import，在本仓库的清洗流水线末尾加一道仓库级健康巡检，并把 mm-curation 的产物摘要写进 findata 报告头部。
-
-```bash
-# 默认用 findata 桌面路径；可设 FINDATA_PATH 覆盖
-python scripts/findata_health_stage.py \\
-    --report data/reports/ablation_eval.json \\
-    --output data/reports/findata_health.md
-```
-
-输出示例：
-```
-## 上下游：本次巡检由 mm-curation-pipeline 触发
-- 上游输入样本数：2106
-- 上游漏斗后样本数：1585
-- 上游 Recall@1：0.575
-- findata 巡检摘要：信号 13 / 告警 8 / 抑制 5 / 健康分 36
-```
-
-**真实互借**：
-- findata 借了 `cohen_kappa`（在它的 LLM vs 规则归因器对比里）
-- mm-curation 借了 findata 的告警路由 + 报告渲染 + 健康分
-- 跑 Airflow DAG 时在 `clean_funnel` 之后追加这个 stage 即可
-
-**为什么是 stage 而非独立包**：findata 还没有 pip 发布；包外引用（`sys.path` bootstrap）既能证明"可被外部 import"，又不强迫 findata 提前做发布决策。
 
 ## 文档（6 条，按「你要什么」找）
 

@@ -121,9 +121,8 @@ BOUNDARY = [
 COMMANDS = """
 <div class="step">
   <div class="t">① 复算数字注册表（不需要数据、不需要 GPU）</div>
-  <div class="s">覆盖「文档手写数字 ↔ 注册表」与「复审清单」两部分：</div>
-  <pre>python -X utf8 scripts/verify_claims.py     # 逐条校验注册表（缺报告的标"缺报告"，不算通过）
-python -X utf8 scripts/gap_audit_probe.py   # 产品级差距审计清单可复跑（只读）</pre>
+  <div class="s">「文档手写数字 ↔ 注册表」逐条校验：</div>
+  <pre>python -X utf8 scripts/verify_claims.py     # 缺报告的标"缺报告"，不算通过</pre>
 </div>
 <div class="step">
   <div class="t">② 跑真实工业数据链路（纯 CPU，不用 GPU）</div>
